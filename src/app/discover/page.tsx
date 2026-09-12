@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import RuneCanvas from '@/components/rune/RuneCanvas';
 import CardRevealModal from '@/components/cards/CardRevealModal';
 import { CardDefinition } from '@/types';
@@ -11,6 +11,29 @@ export default function DiscoverPage() {
   const [revealedCard, setRevealedCard] = useState<CardDefinition | null>(null);
   const [isFirstDiscovery, setIsFirstDiscovery] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [energy, setEnergy] = useState<number>(5);
+  const [isLoadingEnergy, setIsLoadingEnergy] = useState(true);
+
+  // Load energy on mount
+  useEffect(() => {
+    loadEnergy();
+  }, []);
+
+  const loadEnergy = async () => {
+    try {
+      setIsLoadingEnergy(true);
+      const response = await fetch('/api/energy?userId=temp-user');
+      const data = await response.json();
+      
+      if (data.success) {
+        setEnergy(data.energy.remaining);
+      }
+    } catch (err) {
+      console.error('Failed to load energy:', err);
+    } finally {
+      setIsLoadingEnergy(false);
+    }
+  };
 
   const handleSelectionChange = (runes: number[]) => {
     setSelectedRunes(runes);
@@ -23,6 +46,11 @@ export default function DiscoverPage() {
       return;
     }
 
+    if (energy <= 0) {
+      setError('พลังค้นหาไม่เพียงพอ');
+      return;
+    }
+
     setIsDiscovering(true);
     setError(null);
 
@@ -32,7 +60,7 @@ export default function DiscoverPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           runes: selectedRunes,
-          userId: 'temp-user', // TODO: Get from auth
+          userId: 'temp-user',
         }),
       });
 
@@ -44,6 +72,11 @@ export default function DiscoverPage() {
 
       setRevealedCard(data.card);
       setIsFirstDiscovery(data.discovery.isFirstDiscovery);
+      
+      // Update energy from response
+      if (data.energy) {
+        setEnergy(data.energy.remaining);
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'เกิดข้อผิดพลาด');
     } finally {
@@ -81,7 +114,9 @@ export default function DiscoverPage() {
           <div className="bg-gray-800 rounded-lg px-4 py-2 flex items-center gap-2">
             <span className="text-amber-400">⚡</span>
             <span className="text-sm text-gray-300">พลังค้นหา:</span>
-            <span className="text-lg font-bold text-amber-400">5</span>
+            <span className="text-lg font-bold text-amber-400">
+              {isLoadingEnergy ? '...' : energy}
+            </span>
             <span className="text-sm text-gray-500">/ 5</span>
           </div>
         </div>
@@ -106,7 +141,7 @@ export default function DiscoverPage() {
         <div className="text-center">
           <button
             onClick={handleDiscover}
-            disabled={selectedRunes.length < 8 || isDiscovering}
+            disabled={selectedRunes.length < 8 || isDiscovering || energy <= 0}
             className="btn-primary text-lg px-8"
           >
             {isDiscovering ? (
