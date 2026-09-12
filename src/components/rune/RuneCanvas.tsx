@@ -169,6 +169,24 @@ export default function RuneCanvas({
     onSelectionChange([]);
   };
 
+  const randomFill = () => {
+    const set = new Set(selectedRunes);
+    let guard = 0;
+    while (set.size < maxRunes && guard < 2000) {
+      guard++;
+      set.add(Math.floor(Math.random() * GRID_SIZE * GRID_SIZE));
+    }
+    const next = [...set].slice(0, maxRunes);
+    setSelectedRunes(next);
+    onSelectionChange(next);
+    // เลื่อนมุมมองไปจุดต่างๆที่สุ่มได้ได้บ้าง
+    if (next.length > 0) {
+      const first = next[0];
+      setViewX(clamp((first % GRID_SIZE) - VIEW / 2, 0, MAX_VIEW));
+      setViewY(clamp(Math.floor(first / GRID_SIZE) - VIEW / 2, 0, MAX_VIEW));
+    }
+  };
+
   const navBtn = 'flex-1 h-10 bg-gray-800 hover:bg-gray-700 rounded-lg text-gray-200 text-sm disabled:opacity-30';
 
   return (
@@ -212,6 +230,13 @@ export default function RuneCanvas({
       </div>
 
       <div className="flex gap-2">
+        <button
+          type="button"
+          onClick={randomFill}
+          className="btn-secondary text-sm"
+        >
+          🎲 สุ่ม {maxRunes} จุด
+        </button>
         <button
           type="button"
           onClick={clearSelection}
