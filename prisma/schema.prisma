@@ -202,7 +202,9 @@ model WalletTransaction {
   referenceId     String?  @map("reference_id")
   referenceType   String?  @map("reference_type")
   description     String?
+  balanceBefore   Int      @map("balance_before")
   balanceAfter    Int      @map("balance_after")
+  idempotencyKey  String?  @unique @map("idempotency_key")
   createdAt       DateTime @default(now())
 
   // Relations
@@ -210,6 +212,7 @@ model WalletTransaction {
 
   @@index([walletId])
   @@index([type])
+  @@index([createdAt])
   @@map("wallet_transactions")
 }
 
