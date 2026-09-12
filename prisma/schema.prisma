@@ -1,0 +1,536 @@
+// Rune Dominion Arena - Prisma Schema
+// Phase 0: Initial Setup
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ===== AUTH =====
+
+model User {
+  id            String    @id @default(cuid())
+  email         String    @unique
+  username      String    @unique
+  passwordHash  String
+  displayName   String?
+  avatarUrl     String?
+  role          UserRole  @default(PLAYER)
+  isActive      Boolean   @default(true)
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  // Relations
+  wallet        Wallet?
+  cards         UserCard[]
+  decks         Deck[]
+  discoveries   DiscoveryLog[]
+  attackerBattles BattleLog[] @relation("BattleAttacker")
+  defenderBattles BattleLog[] @relation("BattleDefender")
+  quests       QuestProgress[]
+  arenaRooms    ArenaRoom[]
+  arenaParticipations ArenaParticipant[]
+  eventParticipations EventParticipation[]
+
+  @@map("users")
+}
+
+enum UserRole {
+  PLAYER
+  ADMIN
+  MODERATOR
+}
+
+// ===== CARD SYSTEM =====
+
+model CardDefinition {
+  id              String   @id @default(cuid())
+  canonicalSeedHash String @unique @map("canonical_seed_hash")
+  name            String
+  nameTh          String?  @map("name_th")
+  description     String?
+  descriptionTh   String?  @map("description_th")
+  lore            String?
+  loreTh          String?  @map("lore_th")
+  
+  // Stats
+  element         Element
+  rarity          Rarity
+  role            CardRole
+  atk             Int
+  def             Int
+  hp              Int
+  spd             Int
+  manaCost        Int      @map("manana_cost")
+  
+  // Skills
+  skill1Name      String?  @map("skill1_name")
+  skill1Desc      String?  @map("skill1_desc")
+  skill1ManaCost  Int?     @map("skill1_mana_cost")
+  skill2Name      String?  @map("skill2_name")
+  skill2Desc      String?  @map("skill2_desc")
+  skill2ManaCost  Int?     @map("skill2_mana_cost")
+  
+  // Media
+  imageUrl        String?  @map("image_url")
+  imageStatus     ImageStatus @default(PENDING) @map("image_status")
+  thumbnailUrl    String?  @map("thumbnail_url")
+  
+  // Metadata
+  discoveryCount  Int      @default(0) @map("discovery_count")
+  firstDiscovererId String? @map("first_discoverer_id")
+  firstDiscoveredAt DateTime? @map("first_discovered_at")
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  // Relations
+  userCards       UserCard[]
+  discoveries     DiscoveryLog[]
+  deckSlots       DeckSlot[]
+  imageJobs       ImageJob[]
+
+  @@index([element])
+  @@index([rarity])
+  @@index([imageStatus])
+  @@map("card_definitions")
+}
+
+enum Element {
+  EMBERBOUND   // Fire
+  TIDEBORN     // Water
+  SKYRIVEN     // Wind
+  ROOTFORGED   // Earth
+  DAWNSWORN    // Light
+  VEILMARKED   // Shadow
+}
+
+enum Rarity {
+  COMMON
+  UNCOMMON
+  RARE
+  EPIC
+  LEGENDARY
+  MYTHIC
+}
+
+enum CardRole {
+  WARRIOR
+  MAGE
+  HEALER
+  TANK
+  ASSASSIN
+  SUPPORT
+}
+
+enum ImageStatus {
+  PENDING
+  PROCESSING
+  READY
+  FAILED
+}
+
+model UserCard {
+  id              String   @id @default(cuid())
+  userId          String   @map("user_id")
+  cardId          String   @map("card_id")
+  isFavorite      Boolean  @default(false) @map("is_favorite")
+  acquiredAt      DateTime @default(now()) @map("acquired_at")
+
+  // Relations
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  card            CardDefinition @relation(fields: [cardId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, cardId])
+  @@index([userId])
+  @@map("user_cards")
+}
+
+model DiscoveryLog {
+  id              String   @id @default(cuid())
+  userId          String   @map("user_id")
+  cardId          String   @map("card_id")
+  runeSequence    String   @map("rune_sequence")
+  canonicalString String   @map("canonical_string")
+  seedHash        String   @map("seed_hash")
+  isFirstDiscovery Boolean @default(false) @map("is_first_discovery")
+  energySpent     Int      @map("energy_spent")
+  discoveredAt    DateTime @default(now()) @map("discovered_at")
+
+  // Relations
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  card            CardDefinition @relation(fields: [cardId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([cardId])
+  @@map("discovery_logs")
+}
+
+// ===== DECK SYSTEM =====
+
+model Deck {
+  id              String   @id @default(cuid())
+  userId          String   @map("user_id")
+  name            String
+  isActive        Boolean  @default(false) @map("is_active")
+  teamPower       Int      @default(0) @map("team_power")
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  // Relations
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  slots           DeckSlot[]
+
+  @@index([userId])
+  @@map("decks")
+}
+
+model DeckSlot {
+  id              String   @id @default(cuid())
+  deckId          String   @map("deck_id")
+  cardId          String   @map("card_id")
+  position        Int      // 1-5
+  lineup         LineupPosition @default(FRONTLINE)
+
+  // Relations
+  deck            Deck     @relation(fields: [deckId], references: [id], onDelete: Cascade)
+  card            CardDefinition @relation(fields: [cardId], references: [id], onDelete: Cascade)
+
+  @@unique([deckId, position])
+  @@index([deckId])
+  @@map("deck_slots")
+}
+
+enum LineupPosition {
+  FRONTLINE
+  MIDLINE
+  BACKLINE
+}
+
+// ===== BATTLE SYSTEM =====
+
+model BattleLog {
+  id              String   @id @default(cuid())
+  battleSeed      String   @unique @map("battle_seed")
+  attackerId      String   @map("attacker_id")
+  defenderId      String   @map("defender_id")
+  attackerDeckId  String   @map("attacker_deck_id")
+  defenderDeckId  String   @map("defender_deck_id")
+  attackerPower   Int      @map("attacker_power")
+  defenderPower   Int      @map("defender_power")
+  result          BattleResult
+  attackerHpRemaining Int  @map("attacker_hp_remaining")
+  defenderHpRemaining Int  @map("defender_hp_remaining")
+  turnsPlayed     Int      @map("turns_played")
+  replayData      Json?    @map("replay_data")
+  battleLog       Json?    @map("battle_log")
+  completedAt     DateTime @default(now())
+
+  // Relations
+  attacker        User     @relation("BattleAttacker", fields: [attackerId], references: [id], onDelete: Cascade)
+  defender        User     @relation("BattleDefender", fields: [defenderId], references: [id], onDelete: Cascade)
+
+  @@index([attackerId])
+  @@index([defenderId])
+  @@map("battle_logs")
+}
+
+enum BattleResult {
+  ATTACKER_WIN
+  DEFENDER_WIN
+  DRAW
+}
+
+// ===== WALLET & CURRENCY =====
+
+model Wallet {
+  id              String   @id @default(cuid())
+  userId          String   @unique @map("user_id")
+  balance         Int      @default(100) // Starting balance
+  totalEarned     Int      @default(100) @map("total_earned")
+  totalSpent      Int      @default(0) @map("total_spent")
+  lastEnergyRefill DateTime @default(now()) @map("last_energy_refill")
+  discoveryEnergy Int      @default(5) @map("discovery_energy")
+  updatedAt       DateTime @updatedAt
+
+  // Relations
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  transactions    CoinTransaction[]
+
+  @@map("wallets")
+}
+
+model CoinTransaction {
+  id              String   @id @default(cuid())
+  walletId        String   @map("wallet_id")
+  amount          Int      // Positive = credit, Negative = debit
+  balanceBefore   Int      @map("balance_before")
+  balanceAfter    Int      @map("balance_after")
+  type            TransactionType
+  referenceId     String?  @map("reference_id")
+  referenceType   String?  @map("reference_type")
+  description     String?
+  idempotencyKey  String?  @unique @map("idempotency_key")
+  createdAt       DateTime @default(now())
+
+  // Relations
+  wallet          Wallet   @relation(fields: [walletId], references: [id], onDelete: Cascade)
+
+  @@index([walletId])
+  @@index([type])
+  @@index([createdAt])
+  @@map("coin_transactions")
+}
+
+enum TransactionType {
+  DISCOVERY
+  ARENA_ENTRY
+  ARENA_REWARD
+  QUEST_REWARD
+  DAILY_LOGIN
+  PURCHASE
+  ADMIN_ADJUSTMENT
+  EVENT_REWARD
+}
+
+// ===== ARENA SYSTEM =====
+
+model ArenaRoom {
+  id              String   @id @default(cuid())
+  roomCode        String   @unique @map("room_code")
+  creatorId       String   @map("creator_id")
+  championId      String   @map("champion_id")
+  championDeckId  String   @map("champion_deck_id")
+  status          ArenaStatus @default(ACTIVE)
+  entryFee        Int      @map("entry_fee")
+  baseReward      Int      @map("base_reward")
+  maxParticipants Int      @map("max_participants")
+  currentParticipants Int  @default(1) @map("current_participants")
+  rewardPool      Int      @default(0) @map("reward_pool")
+  createdAt       DateTime @default(now())
+  expiresAt       DateTime @map("expires_at")
+  settledAt       DateTime? @map("settled_at")
+
+  // Relations
+  creator         User     @relation(fields: [creatorId], references: [id], onDelete: Cascade)
+  participants    ArenaParticipant[]
+
+  @@index([status])
+  @@index([expiresAt])
+  @@map("arena_rooms")
+}
+
+enum ArenaStatus {
+  UPCOMING
+  ACTIVE
+  SETTLING
+  SETTLED
+  EXPIRED
+}
+
+model ArenaParticipant {
+  id              String   @id @default(cuid())
+  roomId          String   @map("room_id")
+  userId          String   @map("user_id")
+  deckId          String?  @map("deck_id")
+  isChampion      Boolean  @default(false) @map("is_champion")
+  battlesWon      Int      @default(0) @map("battles_won")
+  battlesLost     Int      @default(0) @map("battles_lost")
+  score           Int      @default(0)
+  rewardClaimed   Boolean  @default(false) @map("reward_claimed")
+  rewardAmount    Int      @default(0) @map("reward_amount")
+  joinedAt        DateTime @default(now())
+
+  // Relations
+  room            ArenaRoom @relation(fields: [roomId], references: [id], onDelete: Cascade)
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([roomId, userId])
+  @@index([roomId])
+  @@index([userId])
+  @@map("arena_participants")
+}
+
+// ===== QUEST SYSTEM =====
+
+model Quest {
+  id              String   @id @default(cuid())
+  name            String
+  nameTh          String   @map("name_th")
+  description     String?
+  descriptionTh   String?  @map("description_th")
+  type            QuestType
+  targetValue     Int      @map("target_value")
+  rewardAmount    Int      @map("reward_amount")
+  isActive        Boolean  @default(true)
+  startDate       DateTime? @map("start_date")
+  endDate         DateTime? @map("end_date")
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  // Relations
+  progress        QuestProgress[]
+
+  @@index([type])
+  @@index([isActive])
+  @@map("quests")
+}
+
+enum QuestType {
+  DAILY_DISCOVERY
+  DAILY_BATTLE
+  DAILY_ARENA
+  WEEKLY_DISCOVERY
+  WEEKLY_BATTLE
+  WEEKLY_ARENA
+  PERMANENT
+  EVENT
+}
+
+model QuestProgress {
+  id              String   @id @default(cuid())
+  userId          String   @map("user_id")
+  questId         String   @map("quest_id")
+  currentValue    Int      @default(0) @map("current_value")
+  isCompleted     Boolean  @default(false) @map("is_completed")
+  isClaimed       Boolean  @default(false) @map("is_claimed")
+  completedAt     DateTime? @map("completed_at")
+  claimedAt       DateTime? @map("claimed_at")
+  lastResetDate   DateTime? @map("last_reset_date")
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  // Relations
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  quest           Quest    @relation(fields: [questId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, questId])
+  @@index([userId])
+  @@index([questId])
+  @@map("quest_progress")
+}
+
+// ===== IMAGE SYSTEM =====
+
+model ImageJob {
+  id              String   @id @default(cuid())
+  cardId          String   @map("card_id")
+  status          ImageJobStatus @default(PENDING)
+  priority        Int      @default(0)
+  retryCount      Int      @default(0) @map("retry_count")
+  maxRetries      Int      @default(3) @map("max_retries")
+  imagePrompt     String?  @map("image_prompt")
+  errorMessage    String?  @map("error_message")
+  resultUrl       String?  @map("result_url")
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  processedAt     DateTime? @map("processed_at")
+
+  // Relations
+  card            CardDefinition @relation(fields: [cardId], references: [id], onDelete: Cascade)
+
+  @@index([status])
+  @@index([priority])
+  @@map("image_jobs")
+}
+
+enum ImageJobStatus {
+  PENDING
+  PROCESSING
+  COMPLETED
+  FAILED
+}
+
+// ===== EVENT SYSTEM =====
+
+model Event {
+  id              String   @id @default(cuid())
+  name            String
+  nameTh          String   @map("name_th")
+  description     String?
+  descriptionTh   String?  @map("description_th")
+  eventType       EventType @map("event_type")
+  status          EventStatus @default(UPCOMING)
+  startDate       DateTime @map("start_date")
+  endDate         DateTime @map("end_date")
+  gracePeriodEnd  DateTime? @map("grace_period_end")
+  currencyName    String   @map("currency_name")
+  maxCurrency     Int?     @map("max_currency")
+  isActive        Boolean  @default(true)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  // Relations
+  quests          EventQuest[]
+  participations  EventParticipation[]
+
+  @@index([status])
+  @@index([startDate])
+  @@map("events")
+}
+
+enum EventType {
+  SEASONAL
+  WEEKLY
+  SPECIAL
+  COMMUNITY
+}
+
+enum EventStatus {
+  UPCOMING
+  ACTIVE
+  GRACE_PERIOD
+  ENDED
+}
+
+model EventQuest {
+  id              String   @id @default(cuid())
+  eventId         String   @map("event_id")
+  name            String
+  nameTh          String   @map("name_th")
+  description     String?
+  descriptionTh   String?  @map("description_th")
+  type            EventQuestType
+  targetValue     Int      @map("target_value")
+  rewardAmount    Int      @map("reward_amount")
+  currencyReward  Int      @default(0) @map("currency_reward")
+  isActive        Boolean  @default(true)
+  createdAt       DateTime @default(now())
+
+  // Relations
+  event           Event    @relation(fields: [eventId], references: [id], onDelete: Cascade)
+
+  @@index([eventId])
+  @@map("event_quests")
+}
+
+enum EventQuestType {
+  DAILY
+  WEEKLY
+  MILESTONE
+  COMMUNITY
+}
+
+model EventParticipation {
+  id              String   @id @default(cuid())
+  eventId         String   @map("event_id")
+  userId          String   @map("user_id")
+  currencyEarned  Int      @default(0) @map("currency_earned")
+  currencySpent   Int      @default(0) @map("currency_spent")
+  milestonesReached String[] @map("milestones_reached")
+  rewardsClaimed  Json?    @map("rewards_claimed")
+  joinedAt        DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  // Relations
+  event           Event    @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([eventId, userId])
+  @@index([eventId])
+  @@index([userId])
+  @@map("event_participations")
+}

@@ -1,0 +1,141 @@
+'use client';
+
+import { useState } from 'react';
+import RuneCanvas from '@/components/rune/RuneCanvas';
+import CardRevealModal from '@/components/cards/CardRevealModal';
+import { CardDefinition } from '@/types';
+
+export default function DiscoverPage() {
+  const [selectedRunes, setSelectedRunes] = useState<number[]>([]);
+  const [isDiscovering, setIsDiscovering] = useState(false);
+  const [revealedCard, setRevealedCard] = useState<CardDefinition | null>(null);
+  const [isFirstDiscovery, setIsFirstDiscovery] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const handleSelectionChange = (runes: number[]) => {
+    setSelectedRunes(runes);
+    setError(null);
+  };
+
+  const handleDiscover = async () => {
+    if (selectedRunes.length < 8) {
+      setError('ต้องเลือกรูนอย่างน้อย 8 ตำแหน่ง');
+      return;
+    }
+
+    setIsDiscovering(true);
+    setError(null);
+
+    try {
+      const response = await fetch('/api/discover', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          runes: selectedRunes,
+          userId: 'temp-user', // TODO: Get from auth
+        }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || 'Discovery failed');
+      }
+
+      setRevealedCard(data.card);
+      setIsFirstDiscovery(data.discovery.isFirstDiscovery);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'เกิดข้อผิดพลาด');
+    } finally {
+      setIsDiscovering(false);
+    }
+  };
+
+  const handleCloseReveal = () => {
+    setRevealedCard(null);
+    setSelectedRunes([]);
+  };
+
+  const handleAddToDeck = () => {
+    // TODO: Implement add to deck
+    alert('เพิ่มลงทีม (Phase 3 จะทำ)');
+    handleCloseReveal();
+  };
+
+  const handleDiscoverAgain = () => {
+    handleCloseReveal();
+  };
+
+  return (
+    <main className="min-h-screen p-4">
+      <div className="max-w-4xl mx-auto">
+        <h1 className="text-3xl font-bold text-center mb-2">
+          ค้นหารูน
+        </h1>
+        <p className="text-center text-gray-400 mb-6">
+          เลือกรูน 8-16 ตำแหน่งเพื่อเริ่มถอดรหัส
+        </p>
+
+        {/* Energy Display */}
+        <div className="flex justify-center mb-6">
+          <div className="bg-gray-800 rounded-lg px-4 py-2 flex items-center gap-2">
+            <span className="text-amber-400">⚡</span>
+            <span className="text-sm text-gray-300">พลังค้นหา:</span>
+            <span className="text-lg font-bold text-amber-400">5</span>
+            <span className="text-sm text-gray-500">/ 5</span>
+          </div>
+        </div>
+
+        {/* Rune Canvas */}
+        <div className="mb-6">
+          <RuneCanvas
+            onSelectionChange={handleSelectionChange}
+            minRunes={8}
+            maxRunes={16}
+          />
+        </div>
+
+        {/* Error Message */}
+        {error && (
+          <div className="text-center mb-4">
+            <p className="text-red-400 text-sm">{error}</p>
+          </div>
+        )}
+
+        {/* Discover Button */}
+        <div className="text-center">
+          <button
+            onClick={handleDiscover}
+            disabled={selectedRunes.length < 8 || isDiscovering}
+            className="btn-primary text-lg px-8"
+          >
+            {isDiscovering ? (
+              <span className="flex items-center gap-2">
+                <span className="animate-spin">⏳</span>
+                กำลังอ่านบันทึกแห่งรูน...
+              </span>
+            ) : (
+              'ถอดรหัสรูน'
+            )}
+          </button>
+        </div>
+
+        {/* Discovery Tips */}
+        <div className="mt-8 text-center text-sm text-gray-500">
+          <p>💡 เคล็ดลับ: ลำดับรูนเดียวกันจะได้การ์ดเดียวกันเสมอ</p>
+        </div>
+      </div>
+
+      {/* Card Reveal Modal */}
+      {revealedCard && (
+        <CardRevealModal
+          card={revealedCard}
+          isFirstDiscovery={isFirstDiscovery}
+          onClose={handleCloseReveal}
+          onAddToDeck={handleAddToDeck}
+          onDiscoverAgain={handleDiscoverAgain}
+        />
+      )}
+    </main>
+  );
+}
