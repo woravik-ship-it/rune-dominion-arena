@@ -1,63 +1,48 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { buildCanonicalString, hashSeed, createCardFromSeed, validateRuneSequence } from '@/services/seed';
+import { validateRuneSequence } from '@/services/seed';
+import { DiscoveryService } from '@/services/discovery';
+import { prisma } from '@/lib/prisma';
 
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { runes, userId } = body;
+    const { runes, userId: userIdParam, idempotencyKey } = body as {
+      runes?: number[];
+      userId?: string;
+      idempotencyKey?: string;
+    };
 
     // Validate rune sequence
-    const validation = validateRuneSequence(runes);
+    const validation = validateRuneSequence(runes as number[]);
     if (!validation.valid) {
       return NextResponse.json({ error: validation.error }, { status: 400 });
     }
 
-    // Build canonical string
-    const canonicalString = buildCanonicalString(runes);
+    if (!userIdParam) {
+      return NextResponse.json({ error: 'ต้องระบุ userId' }, { status: 400 });
+    }
 
-    // Hash seed
-    const seedHash = hashSeed(canonicalString);
+    // Resolve userId (รองรับ username อย่าง temp-user)
+    let userId = userIdParam;
+    if (!/^c[a-z0-9]+$/i.test(userIdParam)) {
+      const user = await prisma.user.findUnique({
+        where: { username: userIdParam },
+        select: { id: true },
+      });
+      if (!user) {
+        return NextResponse.json({ error: 'ไม่พบผู้ใช้' }, { status: 404 });
+      }
+      userId = user.id;
+    }
 
-    // Create card from seed (deterministic)
-    const card = createCardFromSeed(seedHash);
+    const result = await DiscoveryService.discover(userId, runes as number[], idempotencyKey);
 
-    // TODO: Check if card exists in database
-    // TODO: Check user energy
-    // TODO: Deduct energy
-    // TODO: Save discovery log
-    // TODO: Return card with discovery status
-
-    return NextResponse.json({
-      success: true,
-      card: {
-        name: card.name,
-        nameTh: card.nameTh,
-        description: card.description,
-        descriptionTh: card.descriptionTh,
-        lore: card.lore,
-        loreTh: card.loreTh,
-        element: card.element,
-        rarity: card.rarity,
-        role: card.role,
-        stats: {
-          atk: card.atk,
-          def: card.def,
-          hp: card.hp,
-          spd: card.spd,
-          manaCost: card.manaCost,
-        },
-        skills: card.skills,
-        imageUrl: null,
-        imageStatus: 'PENDING',
-      },
-      discovery: {
-        isFirstDiscovery: true,
-        seedHash,
-        canonicalString,
-      },
-    });
+    return NextResponse.json({ success: true, ...result });
   } catch (error) {
     console.error('Discovery error:', error);
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+    const message = error instanceof Error ? error.message : 'เกิดข้อผิดพลาดภายในเซิร์ฟเวอร์';
+    const status = message === 'พลังค้นหาไม่เพียงพอ' ? 400 : 500;
+    return NextResponse.json({ error: message }, { status });
   }
 }
+
