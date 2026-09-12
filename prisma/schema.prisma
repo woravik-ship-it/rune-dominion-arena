@@ -291,19 +291,32 @@ model ArenaRoom {
   currentRound    Int      @default(0) @map("current_round")
   startedAt       DateTime? @map("started_at")
   endedAt         DateTime? @map("ended_at")
+  // Phase 6: วงจร 24 ชม. + แชมป์ + รางวัล
+  entryFee        Int      @default(10) @map("entry_fee")
+  rewardPool      Int      @default(100) @map("reward_pool")
+  championId      String?  @map("champion_id")
+  championDeckId  String?  @map("champion_deck_id")
+  expiresAt       DateTime? @map("expires_at")
+  settledAt       DateTime? @map("settled_at")
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
 
   // Relations
   host            User     @relation(fields: [hostId], references: [id])
   participants    ArenaParticipant[]
+  challenges      ArenaChallenge[]
 
   @@index([status])
+  @@index([expiresAt])
   @@map("arena_rooms")
 }
 
 enum ArenaStatus {
   WAITING
+  ACTIVE
+  EXPIRED
+  SETTLING
+  SETTLED
   IN_PROGRESS
   COMPLETED
   CANCELLED
@@ -316,6 +329,8 @@ model ArenaParticipant {
   deckId          String?  @map("deck_id")
   placement       Int?
   prizeAmount     Int      @default(0) @map("prize_amount")
+  wins            Int      @default(0)
+  losses          Int      @default(0)
   joinedAt        DateTime @default(now()) @map("joined_at")
 
   // Relations
@@ -325,6 +340,26 @@ model ArenaParticipant {
   @@unique([roomId, userId])
   @@index([roomId])
   @@map("arena_participants")
+}
+
+model ArenaChallenge {
+  id              String   @id @default(cuid())
+  roomId          String   @map("room_id")
+  challengerId    String   @map("challenger_id")
+  challengerDeckId String  @map("challenger_deck_id")
+  defenderId      String   @map("defender_id")
+  defenderDeckId  String   @map("defender_deck_id")
+  winnerId        String?  @map("winner_id")
+  battleLogId     String?  @map("battle_log_id")
+  idempotencyKey  String?  @unique @map("idempotency_key")
+  createdAt       DateTime @default(now())
+
+  // Relations
+  room            ArenaRoom @relation(fields: [roomId], references: [id], onDelete: Cascade)
+
+  @@index([roomId])
+  @@index([challengerId])
+  @@map("arena_challenges")
 }
 
 // ===== QUESTS =====
