@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { calculateArenaReward } from '@/services/arena';
 import { WalletService } from '@/services/wallet';
+import { QuestService } from '@/services/quest';
 
 // POST /api/arena/settle — settlement ห้องหมดอายุ (เรียกได้ทุกนาทีจาก scheduler)
 // body: { roomId? } — ถ้าไม่ระบุ จะ settle ทุกห้องที่หมดอายุและยังไม่ settle
@@ -53,6 +54,12 @@ export async function POST(request: NextRequest) {
           where: { roomId: room.id, userId: winnerId },
           data: { prizeAmount: reward, placement: 1 },
         });
+        // Quest hook: นับแชมป์ Arena (ไม่ให้กระทบ flow หลัก)
+        try {
+          await QuestService.recordEvent(winnerId, 'ARENA_WIN', 1);
+        } catch (questError) {
+          console.error('Quest ARENA_WIN hook error:', questError);
+        }
       }
 
       await prisma.arenaRoom.update({

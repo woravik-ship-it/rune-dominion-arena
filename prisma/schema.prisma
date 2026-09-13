@@ -366,11 +366,13 @@ model ArenaChallenge {
 
 model Quest {
   id              String   @id @default(cuid())
+  code            String   @unique
   name            String
   nameTh          String   @map("name_th")
   description     String?
   descriptionTh   String?  @map("description_th")
   type            QuestType
+  metric          QuestMetric
   targetValue     Int      @map("target_value")
   rewardAmount    Int      @map("reward_amount")
   isActive        Boolean  @default(true)
@@ -382,6 +384,7 @@ model Quest {
   progress        QuestProgress[]
 
   @@index([type])
+  @@index([isActive])
   @@map("quests")
 }
 
@@ -392,10 +395,21 @@ enum QuestType {
   EVENT
 }
 
+// เหตุการณ์ที่ใช้นับความคืบหน้าของเควส (hook จากระบบอื่น)
+enum QuestMetric {
+  DISCOVERY
+  BATTLE
+  BATTLE_WIN
+  ARENA_WIN
+  SPEND
+}
+
 model QuestProgress {
   id              String   @id @default(cuid())
   questId         String   @map("quest_id")
   userId          String   @map("user_id")
+  // คีย์ของงวด เช่น "2025-09-13" (รายวัน) / "2025-W37" (รายสัปดาห์) / "ALL" (ถาวร)
+  periodKey       String   @map("period_key")
   currentValue    Int      @default(0) @map("current_value")
   isCompleted     Boolean  @default(false) @map("is_completed")
   completedAt     DateTime? @map("completed_at")
@@ -407,8 +421,8 @@ model QuestProgress {
   quest           Quest    @relation(fields: [questId], references: [id], onDelete: Cascade)
   user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-  @@unique([questId, userId])
-  @@index([userId])
+  @@unique([questId, userId, periodKey])
+  @@index([userId, periodKey])
   @@map("quest_progress")
 }
 

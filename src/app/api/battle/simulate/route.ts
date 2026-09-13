@@ -3,6 +3,7 @@ import { prisma } from '@/lib/prisma';
 import { buildBattleSeed } from '@/services/combat';
 import { simulateBattle } from '@/services/combat-engine';
 import { deckToCombatCards, resolveBattleUserId, buildBotTeam } from '@/services/battle-api';
+import { QuestService } from '@/services/quest';
 
 // POST /api/battle/simulate — ทดสอบเด็ค (สู้กับบอทหรือเด็คอื่น)
 // body: { userId, attackerDeckId, defenderDeckId?, bot?: boolean }
@@ -99,6 +100,16 @@ export async function POST(request: NextRequest) {
         rewardAmount: 0,
       },
     });
+
+    // Quest hook: นับการต่อสู้ + ชนะ (ไม่ให้กระทบ flow หลัก)
+    try {
+      await QuestService.recordEvent(userId, 'BATTLE', 1);
+      if (result.winner === 'A') {
+        await QuestService.recordEvent(userId, 'BATTLE_WIN', 1);
+      }
+    } catch (questError) {
+      console.error('Quest BATTLE hook error:', questError);
+    }
 
     return NextResponse.json({
       success: true,

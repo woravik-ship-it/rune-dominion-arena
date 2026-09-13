@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { validateRuneSequence } from '@/services/seed';
 import { DiscoveryService } from '@/services/discovery';
+import { QuestService } from '@/services/quest';
 import { prisma } from '@/lib/prisma';
 
 export async function POST(request: NextRequest) {
@@ -36,6 +37,13 @@ export async function POST(request: NextRequest) {
     }
 
     const result = await DiscoveryService.discover(userId, runes as number[], idempotencyKey);
+
+    // Quest hook: นับความคืบหน้าภารกิจ "ค้นพบการ์ด" (ไม่ให้กระทบ flow หลัก)
+    try {
+      await QuestService.recordEvent(userId, 'DISCOVERY', 1);
+    } catch (questError) {
+      console.error('Quest DISCOVERY hook error:', questError);
+    }
 
     return NextResponse.json({ success: true, ...result });
   } catch (error) {

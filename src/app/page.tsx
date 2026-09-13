@@ -8,16 +8,19 @@ export default function HomePage() {
         <p className="text-xl md:text-2xl text-gray-300">
           Fantasy Trading Card Game / Auto Battle / Competitive Arena
         </p>
-        <div className="pt-8">
-          <a
-            href="/discover"
-            className="btn-primary text-lg"
-          >
+        <div className="pt-8 flex flex-wrap justify-center gap-3">
+          <a href="/discover" className="btn-primary text-lg">
             เริ่มค้นหารูน
+          </a>
+          <a
+            href="/quests"
+            className="text-lg px-6 py-3 rounded-xl bg-white/10 hover:bg-white/20 text-gray-200 border border-white/10"
+          >
+            📜 สมุดภารกิจ
           </a>
         </div>
         <p className="text-sm text-gray-500 pt-4">
-          Phase 0 — Project Setup เสร็จสมบูรณ์
+          Phase 7 — Quest & Mission System เสร็จสมบูรณ์
         </p>
       </div>
     </main>
