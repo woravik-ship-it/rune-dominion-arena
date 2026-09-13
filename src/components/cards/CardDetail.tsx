@@ -49,9 +49,20 @@ export default function CardDetail({ card, onClose }: CardDetailProps) {
         {card.imageUrl ? (
           <img src={card.imageUrl} alt={card.name} className="w-full h-full object-cover rounded-lg" />
         ) : (
-          <span className="text-gray-500 text-6xl">?</span>
+          <div className="w-full h-full flex flex-col items-center justify-center gap-2">
+            <img
+              src={`/api/cards/${card.id}/image`}
+              alt={card.nameTh || card.name}
+              className="w-full h-full object-cover rounded-lg"
+            />
+          </div>
         )}
       </div>
+      {!card.imageUrl && (
+        <p className="text-xs text-center text-gray-400 -mt-3 mb-2">
+          <span className="animate-pulse">⏳</span> กำลังสร้างภาพด้วย AI...
+        </p>
+      )}
 
       {/* Info */}
       <div className="space-y-3">

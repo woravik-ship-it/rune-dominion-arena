@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { validateRuneSequence } from '@/services/seed';
 import { DiscoveryService } from '@/services/discovery';
 import { QuestService } from '@/services/quest';
+import { ImageService } from '@/services/image';
 import { prisma } from '@/lib/prisma';
 
 export async function POST(request: NextRequest) {
@@ -43,6 +44,18 @@ export async function POST(request: NextRequest) {
       await QuestService.recordEvent(userId, 'DISCOVERY', 1);
     } catch (questError) {
       console.error('Quest DISCOVERY hook error:', questError);
+    }
+
+    // Image hook: การ์ดใหม่เข้าคิวสร้างภาพอัตโนมัติ + ลองประมวลผลทันที (ไม่กระทบ flow หลัก)
+    try {
+      const img = await ImageService.enqueue(result.card.id);
+      if (img.enqueued) {
+        void ImageService.processBatch(1).catch((e) =>
+          console.error('Image process error:', e)
+        );
+      }
+    } catch (imageError) {
+      console.error('Image enqueue error:', imageError);
     }
 
     return NextResponse.json({ success: true, ...result });

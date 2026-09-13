@@ -1,3 +1,6 @@
+'use client';
+
+import { useState } from 'react';
 import { CardDefinition } from '@/types';
 
 interface CardThumbnailProps {
@@ -25,6 +28,7 @@ const elementColors: Record<string, string> = {
 };
 
 export default function CardThumbnail({ card, size = 'md', onClick }: CardThumbnailProps) {
+  const [imgFailed, setImgFailed] = useState(false);
   const sizeClasses = {
     sm: 'w-16 h-20',
     md: 'w-24 h-32',
@@ -36,14 +40,26 @@ export default function CardThumbnail({ card, size = 'md', onClick }: CardThumbn
       onClick={onClick}
       className={`${sizeClasses[size]} relative rounded-lg border-2 ${rarityColors[card.rarity]} bg-gradient-to-b ${elementColors[card.element]} cursor-pointer transition-transform hover:scale-105 overflow-hidden`}
     >
-      {/* Card Image or Placeholder */}
+      {/* Card Image — placeholder จาก /api/cards/[id]/image ขณะรอ AI */}
       <div className="absolute inset-0 flex items-center justify-center">
-        {card.imageUrl ? (
-          <img src={card.imageUrl} alt={card.name} className="w-full h-full object-cover" />
+        {!imgFailed ? (
+          <img
+            src={card.imageUrl || `/api/cards/${card.id}/image`}
+            alt={card.nameTh || card.name}
+            onError={() => setImgFailed(true)}
+            className="w-full h-full object-cover"
+          />
         ) : (
           <div className="text-white/50 text-4xl">?</div>
         )}
       </div>
+
+      {/* Badge กำลังสร้างภาพ (ยังไม่มีภาพ AI จริง) */}
+      {!card.imageUrl && (
+        <div className="absolute top-1 left-1 bg-black/70 text-white text-[9px] px-1.5 py-0.5 rounded-md">
+          <span className="animate-pulse">⏳</span> กำลังสร้างภาพ
+        </div>
+      )}
       
       {/* Card Name */}
       <div className="absolute bottom-0 left-0 right-0 bg-black/70 px-1 py-0.5">
