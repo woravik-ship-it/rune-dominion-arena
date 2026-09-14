@@ -25,13 +25,18 @@ export default function AdminUsersPage() {
   const [msg, setMsg] = useState<string | null>(null);
   const [refilling, setRefilling] = useState<string | null>(null);
 
-  const refillEnergy = async (u: AdminUser) => {
-    if (u.discoveryEnergy >= 5) return;
+  const refillEnergy = async (u: AdminUser, mode: 'refill' | 'add' = 'refill', amount = 1) => {
     setMsg(null);
     setError(null);
     setRefilling(u.id);
     try {
-      const res = await fetch(`/api/admin/users/${u.id}/energy`, { method: 'POST' });
+      const hasBody = mode !== 'refill';
+      const res = await fetch(`/api/admin/users/${u.id}/energy`, {
+        method: 'POST',
+        ...(hasBody
+          ? { headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ mode, amount }) }
+          : {}),
+      });
       const data = await res.json();
       if (!res.ok) { setError(data.error || 'เติมพลังไม่สำเร็จ'); return; }
       setMsg(data.message);
@@ -106,18 +111,34 @@ export default function AdminUsersPage() {
                   <td className="p-2 text-right">{u.discoveryCount}</td>
                   <td className="p-2 text-right text-amber-400">{u.coinBalance.toLocaleString('th-TH')}</td>
                   <td className="p-2 text-center">
-                    <button
-                      onClick={() => refillEnergy(u)}
-                      disabled={refilling === u.id}
-                      className={`text-xs px-2 py-1 rounded-full transition-colors ${
-                        u.discoveryEnergy >= 5
-                          ? 'bg-gray-700 text-gray-400 cursor-default'
-                          : 'bg-amber-600 hover:bg-amber-500 text-white'
-                      }`}
-                      title={u.discoveryEnergy >= 5 ? 'พลังเต็มอยู่แล้ว' : 'เติมพลังค้นหาเป็น 5/5'}
-                    >
-                      {refilling === u.id ? '...' : `⚡ ${u.discoveryEnergy}/5`}
-                    </button>
+                    <div className="flex items-center justify-center gap-1">
+                      <span className="text-xs text-gray-400">⚡ {u.discoveryEnergy}/5</span>
+                      {u.discoveryEnergy < 5 && (
+                        <>
+                          <button
+                            onClick={() => refillEnergy(u, 'add', 1)}
+                            disabled={refilling === u.id}
+                            className="text-xs px-2 py-1 rounded-full bg-amber-600 hover:bg-amber-500 text-white transition-colors disabled:opacity-50"
+                            title="เติมทีละ 1 หน่วย"
+                          >
+                            {refilling === u.id ? '...' : '+1'}
+                          </button>
+                          <button
+                            onClick={() => refillEnergy(u, 'refill')}
+                            disabled={refilling === u.id}
+                            className="text-xs px-2 py-1 rounded-full bg-emerald-600 hover:bg-emerald-500 text-white transition-colors disabled:opacity-50"
+                            title="เติมเต็มเป็น 5/5"
+                          >
+                            เต็ม
+                          </button>
+                        </>
+                      )}
+                      {u.discoveryEnergy >= 5 && (
+                        <span className="text-xs px-2 py-1 rounded-full bg-gray-700 text-gray-400" title="พลังเต็มอยู่แล้ว">
+                          เต็ม
+                        </span>
+                      )}
+                    </div>
                   </td>
                   <td className="p-2 text-center">
                     {u.isActive ? '✅' : '🚫'}
