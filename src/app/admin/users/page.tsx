@@ -9,6 +9,7 @@ interface AdminUser {
   displayName: string | null;
   role: string;
   isActive: boolean;
+  discoveryEnergy: number;
   cardCount: number;
   deckCount: number;
   discoveryCount: number;
@@ -21,6 +22,26 @@ export default function AdminUsersPage() {
   const [search, setSearch] = useState('');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [msg, setMsg] = useState<string | null>(null);
+  const [refilling, setRefilling] = useState<string | null>(null);
+
+  const refillEnergy = async (u: AdminUser) => {
+    if (u.discoveryEnergy >= 5) return;
+    setMsg(null);
+    setError(null);
+    setRefilling(u.id);
+    try {
+      const res = await fetch(`/api/admin/users/${u.id}/energy`, { method: 'POST' });
+      const data = await res.json();
+      if (!res.ok) { setError(data.error || 'เติมพลังไม่สำเร็จ'); return; }
+      setMsg(data.message);
+      await load(search);
+    } catch {
+      setError('เติมพลังไม่สำเร็จ');
+    } finally {
+      setRefilling(null);
+    }
+  };
 
   const load = async (q = '') => {
     setLoading(true);
@@ -51,7 +72,8 @@ export default function AdminUsersPage() {
         <button onClick={() => load(search)} className="btn-primary text-sm">ค้นหา</button>
       </div>
 
-      {error && <p className="text-red-400 mb-2">{error}</p>}
+      {msg && <p className="text-green-400 text-sm mb-2">{msg}</p>}
+      {error && <p className="text-red-400 text-sm mb-2">{error}</p>}
       {loading ? (
         <p className="text-gray-400">กำลังโหลด...</p>
       ) : (
@@ -65,6 +87,7 @@ export default function AdminUsersPage() {
                 <th className="p-2 text-right">เด็ค</th>
                 <th className="p-2 text-right">ค้นพบ</th>
                 <th className="p-2 text-right">เหรียญ</th>
+                <th className="p-2 text-center">พลังค้นหา</th>
                 <th className="p-2 text-center">สถานะ</th>
               </tr>
             </thead>
@@ -82,6 +105,20 @@ export default function AdminUsersPage() {
                   <td className="p-2 text-right">{u.deckCount}</td>
                   <td className="p-2 text-right">{u.discoveryCount}</td>
                   <td className="p-2 text-right text-amber-400">{u.coinBalance.toLocaleString('th-TH')}</td>
+                  <td className="p-2 text-center">
+                    <button
+                      onClick={() => refillEnergy(u)}
+                      disabled={refilling === u.id}
+                      className={`text-xs px-2 py-1 rounded-full transition-colors ${
+                        u.discoveryEnergy >= 5
+                          ? 'bg-gray-700 text-gray-400 cursor-default'
+                          : 'bg-amber-600 hover:bg-amber-500 text-white'
+                      }`}
+                      title={u.discoveryEnergy >= 5 ? 'พลังเต็มอยู่แล้ว' : 'เติมพลังค้นหาเป็น 5/5'}
+                    >
+                      {refilling === u.id ? '...' : `⚡ ${u.discoveryEnergy}/5`}
+                    </button>
+                  </td>
                   <td className="p-2 text-center">
                     {u.isActive ? '✅' : '🚫'}
                   </td>
