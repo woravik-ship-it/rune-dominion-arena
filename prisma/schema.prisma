@@ -12,6 +12,25 @@ datasource db {
 
 // ===== AUTH =====
 
+// ===== ADMIN =====
+
+model AdminActionLog {
+  id            String   @id @default(cuid())
+  adminId       String   @map("admin_id")
+  adminUsername String   @map("admin_username")
+  action        String // เช่น UPDATE_CARD, TOGGLE_QUEST, REQUEUE_IMAGES
+  targetType    String   @map("target_type") // CARD / QUEST / USER / IMAGE / SYSTEM
+  targetId      String?  @map("target_id")
+  detail        Json?
+  createdAt     DateTime @default(now()) @map("created_at")
+
+  @@index([createdAt])
+  @@index([adminId])
+  @@map("admin_action_logs")
+}
+
+// ===== AUTH / USER =====
+
 model User {
   id            String    @id @default(cuid())
   email         String    @unique
