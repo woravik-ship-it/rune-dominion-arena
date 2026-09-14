@@ -7,6 +7,7 @@ interface SessionUser {
   id: string;
   username: string;
   displayName: string | null;
+  role?: string;
 }
 
 export default function TopHeader() {
@@ -56,6 +57,15 @@ export default function TopHeader() {
           <Link href="/battle" className="text-sm text-gray-300 hover:text-white transition-colors hidden md:inline">
             Battle
           </Link>
+          {user && (user.role === 'ADMIN' || user.role === 'MODERATOR') && (
+            <Link
+              href="/admin"
+              className="text-sm text-amber-300 hover:text-amber-200 transition-colors hidden sm:inline"
+              title="Admin Tools"
+            >
+              ⚙️ Admin
+            </Link>
+          )}
           <Link href="/wallet" className="text-sm font-bold text-amber-400 hover:text-amber-300 transition-colors">
             🪙 {balance === null ? '...' : balance.toLocaleString('th-TH')}
           </Link>
