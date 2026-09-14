@@ -77,10 +77,12 @@ export function verifySession(token: string | undefined | null): SessionPayload 
 
 /** ตัวเลือก cookie สำหรับ session */
 export function sessionCookieOptions(maxAge: number = SESSION_TTL_SECONDS) {
+  // Secure เฉพาะเมื่อ deploy บน HTTPS จริง — ไม่งั้น browser จะไม่เก็บ cookie ตอนเข้าผ่าน http://<ip>
+  const isHttps = (process.env.NEXT_PUBLIC_APP_URL || '').startsWith('https');
   return {
     httpOnly: true,
     sameSite: 'lax' as const,
-    secure: process.env.NODE_ENV === 'production',
+    secure: process.env.NODE_ENV === 'production' && isHttps,
     path: '/',
     maxAge,
   };
