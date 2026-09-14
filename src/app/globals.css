@@ -74,4 +74,13 @@ body {
   .text-balance {
     text-wrap: balance;
   }
+
+  /* ซ่อน scrollbar (ใช้กับเมนูล่างมือถือที่เลื่อนแนวนอนได้) */
+  .scrollbar-hide {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+  .scrollbar-hide::-webkit-scrollbar {
+    display: none;
+  }
 }
