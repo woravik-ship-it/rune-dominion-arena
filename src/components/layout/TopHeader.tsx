@@ -41,26 +41,29 @@ export default function TopHeader() {
         <Link href="/" className="text-xl font-bold bg-gradient-to-r from-amber-400 to-orange-500 bg-clip-text text-transparent">
           Rune Dominion
         </Link>
-        <nav className="flex items-center gap-3 md:gap-4">
-          <Link href="/discover" className="text-sm text-gray-300 hover:text-white transition-colors">
+        <nav className="flex items-center gap-3 md:gap-4 overflow-x-auto scrollbar-hide">
+          <Link href="/discover" className="shrink-0 whitespace-nowrap text-sm text-gray-300 hover:text-white transition-colors">
             Discover
           </Link>
-          <Link href="/quests" className="text-sm text-gray-300 hover:text-white transition-colors hidden sm:inline">
+          <Link href="/quests" className="shrink-0 whitespace-nowrap text-sm text-gray-300 hover:text-white transition-colors">
             Quests
           </Link>
-          <Link href="/cards" className="text-sm text-gray-300 hover:text-white transition-colors hidden sm:inline">
+          <Link href="/cards" className="shrink-0 whitespace-nowrap text-sm text-gray-300 hover:text-white transition-colors">
             Cards
           </Link>
-          <Link href="/decks" className="text-sm text-gray-300 hover:text-white transition-colors hidden sm:inline">
+          <Link href="/decks" className="shrink-0 whitespace-nowrap text-sm text-gray-300 hover:text-white transition-colors">
             Decks
           </Link>
-          <Link href="/battle" className="text-sm text-gray-300 hover:text-white transition-colors hidden md:inline">
+          <Link href="/battle" className="shrink-0 whitespace-nowrap text-sm text-gray-300 hover:text-white transition-colors">
             Battle
+          </Link>
+          <Link href="/arena" className="shrink-0 whitespace-nowrap text-sm text-gray-300 hover:text-white transition-colors hidden md:inline">
+            Arena
           </Link>
           {user && (user.role === 'ADMIN' || user.role === 'MODERATOR') && (
             <Link
               href="/admin"
-              className="text-sm text-amber-300 hover:text-amber-200 transition-colors hidden sm:inline"
+              className="shrink-0 whitespace-nowrap text-sm text-amber-300 hover:text-amber-200 transition-colors"
               title="Admin Tools"
             >
               ⚙️ Admin
