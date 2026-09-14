@@ -110,7 +110,7 @@ describe('session (JWT HS256)', () => {
     expect(verifySession('a.b.c.d')).toBeNull();
   });
 
-  test('cookie options: httpOnly + sameSite lax + secure ใน production', () => {
+  test('cookie options: httpOnly + sameSite lax + secure เฉพาะ production บน HTTPS', () => {
     expect(SESSION_COOKIE).toBe('rda_session');
     const devOpts = sessionCookieOptions();
     expect(devOpts.httpOnly).toBe(true);
@@ -118,10 +118,24 @@ describe('session (JWT HS256)', () => {
     expect(devOpts.path).toBe('/');
     expect(devOpts.maxAge).toBe(SESSION_TTL_SECONDS);
 
-    const envWithNode = process.env as { NODE_ENV?: string };
-    envWithNode.NODE_ENV = 'production';
+    const env = process.env as { NODE_ENV?: string; NEXT_PUBLIC_APP_URL?: string };
+    const savedUrl = env.NEXT_PUBLIC_APP_URL;
+
+    // production + HTTPS → secure
+    env.NODE_ENV = 'production';
+    env.NEXT_PUBLIC_APP_URL = 'https://game.example.com';
     expect(sessionCookieOptions().secure).toBe(true);
-    envWithNode.NODE_ENV = 'development';
+
+    // production แต่เข้าผ่าน http (LAN IP) → ไม่ secure (browser ไม่งั้นจะไม่เก็บ cookie)
+    env.NEXT_PUBLIC_APP_URL = 'http://192.168.1.52:3000';
     expect(sessionCookieOptions().secure).toBe(false);
+
+    // development → ไม่ secure เสมอ
+    env.NODE_ENV = 'development';
+    env.NEXT_PUBLIC_APP_URL = 'https://game.example.com';
+    expect(sessionCookieOptions().secure).toBe(false);
+
+    if (savedUrl === undefined) delete env.NEXT_PUBLIC_APP_URL;
+    else env.NEXT_PUBLIC_APP_URL = savedUrl;
   });
 });
