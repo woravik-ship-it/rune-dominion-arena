@@ -164,9 +164,13 @@ export default function CardsPage() {
                   href={`/cards/${userCard.cardId}`}
                   className={`bg-gray-800 rounded-lg overflow-hidden border-2 ${getRarityBorder(userCard.rarity)} hover:scale-105 transition-transform`}
                 >
-                  {/* Card Image Placeholder */}
-                  <div className={`h-32 bg-gradient-to-br ${getElementColor(userCard.element)} flex items-center justify-center`}>
-                    <span className="text-4xl opacity-50">🎴</span>
+                  {/* Card Image — placeholder จาก /api/cards/[id]/image */}
+                  <div className={`h-32 relative bg-gradient-to-br ${getElementColor(userCard.element)}`}>
+                    <img
+                      src={`/api/cards/${userCard.cardId}/image`}
+                      alt={userCard.nameTh || userCard.name}
+                      className="absolute inset-0 w-full h-full object-cover"
+                    />
                   </div>
                   
                   {/* Card Info */}

@@ -58,10 +58,11 @@ export default function CardRevealModal({
             {card.imageUrl ? (
               <img src={card.imageUrl} alt={card.name} className="w-full h-full object-cover rounded-xl" />
             ) : (
-              <div className="text-center">
-                <span className="text-6xl text-white/30">?</span>
-                <p className="text-xs text-white/50 mt-2">กำลังสร้างภาพ...</p>
-              </div>
+              <img
+                src={`/api/cards/${card.id}/image`}
+                alt={card.nameTh || card.name}
+                className="w-full h-full object-cover rounded-xl"
+              />
             )}
           </div>
           

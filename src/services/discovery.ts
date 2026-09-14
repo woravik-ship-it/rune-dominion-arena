@@ -38,9 +38,35 @@ export interface DiscoveryResult {
 
 export class DiscoveryService {
   /**
+   * Lazy daily refill — เติมพลังงานกลับเป็น MAX_ENERGY อัตโนมัติเมื่อขึ้นวันใหม่
+   * (เรียกก่อนอ่าน/ใช้พลังงานทุกครั้ง ไม่ต้องพึ่ง cron)
+   */
+  private static async ensureDailyRefill(userId: string): Promise<void> {
+    const startOfToday = new Date();
+    startOfToday.setHours(0, 0, 0, 0);
+
+    // Atomic: อัปเดตเฉพาะถ้ายังไม่เคย reset ในวันนี้ (กัน race จาก request ซ้อนกัน)
+    await prisma.user.updateMany({
+      where: {
+        id: userId,
+        OR: [
+          { lastEnergyResetAt: null },
+          { lastEnergyResetAt: { lt: startOfToday } },
+        ],
+      },
+      data: {
+        discoveryEnergy: MAX_ENERGY,
+        lastEnergyResetAt: new Date(),
+      },
+    });
+  }
+
+  /**
    * คำนวณพลังงานค้นหาที่เหลืออยู่
    */
   static async getEnergy(userId: string): Promise<{ remaining: number; max: number }> {
+    await this.ensureDailyRefill(userId);
+
     const user = await prisma.user.findUnique({
       where: { id: userId },
       select: { discoveryEnergy: true },
@@ -74,6 +100,9 @@ export class DiscoveryService {
     runes: number[],
     idempotencyKey?: string
   ): Promise<DiscoveryResult> {
+    // 0. เติมพลังงานรายวัน (lazy refill) ก่อนตรวจสอบ
+    await this.ensureDailyRefill(userId);
+
     // 1. ตรวจสอบพลังงาน
     const user = await prisma.user.findUnique({
       where: { id: userId },
@@ -216,6 +245,7 @@ export class DiscoveryService {
       element: card.element,
       rarity: card.rarity,
       role: card.role,
+      imageUrl: card.imageUrl ?? null,
       stats: {
         atk: card.atk,
         def: card.def,

@@ -129,9 +129,13 @@ export default function CardDetailPage() {
 
         {/* Card Header */}
         <div className={`bg-gray-800 rounded-xl overflow-hidden border-2 ${rarityInfo?.border || 'border-gray-600'}`}>
-          {/* Card Image */}
-          <div className={`h-48 bg-gradient-to-br ${elementInfo?.color || 'from-gray-600 to-gray-700'} flex items-center justify-center relative`}>
-            <span className="text-6xl opacity-50">🎴</span>
+          {/* Card Image — ใช้รูปจริง ถ้าไม่มี fallback เป็น placeholder SVG */}
+          <div className={`h-48 relative flex items-center justify-center ${elementInfo?.color ? 'bg-gradient-to-br ' + elementInfo.color : 'bg-gradient-to-br from-gray-600 to-gray-700'}`}>
+            <img
+              src={card.imageUrl || `/api/cards/${card.id}/image`}
+              alt={card.nameTh || card.name}
+              className="absolute inset-0 w-full h-full object-cover"
+            />
             {card.imageStatus === 'PENDING' && (
               <span className="absolute top-2 right-2 bg-yellow-600 text-xs px-2 py-1 rounded">
                 รอสร้างภาพ

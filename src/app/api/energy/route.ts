@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
+import { DiscoveryService } from '@/services/discovery';
 
 export async function GET(request: NextRequest) {
   try {
@@ -18,24 +19,16 @@ export async function GET(request: NextRequest) {
       }
     }
 
-    const user = await prisma.user.findUnique({
-      where: { id: resolvedUserId },
-      select: { discoveryEnergy: true },
-    });
-
-    if (!user) {
-      return NextResponse.json({ error: 'User not found' }, { status: 404 });
-    }
+    // ผ่าน Service เพื่อให้ lazy daily refill ทำงานด้วย
+    const energy = await DiscoveryService.getEnergy(resolvedUserId);
 
     return NextResponse.json({
       success: true,
-      energy: {
-        remaining: user.discoveryEnergy,
-        max: 5,
-      },
+      energy,
     });
   } catch (error) {
     console.error('Get energy error:', error);
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+    const message = error instanceof Error ? error.message : 'Internal server error';
+    return NextResponse.json({ error: message }, { status: 500 });
   }
 }

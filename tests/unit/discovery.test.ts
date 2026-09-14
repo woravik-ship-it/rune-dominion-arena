@@ -7,6 +7,7 @@ jest.mock('@/lib/prisma', () => ({
     user: {
       findUnique: jest.fn(),
       update: jest.fn(),
+      updateMany: jest.fn(),
     },
     cardDefinition: {
       findUnique: jest.fn(),

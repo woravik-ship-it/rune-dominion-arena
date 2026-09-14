@@ -22,6 +22,7 @@ model User {
   role          UserRole  @default(PLAYER)
   isActive      Boolean   @default(true)
   discoveryEnergy Int     @default(5) @map("discovery_energy")
+  lastEnergyResetAt DateTime? @map("last_energy_reset_at")
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
 
