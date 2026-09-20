@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { calculateTeamPower, validateDeck, validatePositions } from '@/services/deck';
+import { resolveRequestUserId } from '@/lib/current-user';
 
 // GET /api/decks/:id — รายละเอียดเด็ค
 export async function GET(
@@ -84,14 +85,7 @@ export async function PUT(
     }
 
     if (userIdParam) {
-      let resolvedId = userIdParam;
-      if (!/^c[a-z0-9]+$/i.test(userIdParam)) {
-        const u = await prisma.user.findUnique({
-          where: { username: userIdParam },
-          select: { id: true },
-        });
-        resolvedId = u?.id ?? userIdParam;
-      }
+      const resolvedId = (await resolveRequestUserId(request, userIdParam)) ?? userIdParam;
       if (resolvedId !== deck.userId) {
         return NextResponse.json({ error: 'ไม่มีสิทธิ์แก้ไขเด็คนี้' }, { status: 403 });
       }

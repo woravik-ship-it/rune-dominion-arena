@@ -61,7 +61,6 @@ export default function CardsPage() {
     try {
       setLoading(true);
       const params = new URLSearchParams({
-        userId: 'temp-user',
         page: page.toString(),
         limit: '12',
       });

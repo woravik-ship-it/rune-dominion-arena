@@ -23,7 +23,7 @@ export default function DiscoverPage() {
   const loadEnergy = async () => {
     try {
       setIsLoadingEnergy(true);
-      const response = await apiFetch('/api/energy?userId=temp-user');
+      const response = await apiFetch('/api/energy');
       const data = await response.json();
       
       if (data.success) {
@@ -61,7 +61,6 @@ export default function DiscoverPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           runes: selectedRunes,
-          userId: 'temp-user',
         }),
       });
 

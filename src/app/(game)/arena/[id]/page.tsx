@@ -48,7 +48,7 @@ export default function ArenaRoomPage() {
   };
 
   const needDeckThen = async (): Promise<string | null> => {
-    const decksRes = await apiFetch('/api/decks?userId=temp-user');
+    const decksRes = await apiFetch('/api/decks');
     const decksData = await decksRes.json();
     const full = decksData.data?.find((d: { cardCount: number; id: string }) => d.cardCount === 5);
     return full?.id ?? null;
@@ -65,7 +65,7 @@ export default function ArenaRoomPage() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          userId: 'temp-user', deckId,
+          deckId,
           idempotencyKey: `${roomId}-temp-${Date.now()}`,
         }),
       });
@@ -86,7 +86,7 @@ export default function ArenaRoomPage() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          userId: 'temp-user', deckId,
+          deckId,
           idempotencyKey: `ch-${roomId}-temp-${Date.now()}`,
         }),
       });

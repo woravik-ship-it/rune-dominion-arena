@@ -1,26 +1,24 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
+import { resolveRequestUserId } from '@/lib/current-user';
 
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
-    const userId = searchParams.get('userId') || 'temp-user';
+    const param = searchParams.get('userId');
     const page = parseInt(searchParams.get('page') || '1');
     const limit = parseInt(searchParams.get('limit') || '20');
     const element = searchParams.get('element');
     const rarity = searchParams.get('rarity');
     const search = searchParams.get('search');
 
-    // Resolve userId - support username lookup
-    let resolvedUserId = userId;
-    if (userId === 'temp-user' || !userId.match(/^c[a-z0-9]+$/)) {
-      const user = await prisma.user.findUnique({
-        where: { username: userId },
-        select: { id: true },
-      });
-      if (user) {
-        resolvedUserId = user.id;
-      }
+    // ยึด session cookie ก่อน → fallback param (username/cuid)
+    const resolvedUserId = await resolveRequestUserId(request, param);
+    if (!resolvedUserId) {
+      return NextResponse.json(
+        { error: 'ไม่พบผู้ใช้ — กรุณาเข้าสู่ระบบ' },
+        { status: 401 }
+      );
     }
 
     const where: any = { userId: resolvedUserId };

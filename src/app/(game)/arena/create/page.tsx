@@ -17,7 +17,7 @@ export default function ArenaCreatePage() {
   const [err, setErr] = useState<string | null>(null);
 
   useEffect(() => {
-    apiFetch('/api/decks?userId=temp-user')
+    apiFetch('/api/decks')
       .then((r) => r.json())
       .then((d) => {
         if (d.success) {
@@ -39,7 +39,7 @@ export default function ArenaCreatePage() {
       const res = await apiFetch('/api/arena/create', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ userId: 'temp-user', name: name.trim(), deckId }),
+        body: JSON.stringify({ name: name.trim(), deckId }),
       });
       const data = await res.json();
       if (!res.ok) { setErr(data.error || 'เปิดห้องไม่สำเร็จ'); return; }

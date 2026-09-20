@@ -24,7 +24,7 @@ export default function BattleSetupPage() {
 
   const loadDecks = async () => {
     try {
-      const res = await apiFetch('/api/decks?userId=temp-user');
+      const res = await apiFetch('/api/decks');
       const data = await res.json();
       if (data.success) {
         setDecks(data.data);
@@ -43,7 +43,7 @@ export default function BattleSetupPage() {
       const res = await apiFetch('/api/battle/simulate', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ userId: 'temp-user', attackerDeckId: selected, bot: true }),
+        body: JSON.stringify({ attackerDeckId: selected, bot: true }),
       });
       const data = await res.json();
       if (!res.ok) { setError(data.error || 'เริ่มสู้ไม่สำเร็จ'); return; }

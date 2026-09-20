@@ -6,6 +6,7 @@ import { deckToCombatCards, resolveBattleUserId, buildBotTeam } from '@/services
 import { QuestService } from '@/services/quest';
 import { parseJsonBody, battleSimulateSchema } from '@/lib/validation';
 import { enforceRateLimit } from '@/lib/api-guard';
+import { resolveRequestUserId } from '@/lib/current-user';
 
 // POST /api/battle/simulate — ทดสอบเด็ค (สู้กับบอทหรือเด็คอื่น)
 // body: { userId, attackerDeckId, defenderDeckId?, bot?: boolean }
@@ -19,8 +20,8 @@ export async function POST(request: NextRequest) {
     const rl = enforceRateLimit(request, 'BATTLE', { userId: userIdParam });
     if (rl) return rl;
 
-    const userId = await resolveBattleUserId(userIdParam);
-    if (!userId) return NextResponse.json({ error: 'ไม่พบผู้ใช้' }, { status: 404 });
+    const userId = await resolveRequestUserId(request, userIdParam);
+    if (!userId) return NextResponse.json({ error: 'ไม่พบผู้ใช้ — กรุณาเข้าสู่ระบบ' }, { status: 401 });
 
     const attackerDeck = await prisma.deck.findUnique({ where: { id: attackerDeckId } });
     if (!attackerDeck || attackerDeck.userId !== userId) {
@@ -75,12 +76,12 @@ export async function POST(request: NextRequest) {
 
     let winnerId: string | null = null;
     if (result.winner === 'A') winnerId = userId;
-    else if (result.winner === 'B') winnerId = defenderUserId;
+    else if (result.winner === 'B') winnerId = defenderUserId ?? null;
 
     const saved = await prisma.battleLog.create({
       data: {
         attackerId: userId,
-        defenderId: defenderUserId,
+        defenderId: defenderUserId ?? null,
         attackerDeckId,
         defenderDeckId: defenderDeckIdFinal,
         winnerId,

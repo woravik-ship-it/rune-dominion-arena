@@ -3,31 +3,17 @@ import { prisma } from '@/lib/prisma';
 import { validateDeck, validatePositions, calculateTeamPower } from '@/services/deck';
 import { parseJsonBody, deckCreateSchema } from '@/lib/validation';
 import { enforceRateLimit } from '@/lib/api-guard';
+import { resolveRequestUserId } from '@/lib/current-user';
 
-async function resolveUserId(userId: string): Promise<string | null> {
-  if (/^c[a-z0-9]+$/i.test(userId)) {
-    const exists = await prisma.user.findUnique({
-      where: { id: userId },
-      select: { id: true },
-    });
-    if (exists) return exists.id;
-  }
-  const user = await prisma.user.findUnique({
-    where: { username: userId },
-    select: { id: true },
-  });
-  return user?.id ?? null;
-}
-
-// GET /api/decks?userId=xxx — รายการเด็คของฉัน
+// GET /api/decks — รายการเด็คของฉัน (ยึด session cookie ก่อน, param ใช้สำหรับ CLI/admin)
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
-    const userIdParam = searchParams.get('userId') || 'temp-user';
-    const userId = await resolveUserId(userIdParam);
+    const userIdParam = searchParams.get('userId');
+    const userId = await resolveRequestUserId(request, userIdParam);
 
     if (!userId) {
-      return NextResponse.json({ error: 'ไม่พบผู้ใช้' }, { status: 404 });
+      return NextResponse.json({ error: 'ไม่พบผู้ใช้ — กรุณาเข้าสู่ระบบ' }, { status: 401 });
     }
 
     const decks = await prisma.deck.findMany({
@@ -94,9 +80,10 @@ export async function POST(request: NextRequest) {
     const rl = enforceRateLimit(request, 'DECK_WRITE', { userId: userIdParam });
     if (rl) return rl;
 
-    const userId = await resolveUserId(userIdParam);
+    // ยึด session cookie ก่อน (กันเขียนเด็คแทนคนอื่น) → fallback param สำหรับเทสต์/CLI
+    const userId = await resolveRequestUserId(request, userIdParam);
     if (!userId) {
-      return NextResponse.json({ error: 'ไม่พบผู้ใช้' }, { status: 404 });
+      return NextResponse.json({ error: 'ไม่พบผู้ใช้ — กรุณาเข้าสู่ระบบ' }, { status: 401 });
     }
 
     // Validate positions

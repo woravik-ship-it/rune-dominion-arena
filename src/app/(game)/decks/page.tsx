@@ -25,7 +25,7 @@ export default function DecksPage() {
   const loadDecks = async () => {
     try {
       setLoading(true);
-      const res = await apiFetch('/api/decks?userId=temp-user');
+      const res = await apiFetch('/api/decks');
       const data = await res.json();
       if (data.success) setDecks(data.data);
     } catch (e) { console.error(e); }
@@ -34,7 +34,7 @@ export default function DecksPage() {
 
   const handleDelete = async (id: string) => {
     if (!confirm('ลบเด็คนี้ใช่หรือไม่?')) return;
-    const res = await apiFetch(`/api/decks/${id}?userId=temp-user`, { method: 'DELETE' });
+    const res = await apiFetch(`/api/decks/${id}`, { method: 'DELETE' });
     if (res.ok) setDecks((prev) => prev.filter((d) => d.id !== id));
   };
 
@@ -44,7 +44,7 @@ export default function DecksPage() {
     if (!deckName.trim()) { setError('ต้องระบุชื่อเด็ค'); return; }
     setCreating(true);
     try {
-      const cardsRes = await apiFetch('/api/cards?userId=temp-user&limit=5');
+      const cardsRes = await apiFetch('/api/cards?limit=5');
       const cardsData = await cardsRes.json();
       if (!cardsData.success || cardsData.data.length < 5) {
         setError('ต้องมีการ์ดอย่างน้อย 5 ใบก่อน (ไปค้นหารูนก่อน)');
@@ -56,7 +56,7 @@ export default function DecksPage() {
       const res = await apiFetch('/api/decks', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ userId: 'temp-user', name: deckName.trim(), slots }),
+        body: JSON.stringify({ name: deckName.trim(), slots }),
       });
       const data = await res.json();
       if (!res.ok) {

@@ -49,14 +49,14 @@ export default function ArenaLobbyPage() {
     if (!roomName.trim()) { setError('ต้องระบุชื่อห้อง'); return; }
     setCreating(true);
     try {
-      const decksRes = await apiFetch('/api/decks?userId=temp-user');
+      const decksRes = await apiFetch('/api/decks');
       const decksData = await decksRes.json();
       const full = decksData.data?.find((d: { cardCount: number }) => d.cardCount === 5);
       if (!full) { setError('ต้องมีเด็ค 5 ใบก่อน (ไปจัดทีมก่อน)'); return; }
       const res = await apiFetch('/api/arena/create', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ userId: 'temp-user', name: roomName.trim(), deckId: full.id }),
+        body: JSON.stringify({ name: roomName.trim(), deckId: full.id }),
       });
       const data = await res.json();
       if (!res.ok) { setError(data.error || 'เปิดห้องไม่สำเร็จ'); return; }

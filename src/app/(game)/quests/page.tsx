@@ -102,7 +102,7 @@ export default function QuestsPage() {
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const res = await apiFetch('/api/quests?userId=temp-user');
+      const res = await apiFetch('/api/quests');
       const json = await res.json();
       if (json.success) setBoard(json.data);
     } catch (e) {
@@ -122,7 +122,7 @@ export default function QuestsPage() {
       const res = await apiFetch(`/api/quests/${questId}/claim`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ userId: 'temp-user' }),
+        body: JSON.stringify({}),
       });
       const json = await res.json();
       if (json.success) {

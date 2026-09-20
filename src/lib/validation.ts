@@ -12,10 +12,13 @@ import {
 
 // ===== ชนิดข้อมูลกลาง =====
 
+// userId เป็น optional ได้ — API ยึด session cookie เป็นหลักแล้ว (Phase 11)
+// ถ้าส่งมา (CLI/เทสต์/admin) จะถูกใช้เป็น fallback เท่านั้น
 export const userIdSchema = z
   .string()
   .min(1, 'ต้องระบุ userId')
-  .max(100, 'userId ยาวเกินไป');
+  .max(100, 'userId ยาวเกินไป')
+  .optional();
 
 export const idempotencyKeySchema = z.string().min(1).max(100).optional();
 

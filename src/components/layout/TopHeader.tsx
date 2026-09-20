@@ -17,7 +17,7 @@ export default function TopHeader() {
   useEffect(() => {
     let cancelled = false;
     Promise.all([
-      fetch('/api/wallet?userId=temp-user').then((r) => r.json()).catch(() => null),
+      fetch('/api/wallet').then((r) => r.json()).catch(() => null),
       fetch('/api/auth/me').then((r) => (r.ok ? r.json() : null)).catch(() => null),
     ]).then(([walletData, meData]) => {
       if (cancelled) return;

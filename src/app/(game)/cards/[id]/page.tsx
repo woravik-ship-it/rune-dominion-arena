@@ -81,7 +81,6 @@ export default function CardDetailPage() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          userId: 'temp-user',
           cardId: card?.id,
           isFavorite: !isFavorite,
         }),

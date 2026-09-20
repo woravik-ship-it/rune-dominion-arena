@@ -1,23 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { prisma } from '@/lib/prisma';
 import { QuestService } from '@/services/quest';
+import { resolveRequestUserId } from '@/lib/current-user';
 
-async function resolveUserId(param: string): Promise<string | null> {
-  if (/^c[a-z0-9]+$/i.test(param)) {
-    const byId = await prisma.user.findUnique({ where: { id: param }, select: { id: true } });
-    if (byId) return byId.id;
-  }
-  const byName = await prisma.user.findUnique({ where: { username: param }, select: { id: true } });
-  return byName?.id ?? null;
-}
-
-// GET /api/quests?userId=xxx — บอร์ดภารกิจของผู้เล่น (งวดปัจจุบัน)
+// GET /api/quests — บอร์ดภารกิจของผู้เล่น (งวดปัจจุบัน) — ยึด session cookie ก่อน
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
-    const param = searchParams.get('userId') || 'temp-user';
-    const userId = await resolveUserId(param);
-    if (!userId) return NextResponse.json({ error: 'ไม่พบผู้ใช้' }, { status: 404 });
+    const param = searchParams.get('userId');
+    const userId = await resolveRequestUserId(request, param);
+    if (!userId) return NextResponse.json({ error: 'ไม่พบผู้ใช้ — กรุณาเข้าสู่ระบบ' }, { status: 401 });
 
     const board = await QuestService.getBoard(userId);
     return NextResponse.json({ success: true, data: board });

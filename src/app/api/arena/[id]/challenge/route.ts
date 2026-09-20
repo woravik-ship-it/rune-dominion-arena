@@ -6,15 +6,7 @@ import { buildBattleSeed } from '@/services/combat';
 import { simulateBattle } from '@/services/combat-engine';
 import { parseJsonBody, arenaChallengeSchema } from '@/lib/validation';
 import { enforceRateLimit } from '@/lib/api-guard';
-
-async function resolveUserId(param: string): Promise<string | null> {
-  if (/^c[a-z0-9]+$/i.test(param)) {
-    const e = await prisma.user.findUnique({ where: { id: param }, select: { id: true } });
-    if (e) return e.id;
-  }
-  const u = await prisma.user.findUnique({ where: { username: param }, select: { id: true } });
-  return u?.id ?? null;
-}
+import { resolveRequestUserId } from '@/lib/current-user';
 
 // POST /api/arena/:id/challenge — ท้าทายแชมป์
 // body: { userId, deckId, idempotencyKey? }
@@ -31,8 +23,8 @@ export async function POST(
     const rl = enforceRateLimit(request, 'ARENA_CHALLENGE', { userId: param });
     if (rl) return rl;
 
-    const userId = await resolveUserId(param);
-    if (!userId) return NextResponse.json({ error: 'ไม่พบผู้ใช้' }, { status: 404 });
+    const userId = await resolveRequestUserId(request, param);
+    if (!userId) return NextResponse.json({ error: 'ไม่พบผู้ใช้ — กรุณาเข้าสู่ระบบ' }, { status: 401 });
 
     if (idempotencyKey) {
       const dup = await prisma.arenaChallenge.findUnique({ where: { idempotencyKey } });

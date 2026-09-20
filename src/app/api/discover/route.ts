@@ -3,12 +3,12 @@ import { validateRuneSequence } from '@/services/seed';
 import { DiscoveryService } from '@/services/discovery';
 import { QuestService } from '@/services/quest';
 import { ImageService } from '@/services/image';
-import { prisma } from '@/lib/prisma';
 import { parseJsonBody, discoverSchema } from '@/lib/validation';
 import { enforceRateLimit } from '@/lib/api-guard';
 import { antiCheat, recordAction } from '@/lib/anti-cheat';
 import { logSecurityEvent } from '@/lib/security-log';
-import { getClientIp, getDeviceId } from '@/lib/request-context';
+import { getClientIp, getDeviceId, getSessionUserId } from '@/lib/request-context';
+import { resolveRequestUserId } from '@/lib/current-user';
 
 export async function POST(request: NextRequest) {
   try {
@@ -23,13 +23,17 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: validation.error }, { status: 400 });
     }
 
+    // ยึด session cookie ก่อน (client ปลอม userId ไม่ได้) แล้วค่อย fallback param
+    const sessionUserId = getSessionUserId(request);
+    const rateLimitUserId = sessionUserId ?? userIdParam;
+
     // Phase 10: Rate limit (User → Device → IP)
-    const rl = enforceRateLimit(request, 'DISCOVER', { userId: userIdParam });
+    const rl = enforceRateLimit(request, 'DISCOVER', { userId: rateLimitUserId });
     if (rl) {
       void logSecurityEvent({
         type: 'RATE_LIMIT_BLOCKED',
         severity: 'LOW',
-        userId: userIdParam,
+        userId: rateLimitUserId,
         ip: getClientIp(request),
         deviceId: getDeviceId(request),
         detail: { endpoint: 'POST /api/discover', scope: 'DISCOVER' },
@@ -38,12 +42,12 @@ export async function POST(request: NextRequest) {
     }
 
     // Phase 10: Bot pattern detection (action เร็ว/จังหวะผิดปกติ)
-    const botCheck = recordAction(antiCheat, `discover:${userIdParam}`, Date.now());
+    const botCheck = recordAction(antiCheat, `discover:${rateLimitUserId}`, Date.now());
     if (botCheck.flagged) {
       void logSecurityEvent({
         type: 'BOT_PATTERN',
         severity: 'MEDIUM',
-        userId: userIdParam,
+        userId: rateLimitUserId,
         ip: getClientIp(request),
         deviceId: getDeviceId(request),
         detail: { endpoint: 'POST /api/discover', reason: botCheck.reason, detail: botCheck.detail },
@@ -54,17 +58,13 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Resolve userId (รองรับ username อย่าง temp-user)
-    let userId = userIdParam;
-    if (!/^c[a-z0-9]+$/i.test(userIdParam)) {
-      const user = await prisma.user.findUnique({
-        where: { username: userIdParam },
-        select: { id: true },
-      });
-      if (!user) {
-        return NextResponse.json({ error: 'ไม่พบผู้ใช้' }, { status: 404 });
-      }
-      userId = user.id;
+    // Resolve userId (session → param; รองรับ username อย่าง player1 ด้วย)
+    const userId = await resolveRequestUserId(request, userIdParam);
+    if (!userId) {
+      return NextResponse.json(
+        { error: 'ไม่พบผู้ใช้ — กรุณาเข้าสู่ระบบก่อนค้นหารูน' },
+        { status: 401 }
+      );
     }
 
     const result = await DiscoveryService.discover(userId, runes as number[], idempotencyKey);

@@ -32,8 +32,8 @@ export default function WalletPage() {
     setLoading(true);
     try {
       const [wRes, tRes] = await Promise.all([
-        apiFetch('/api/wallet?userId=temp-user'),
-        apiFetch(`/api/wallet/transactions?userId=temp-user&limit=30&filter=${filter}`),
+        apiFetch('/api/wallet'),
+        apiFetch(`/api/wallet/transactions?limit=30&filter=${filter}`),
       ]);
       const w = await wRes.json();
       const t = await tRes.json();

@@ -44,7 +44,7 @@ export default function DeckBuilderPage() {
     try {
       const [deckRes, cardsRes] = await Promise.all([
         apiFetch(`/api/decks/${deckId}`),
-        apiFetch('/api/cards?userId=temp-user&limit=100'),
+        apiFetch('/api/cards?limit=100'),
       ]);
       const deckData = await deckRes.json();
       const cardsData = await cardsRes.json();
@@ -98,7 +98,7 @@ export default function DeckBuilderPage() {
       const res = await apiFetch(`/api/decks/${deckId}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ userId: 'temp-user', name: deckName, slots }),
+        body: JSON.stringify({ name: deckName, slots }),
       });
       const data = await res.json();
       if (!res.ok) {

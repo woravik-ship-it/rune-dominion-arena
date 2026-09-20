@@ -10,18 +10,10 @@ import {
 import { WalletService } from '@/services/wallet';
 import { parseJsonBody, arenaCreateSchema } from '@/lib/validation';
 import { enforceRateLimit } from '@/lib/api-guard';
-
-async function resolveUserId(param: string): Promise<string | null> {
-  if (/^c[a-z0-9]+$/i.test(param)) {
-    const e = await prisma.user.findUnique({ where: { id: param }, select: { id: true } });
-    if (e) return e.id;
-  }
-  const u = await prisma.user.findUnique({ where: { username: param }, select: { id: true } });
-  return u?.id ?? null;
-}
+import { resolveRequestUserId } from '@/lib/current-user';
 
 // POST /api/arena/create — เปิดห้องใหม่ (30 Coin)
-// body: { userId, name, deckId }
+// body: { name, deckId } — เจ้าของห้องมาจาก session cookie
 export async function POST(request: NextRequest) {
   try {
     // Phase 10: input validation (ความยาวชื่อห้อง) + rate limit
@@ -36,8 +28,8 @@ export async function POST(request: NextRequest) {
     const check = validateRoomName(name);
     if (!check.valid) return NextResponse.json({ error: check.error }, { status: 400 });
 
-    const userId = await resolveUserId(param);
-    if (!userId) return NextResponse.json({ error: 'ไม่พบผู้ใช้' }, { status: 404 });
+    const userId = await resolveRequestUserId(request, param);
+    if (!userId) return NextResponse.json({ error: 'ไม่พบผู้ใช้ — กรุณาเข้าสู่ระบบ' }, { status: 401 });
 
     const lastRoom = await prisma.arenaRoom.findFirst({
       where: { hostId: userId },
