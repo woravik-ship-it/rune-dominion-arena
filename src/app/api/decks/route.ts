@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { validateDeck, validatePositions, calculateTeamPower } from '@/services/deck';
+import { parseJsonBody, deckCreateSchema } from '@/lib/validation';
+import { enforceRateLimit } from '@/lib/api-guard';
 
 async function resolveUserId(userId: string): Promise<string | null> {
   if (/^c[a-z0-9]+$/i.test(userId)) {
@@ -84,26 +86,13 @@ export async function GET(request: NextRequest) {
 // body: { userId, name, description?, slots: [{ cardId, position }] }
 export async function POST(request: NextRequest) {
   try {
-    const body = await request.json();
-    const { userId: userIdParam, name, description, slots } = body as {
-      userId?: string;
-      name?: string;
-      description?: string;
-      slots?: Array<{ cardId: string; position: number }>;
-    };
+    // Phase 10: input validation + rate limit
+    const { data, errorResponse } = await parseJsonBody(request, deckCreateSchema);
+    if (errorResponse) return errorResponse;
+    const { userId: userIdParam, name, description, slots } = data;
 
-    if (!userIdParam) {
-      return NextResponse.json({ error: 'ต้องระบุ userId' }, { status: 400 });
-    }
-    if (!name || typeof name !== 'string' || name.trim().length === 0) {
-      return NextResponse.json({ error: 'ต้องระบุชื่อเด็ค' }, { status: 400 });
-    }
-    if (name.trim().length > 60) {
-      return NextResponse.json({ error: 'ชื่อเด็คยาวเกิน 60 ตัวอักษร' }, { status: 400 });
-    }
-    if (!Array.isArray(slots)) {
-      return NextResponse.json({ error: 'ต้องระบุ slots เป็น array' }, { status: 400 });
-    }
+    const rl = enforceRateLimit(request, 'DECK_WRITE', { userId: userIdParam });
+    if (rl) return rl;
 
     const userId = await resolveUserId(userIdParam);
     if (!userId) {

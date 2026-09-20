@@ -31,7 +31,12 @@ export function isArenaExpired(expiresAt: Date | null, now: Date = new Date()): 
   return now.getTime() >= expiresAt.getTime();
 }
 
-const PROFANITY = ['fuck', 'shit', 'bitch', 'asshole', 'damn'];
+const PROFANITY = [
+  // อังกฤษ
+  'fuck', 'shit', 'bitch', 'asshole', 'damn',
+  // ไทย
+  'ควย', 'เหี้ย', 'สัด', 'เงี่ยน', 'ส้นตีน', 'ไอ้เวร', 'ไอ้สัด',
+];
 
 export function validateRoomName(name: string): { valid: boolean; error?: string } {
   if (typeof name !== 'string' || name.trim().length === 0) {

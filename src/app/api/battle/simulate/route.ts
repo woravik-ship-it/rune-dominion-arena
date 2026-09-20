@@ -4,23 +4,20 @@ import { buildBattleSeed } from '@/services/combat';
 import { simulateBattle } from '@/services/combat-engine';
 import { deckToCombatCards, resolveBattleUserId, buildBotTeam } from '@/services/battle-api';
 import { QuestService } from '@/services/quest';
+import { parseJsonBody, battleSimulateSchema } from '@/lib/validation';
+import { enforceRateLimit } from '@/lib/api-guard';
 
 // POST /api/battle/simulate — ทดสอบเด็ค (สู้กับบอทหรือเด็คอื่น)
 // body: { userId, attackerDeckId, defenderDeckId?, bot?: boolean }
 export async function POST(request: NextRequest) {
   try {
-    const body = await request.json();
-    const { userId: userIdParam, attackerDeckId, defenderDeckId, bot } = body as {
-      userId?: string;
-      attackerDeckId?: string;
-      defenderDeckId?: string;
-      bot?: boolean;
-    };
+    // Phase 10: input validation + rate limit
+    const { data, errorResponse } = await parseJsonBody(request, battleSimulateSchema);
+    if (errorResponse) return errorResponse;
+    const { userId: userIdParam, attackerDeckId, defenderDeckId, bot } = data;
 
-    if (!userIdParam) return NextResponse.json({ error: 'ต้องระบุ userId' }, { status: 400 });
-    if (!attackerDeckId) {
-      return NextResponse.json({ error: 'ต้องระบุ attackerDeckId' }, { status: 400 });
-    }
+    const rl = enforceRateLimit(request, 'BATTLE', { userId: userIdParam });
+    if (rl) return rl;
 
     const userId = await resolveBattleUserId(userIdParam);
     if (!userId) return NextResponse.json({ error: 'ไม่พบผู้ใช้' }, { status: 404 });
@@ -94,6 +91,8 @@ export async function POST(request: NextRequest) {
           roundsPlayed: result.roundsPlayed,
           teamAHpRemaining: result.teamAHpRemaining,
           teamBHpRemaining: result.teamBHpRemaining,
+          // Phase 10: snapshot ทีมสำหรับ replay verification (คำนวณซ้ำเทียบได้)
+          teams: JSON.parse(JSON.stringify({ A: teamA, B: teamB })),
           botCardIds,
           log: JSON.parse(JSON.stringify(result.log)),
         },

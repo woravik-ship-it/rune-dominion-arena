@@ -8,6 +8,8 @@ import {
   validateRoomName,
 } from '@/services/arena';
 import { WalletService } from '@/services/wallet';
+import { parseJsonBody, arenaCreateSchema } from '@/lib/validation';
+import { enforceRateLimit } from '@/lib/api-guard';
 
 async function resolveUserId(param: string): Promise<string | null> {
   if (/^c[a-z0-9]+$/i.test(param)) {
@@ -22,17 +24,17 @@ async function resolveUserId(param: string): Promise<string | null> {
 // body: { userId, name, deckId }
 export async function POST(request: NextRequest) {
   try {
-    const body = await request.json();
-    const { userId: param, name, deckId } = body as {
-      userId?: string;
-      name?: string;
-      deckId?: string;
-    };
+    // Phase 10: input validation (ความยาวชื่อห้อง) + rate limit
+    // หมายเหตุ: กรองคำไม่เหมาะสมอยู่ใน validateRoomName (services/arena)
+    const { data, errorResponse } = await parseJsonBody(request, arenaCreateSchema);
+    if (errorResponse) return errorResponse;
+    const { userId: param, name, deckId } = data;
 
-    if (!param) return NextResponse.json({ error: 'ต้องระบุ userId' }, { status: 400 });
-    const check = validateRoomName(name ?? '');
+    const rl = enforceRateLimit(request, 'ARENA_CREATE', { userId: param });
+    if (rl) return rl;
+
+    const check = validateRoomName(name);
     if (!check.valid) return NextResponse.json({ error: check.error }, { status: 400 });
-    if (!deckId) return NextResponse.json({ error: 'ต้องระบุ deckId (ทีมป้องกัน)' }, { status: 400 });
 
     const userId = await resolveUserId(param);
     if (!userId) return NextResponse.json({ error: 'ไม่พบผู้ใช้' }, { status: 404 });
@@ -68,7 +70,7 @@ export async function POST(request: NextRequest) {
     const room = await prisma.arenaRoom.create({
       data: {
         hostId: userId,
-        name: (name as string).trim().slice(0, 60),
+        name: name.trim().slice(0, 60),
         status: 'ACTIVE',
         entryFee: ARENA_JOIN_COST,
         rewardPool: calculateArenaReward(1),

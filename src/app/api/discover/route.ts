@@ -4,24 +4,54 @@ import { DiscoveryService } from '@/services/discovery';
 import { QuestService } from '@/services/quest';
 import { ImageService } from '@/services/image';
 import { prisma } from '@/lib/prisma';
+import { parseJsonBody, discoverSchema } from '@/lib/validation';
+import { enforceRateLimit } from '@/lib/api-guard';
+import { antiCheat, recordAction } from '@/lib/anti-cheat';
+import { logSecurityEvent } from '@/lib/security-log';
+import { getClientIp, getDeviceId } from '@/lib/request-context';
 
 export async function POST(request: NextRequest) {
   try {
-    const body = await request.json();
-    const { runes, userId: userIdParam, idempotencyKey } = body as {
-      runes?: number[];
-      userId?: string;
-      idempotencyKey?: string;
-    };
+    // Phase 10: input validation (Zod)
+    const { data, errorResponse } = await parseJsonBody(request, discoverSchema);
+    if (errorResponse) return errorResponse;
+    const { runes, userId: userIdParam, idempotencyKey } = data;
 
-    // Validate rune sequence
-    const validation = validateRuneSequence(runes as number[]);
+    // Validate rune sequence (กติกาเชิงเกม — Zod ตรวจชนิด/ช่วงแล้ว)
+    const validation = validateRuneSequence(runes);
     if (!validation.valid) {
       return NextResponse.json({ error: validation.error }, { status: 400 });
     }
 
-    if (!userIdParam) {
-      return NextResponse.json({ error: 'ต้องระบุ userId' }, { status: 400 });
+    // Phase 10: Rate limit (User → Device → IP)
+    const rl = enforceRateLimit(request, 'DISCOVER', { userId: userIdParam });
+    if (rl) {
+      void logSecurityEvent({
+        type: 'RATE_LIMIT_BLOCKED',
+        severity: 'LOW',
+        userId: userIdParam,
+        ip: getClientIp(request),
+        deviceId: getDeviceId(request),
+        detail: { endpoint: 'POST /api/discover', scope: 'DISCOVER' },
+      });
+      return rl;
+    }
+
+    // Phase 10: Bot pattern detection (action เร็ว/จังหวะผิดปกติ)
+    const botCheck = recordAction(antiCheat, `discover:${userIdParam}`, Date.now());
+    if (botCheck.flagged) {
+      void logSecurityEvent({
+        type: 'BOT_PATTERN',
+        severity: 'MEDIUM',
+        userId: userIdParam,
+        ip: getClientIp(request),
+        deviceId: getDeviceId(request),
+        detail: { endpoint: 'POST /api/discover', reason: botCheck.reason, detail: botCheck.detail },
+      });
+      return NextResponse.json(
+        { error: 'ตรวจพบการใช้งานผิดปกติ กรุณาลองใหม่ภายหลัง' },
+        { status: 429 }
+      );
     }
 
     // Resolve userId (รองรับ username อย่าง temp-user)

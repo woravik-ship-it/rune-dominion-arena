@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { ARENA_JOIN_COST, ARENA_JOIN_DAILY_LIMIT, countTodayJoins, isArenaExpired } from '@/services/arena';
 import { WalletService } from '@/services/wallet';
+import { parseJsonBody, arenaChallengeSchema } from '@/lib/validation';
+import { enforceRateLimit } from '@/lib/api-guard';
 
 async function resolveUserId(param: string): Promise<string | null> {
   if (/^c[a-z0-9]+$/i.test(param)) {
@@ -19,15 +21,13 @@ export async function POST(
   { params }: { params: { id: string } }
 ) {
   try {
-    const body = await request.json();
-    const { userId: param, deckId, idempotencyKey } = body as {
-      userId?: string;
-      deckId?: string;
-      idempotencyKey?: string;
-    };
+    // Phase 10: input validation + rate limit
+    const { data, errorResponse } = await parseJsonBody(request, arenaChallengeSchema);
+    if (errorResponse) return errorResponse;
+    const { userId: param, deckId, idempotencyKey } = data;
 
-    if (!param) return NextResponse.json({ error: 'ต้องระบุ userId' }, { status: 400 });
-    if (!deckId) return NextResponse.json({ error: 'ต้องระบุ deckId' }, { status: 400 });
+    const rl = enforceRateLimit(request, 'ARENA_JOIN', { userId: param });
+    if (rl) return rl;
 
     const userId = await resolveUserId(param);
     if (!userId) return NextResponse.json({ error: 'ไม่พบผู้ใช้' }, { status: 404 });

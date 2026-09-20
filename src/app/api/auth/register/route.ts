@@ -3,9 +3,10 @@ import { prisma } from '@/lib/prisma';
 import { hashPassword } from '@/lib/password';
 import { SESSION_COOKIE, SESSION_TTL_SECONDS, sessionCookieOptions, signSession } from '@/lib/session';
 import { WalletService } from '@/services/wallet';
-
-const USERNAME_RE = /^[a-zA-Z0-9_]{3,20}$/;
-const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+import { parseJsonBody, registerSchema } from '@/lib/validation';
+import { enforceRateLimit } from '@/lib/api-guard';
+import { logSecurityEvent } from '@/lib/security-log';
+import { getClientIp, getDeviceId } from '@/lib/request-context';
 
 function toSafeUser(user: {
   id: string; username: string; email: string; displayName: string | null;
@@ -26,21 +27,26 @@ function toSafeUser(user: {
 // POST /api/auth/register — สมัครสมาชิก (username + email + password)
 export async function POST(request: NextRequest) {
   try {
-    const body = await request.json().catch(() => ({}));
-    const { username, email, password, displayName } = body as {
-      username?: string; email?: string; password?: string; displayName?: string;
-    };
+    // Phase 10: input validation (Zod — username/email/password ตามกติกาเดิม)
+    const { data, errorResponse } = await parseJsonBody(request, registerSchema);
+    if (errorResponse) return errorResponse;
+    const { username, email, password, displayName } = data;
 
-    if (!username || !USERNAME_RE.test(username)) {
-      return NextResponse.json(
-        { error: 'ชื่อผู้ใช้ต้องเป็นภาษาอังกฤษ/ตัวเลข/ขีดล่าง 3-20 ตัวอักษร' }, { status: 400 });
-    }
-    if (!email || !EMAIL_RE.test(email)) {
-      return NextResponse.json({ error: 'รูปแบบอีเมลไม่ถูกต้อง' }, { status: 400 });
-    }
-    if (!password || password.length < 8) {
-      return NextResponse.json({ error: 'รหัสผ่านต้องมีความยาวอย่างน้อย 8 ตัวอักษร' }, { status: 400 });
-    }
+    // Phase 10: rate limit กันสมัครรัวๆ
+    const rl = enforceRateLimit(request, 'AUTH_REGISTER');
+    if (rl) return rl;
+
+    // Phase 10: fingerprint — จับ IP/device ตอนสมัคร (ใช้ตรวจ Alt-account)
+    const ip = getClientIp(request);
+    const deviceId = getDeviceId(request);
+    const relatedAccounts = deviceId
+      ? await prisma.user.findMany({
+          where: {
+            OR: [{ lastDeviceId: deviceId }, { signupDeviceId: deviceId }],
+          },
+          select: { username: true },
+        })
+      : [];
 
     const existing = await prisma.user.findFirst({
       where: { OR: [{ username }, { email }] },
@@ -58,8 +64,27 @@ export async function POST(request: NextRequest) {
         email,
         passwordHash,
         displayName: displayName?.trim() || null,
+        signupIp: ip,
+        signupDeviceId: deviceId,
+        lastIp: ip,
+        lastDeviceId: deviceId,
       },
     });
+
+    // Phase 10: สมัครจาก device ที่มีบัญชีอื่นอยู่แล้ว → บันทึกสงสัยบัญชีแฝง
+    if (relatedAccounts.length > 0) {
+      void logSecurityEvent({
+        type: 'ALT_ACCOUNT_SUSPECT',
+        severity: 'HIGH',
+        userId: user.id,
+        ip,
+        deviceId,
+        detail: {
+          reason: 'SHARED_DEVICE_AT_SIGNUP',
+          related: relatedAccounts.map((a) => a.username),
+        },
+      });
+    }
 
     // สร้างกระเป๋าเริ่มต้น (โบนัสสมัคร)
     await WalletService.getWallet(user.id);

@@ -4,6 +4,8 @@ import { isArenaExpired } from '@/services/arena';
 import { deckToCombatCards } from '@/services/battle-api';
 import { buildBattleSeed } from '@/services/combat';
 import { simulateBattle } from '@/services/combat-engine';
+import { parseJsonBody, arenaChallengeSchema } from '@/lib/validation';
+import { enforceRateLimit } from '@/lib/api-guard';
 
 async function resolveUserId(param: string): Promise<string | null> {
   if (/^c[a-z0-9]+$/i.test(param)) {
@@ -21,15 +23,13 @@ export async function POST(
   { params }: { params: { id: string } }
 ) {
   try {
-    const body = await request.json();
-    const { userId: param, deckId, idempotencyKey } = body as {
-      userId?: string;
-      deckId?: string;
-      idempotencyKey?: string;
-    };
+    // Phase 10: input validation + rate limit
+    const { data, errorResponse } = await parseJsonBody(request, arenaChallengeSchema);
+    if (errorResponse) return errorResponse;
+    const { userId: param, deckId, idempotencyKey } = data;
 
-    if (!param) return NextResponse.json({ error: 'ต้องระบุ userId' }, { status: 400 });
-    if (!deckId) return NextResponse.json({ error: 'ต้องระบุ deckId' }, { status: 400 });
+    const rl = enforceRateLimit(request, 'ARENA_CHALLENGE', { userId: param });
+    if (rl) return rl;
 
     const userId = await resolveUserId(param);
     if (!userId) return NextResponse.json({ error: 'ไม่พบผู้ใช้' }, { status: 404 });
@@ -110,6 +110,8 @@ export async function POST(
           roundsPlayed: result.roundsPlayed,
           teamAHpRemaining: result.teamAHpRemaining,
           teamBHpRemaining: result.teamBHpRemaining,
+          // Phase 10: snapshot ทีมสำหรับ replay verification (คำนวณซ้ำเทียบได้)
+          teams: { A: teamA, B: teamB },
           log: JSON.parse(JSON.stringify(result.log)),
         } as never,
         rewardAmount: 0,

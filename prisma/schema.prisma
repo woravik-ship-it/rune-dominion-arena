@@ -29,6 +29,25 @@ model AdminActionLog {
   @@map("admin_action_logs")
 }
 
+// ===== SECURITY (Phase 10) =====
+
+// เหตุการณ์ความปลอดภัย — Rate limit, Bot pattern, Alt-account, Replay tamper
+model SecurityEvent {
+  id        String   @id @default(cuid())
+  type      String // RATE_LIMIT_BLOCKED / BOT_PATTERN / ALT_ACCOUNT_SUSPECT / REPLAY_TAMPERED / AUTH_FAILURE_SPIKE / CORS_BLOCKED
+  severity  String // LOW / MEDIUM / HIGH
+  userId    String?  @map("user_id")
+  ip        String?
+  deviceId  String?  @map("device_id")
+  detail    Json?
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@index([type])
+  @@index([userId])
+  @@index([createdAt])
+  @@map("security_events")
+}
+
 // ===== AUTH / USER =====
 
 model User {
@@ -42,6 +61,13 @@ model User {
   isActive      Boolean   @default(true)
   discoveryEnergy Int     @default(5) @map("discovery_energy")
   lastEnergyResetAt DateTime? @map("last_energy_reset_at")
+
+  // Phase 10: fingerprint สำหรับตรวจ Alt-account (device id + IP)
+  signupDeviceId String?   @map("signup_device_id")
+  lastDeviceId   String?   @map("last_device_id")
+  signupIp       String?   @map("signup_ip")
+  lastIp         String?   @map("last_ip")
+
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
 
