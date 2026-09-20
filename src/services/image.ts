@@ -123,8 +123,9 @@ export class ImageService {
     });
     if (locked.count !== 1) return { jobId: eligible.id, status: 'SKIPPED' };
 
+    let card: { id: string; name: string; element: string; rarity: string; role: string; loreTh: string | null; canonicalSeedHash: string } | null = null;
     try {
-      const card = await prisma.cardDefinition.findUnique({
+      card = await prisma.cardDefinition.findUnique({
         where: { id: eligible.cardId },
         select: {
           id: true, name: true, element: true, rarity: true,
@@ -147,7 +148,7 @@ export class ImageService {
       });
       await prisma.cardDefinition.update({
         where: { id: card.id },
-        data: { imageUrl: resultUrl },
+        data: { imageUrl: resultUrl, imageStatus: 'READY' },
       });
       return { jobId: eligible.id, status: 'COMPLETED', resultUrl };
     } catch (error) {
@@ -160,6 +161,13 @@ export class ImageService {
           ? { status: 'FAILED', retryCount: nextRetry, errorMessage: message, processedAt: now }
           : { status: 'PENDING', retryCount: nextRetry, errorMessage: message },
       });
+      // งานล้มเหลวถาวร → การ์ดยังใช้ placeholder ได้ แต่บอกสถานะตามจริง
+      if (failed && card) {
+        await prisma.cardDefinition.update({
+          where: { id: card.id },
+          data: { imageStatus: 'FAILED' },
+        });
+      }
       return { jobId: eligible.id, status: failed ? 'FAILED' : 'RETRY', error: message };
     }
   }
@@ -177,10 +185,22 @@ export class ImageService {
 
   /** Admin requeue: งาน FAILED กลับเข้าคิว (เริ่มนับ retry ใหม่) */
   static async requeueFailed(cardId?: string): Promise<number> {
+    const where = { status: 'FAILED' as const, ...(cardId ? { cardId } : {}) };
+    // การ์ดที่เคย FAILED ต้องกลับเป็น PENDING ให้ UI แสดง "รอสร้างภาพ" ตามจริง
+    const cards = await prisma.imageJob.findMany({
+      where,
+      select: { cardId: true },
+    });
     const result = await prisma.imageJob.updateMany({
-      where: { status: 'FAILED', ...(cardId ? { cardId } : {}) },
+      where,
       data: { status: 'PENDING', retryCount: 0, errorMessage: null },
     });
+    if (cards.length > 0) {
+      await prisma.cardDefinition.updateMany({
+        where: { id: { in: cards.map((c) => c.cardId) } },
+        data: { imageStatus: 'PENDING' },
+      });
+    }
     return result.count;
   }
 }

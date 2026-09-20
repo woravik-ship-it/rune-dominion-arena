@@ -15,6 +15,7 @@ jest.mock('@/lib/prisma', () => ({
       findUnique: jest.fn(),
       findMany: jest.fn(),
       update: jest.fn(),
+      updateMany: jest.fn(),
     },
   },
 }));
@@ -31,6 +32,7 @@ const mocked = prisma as unknown as {
     findUnique: jest.Mock;
     findMany: jest.Mock;
     update: jest.Mock;
+    updateMany: jest.Mock;
   };
 };
 
@@ -154,7 +156,7 @@ describe('ImageService.processNext', () => {
     expect(result?.resultUrl).toBe('/api/cards/card-1/image');
     expect(mocked.cardDefinition.update).toHaveBeenCalledWith({
       where: { id: 'card-1' },
-      data: { imageUrl: '/api/cards/card-1/image' },
+      data: { imageUrl: '/api/cards/card-1/image', imageStatus: 'READY' },
     });
   });
 
@@ -185,7 +187,32 @@ describe('ImageService.processNext', () => {
     });
   });
 
-  test('เกิน maxRetries → FAILED', async () => {
+  test('เกิน maxRetries → FAILED + มาร์กการ์ดเป็น FAILED', async () => {
+    // การ์ดมีจริง แต่ prompt ที่ผูกกับงานไม่ผ่าน moderation → ล้มเหลวถาวรเมื่อเกิน maxRetries
+    mocked.imageJob.findMany.mockResolvedValueOnce([{
+      ...JOB, retryCount: 2, updatedAt: new Date(Date.now() - 300_000),
+      imagePrompt: 'ภาพโป๊ของฮีโร่',
+    }]);
+    mocked.imageJob.updateMany.mockResolvedValueOnce({ count: 1 });
+    mocked.cardDefinition.findUnique.mockResolvedValueOnce(CARD_BASE);
+    mocked.imageJob.update.mockResolvedValueOnce({});
+    mocked.cardDefinition.update.mockResolvedValueOnce({});
+
+    const result = await ImageService.processNext();
+
+    expect(result?.status).toBe('FAILED');
+    expect(mocked.imageJob.update).toHaveBeenCalledWith({
+      where: { id: 'job-1' },
+      data: expect.objectContaining({ status: 'FAILED', retryCount: 3 }),
+    });
+    // การ์ดต้องถูกทำเครื่องหมาย FAILED เพื่อให้ UI ไม่ค้าง "รอสร้างภาพ" ตลอดไป
+    expect(mocked.cardDefinition.update).toHaveBeenCalledWith({
+      where: { id: 'card-1' },
+      data: { imageStatus: 'FAILED' },
+    });
+  });
+
+  test('หาการ์ดไม่เจอ + เกิน maxRetries → FAILED โดยไม่แตะการ์ด', async () => {
     mocked.imageJob.findMany.mockResolvedValueOnce([{
       ...JOB, retryCount: 2, updatedAt: new Date(Date.now() - 300_000),
     }]);
@@ -196,10 +223,7 @@ describe('ImageService.processNext', () => {
     const result = await ImageService.processNext();
 
     expect(result?.status).toBe('FAILED');
-    expect(mocked.imageJob.update).toHaveBeenCalledWith({
-      where: { id: 'job-1' },
-      data: expect.objectContaining({ status: 'FAILED', retryCount: 3 }),
-    });
+    expect(mocked.cardDefinition.update).not.toHaveBeenCalled();
   });
 
   test('งาน retry ยังไม่พ้น backoff → ข้าม', async () => {
@@ -227,6 +251,7 @@ describe('ImageService.processNext', () => {
 
 describe('ImageService.requeueFailed', () => {
   test('FAILED → PENDING และรีเซ็ต retryCount', async () => {
+    mocked.imageJob.findMany.mockResolvedValueOnce([]);
     mocked.imageJob.updateMany.mockResolvedValueOnce({ count: 4 });
 
     const count = await ImageService.requeueFailed();
@@ -235,6 +260,20 @@ describe('ImageService.requeueFailed', () => {
     expect(mocked.imageJob.updateMany).toHaveBeenCalledWith({
       where: { status: 'FAILED' },
       data: { status: 'PENDING', retryCount: 0, errorMessage: null },
+    });
+  });
+
+  test('requeue แล้วการ์ดที่เคย FAILED กลับเป็น PENDING (UI กลับมา "รอสร้างภาพ")', async () => {
+    mocked.imageJob.findMany.mockResolvedValueOnce([{ cardId: 'card-1' }, { cardId: 'card-2' }]);
+    mocked.imageJob.updateMany.mockResolvedValueOnce({ count: 2 });
+    mocked.cardDefinition.updateMany.mockResolvedValueOnce({ count: 2 });
+
+    const count = await ImageService.requeueFailed();
+
+    expect(count).toBe(2);
+    expect(mocked.cardDefinition.updateMany).toHaveBeenCalledWith({
+      where: { id: { in: ['card-1', 'card-2'] } },
+      data: { imageStatus: 'PENDING' },
     });
   });
 });

@@ -7,6 +7,10 @@ import { NextRequest, NextResponse } from 'next/server';
 const ALLOWED_METHODS = 'GET, POST, PATCH, PUT, DELETE, OPTIONS';
 const ALLOWED_HEADERS = 'Content-Type, Idempotency-Key, X-Device-Id, X-Worker-Token';
 
+// dev เท่านั้น: เข้าผ่าน IP ในวง LAN (IP เปลี่ยนได้ทุกวัน) / ชื่อเครื่อง .local
+const DEV_LAN_ORIGIN_RE =
+  /^https?:\/\/(?:localhost|127\.0\.0\.1|\[::1\]|(?:10|127)\.\d{1,3}\.\d{1,3}\.\d{1,3}|192\.168\.\d{1,3}\.\d{1,3}|172\.(?:1[6-9]|2\d|3[01])\.\d{1,3}\.\d{1,3}|100\.(?:6[4-9]|[7-9]\d|1[01]\d|12[0-7])\.\d{1,3}\.\d{1,3}|[a-zA-Z0-9-]+(?:\.local|\.lan|\.home))(?::\d{1,5})?$/;
+
 function parseAllowedOrigins(): string[] {
   return (process.env.CORS_ALLOWED_ORIGINS || '')
     .split(',')
@@ -14,14 +18,25 @@ function parseAllowedOrigins(): string[] {
     .filter(Boolean);
 }
 
+/** origin ของ dev/LAN ที่ปลอดภัย — อนุญาตเฉพาะโหมด development */
+function isDevLanOrigin(origin: string): boolean {
+  if (process.env.NODE_ENV === 'production') return false;
+  return DEV_LAN_ORIGIN_RE.test(origin.toLowerCase());
+}
+
 /** origin นี้อนุญาตหรือไม่ (ไม่ส่ง Origin header = same-origin/เครื่องมือ CLI → อนุญาต) */
 export function isOriginAllowed(origin: string | null, request: NextRequest): boolean {
   if (!origin) return true;
   if (parseAllowedOrigins().includes(origin)) return true;
+  // dev/LAN: เข้าจากมือถือด้วย IP ของเครื่อง (IP เปลี่ยนทุกวัน) หรือชื่อเครื่อง .local
+  if (isDevLanOrigin(origin)) return true;
   try {
     const originHost = new URL(origin).host;
     // same-origin: เทียบกับ origin ของ request เอง หรือ host header (กรณีอยู่หลัง proxy)
-    const requestHost = request.nextUrl?.host || request.headers.get('host');
+    const requestHost =
+      request.headers.get('x-forwarded-host') ||
+      request.headers.get('host') ||
+      request.nextUrl?.host;
     if (requestHost && originHost === requestHost) return true;
   } catch {
     // origin ฟอร์แมตเพี้ยน → ปฏิเสธ
