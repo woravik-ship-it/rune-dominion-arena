@@ -1,5 +1,6 @@
 'use client';
 
+import { apiFetch } from '@/lib/api-client';
 import { useState, useEffect } from 'react';
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
@@ -61,7 +62,7 @@ export default function CardDetailPage() {
   const loadCard = async () => {
     try {
       setLoading(true);
-      const response = await fetch(`/api/cards/${params.id}`);
+      const response = await apiFetch(`/api/cards/${params.id}`);
       const data = await response.json();
 
       if (data.success) {
@@ -76,7 +77,7 @@ export default function CardDetailPage() {
 
   const handleFavorite = async () => {
     try {
-      const response = await fetch('/api/cards/favorite', {
+      const response = await apiFetch('/api/cards/favorite', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

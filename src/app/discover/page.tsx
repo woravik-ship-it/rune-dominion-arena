@@ -1,5 +1,6 @@
 'use client';
 
+import { apiFetch } from '@/lib/api-client';
 import { useState, useEffect } from 'react';
 import RuneCanvas from '@/components/rune/RuneCanvas';
 import CardRevealModal from '@/components/cards/CardRevealModal';
@@ -22,7 +23,7 @@ export default function DiscoverPage() {
   const loadEnergy = async () => {
     try {
       setIsLoadingEnergy(true);
-      const response = await fetch('/api/energy?userId=temp-user');
+      const response = await apiFetch('/api/energy?userId=temp-user');
       const data = await response.json();
       
       if (data.success) {
@@ -55,7 +56,7 @@ export default function DiscoverPage() {
     setError(null);
 
     try {
-      const response = await fetch('/api/discover', {
+      const response = await apiFetch('/api/discover', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

@@ -1,5 +1,6 @@
 'use client';
 
+import { apiFetch } from '@/lib/api-client';
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
 
@@ -26,7 +27,7 @@ export default function ArenaLobbyPage() {
   const loadRooms = async () => {
     try {
       setLoading(true);
-      const res = await fetch('/api/arena?filter=active');
+      const res = await apiFetch('/api/arena?filter=active');
       const data = await res.json();
       if (data.success) setRooms(data.data);
     } catch (e) { console.error(e); }
@@ -48,11 +49,11 @@ export default function ArenaLobbyPage() {
     if (!roomName.trim()) { setError('ต้องระบุชื่อห้อง'); return; }
     setCreating(true);
     try {
-      const decksRes = await fetch('/api/decks?userId=temp-user');
+      const decksRes = await apiFetch('/api/decks?userId=temp-user');
       const decksData = await decksRes.json();
       const full = decksData.data?.find((d: { cardCount: number }) => d.cardCount === 5);
       if (!full) { setError('ต้องมีเด็ค 5 ใบก่อน (ไปจัดทีมก่อน)'); return; }
-      const res = await fetch('/api/arena/create', {
+      const res = await apiFetch('/api/arena/create', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ userId: 'temp-user', name: roomName.trim(), deckId: full.id }),

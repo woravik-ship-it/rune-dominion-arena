@@ -1,5 +1,6 @@
 'use client';
 
+import { apiFetch } from '@/lib/api-client';
 import { useState, useEffect } from 'react';
 
 interface WalletInfo {
@@ -31,8 +32,8 @@ export default function WalletPage() {
     setLoading(true);
     try {
       const [wRes, tRes] = await Promise.all([
-        fetch('/api/wallet?userId=temp-user'),
-        fetch(`/api/wallet/transactions?userId=temp-user&limit=30&filter=${filter}`),
+        apiFetch('/api/wallet?userId=temp-user'),
+        apiFetch(`/api/wallet/transactions?userId=temp-user&limit=30&filter=${filter}`),
       ]);
       const w = await wRes.json();
       const t = await tRes.json();

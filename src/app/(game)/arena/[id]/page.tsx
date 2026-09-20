@@ -1,5 +1,6 @@
 'use client';
 
+import { apiFetch } from '@/lib/api-client';
 import { useState, useEffect } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 
@@ -39,7 +40,7 @@ export default function ArenaRoomPage() {
 
   const loadRoom = async () => {
     try {
-      const res = await fetch(`/api/arena/${roomId}`);
+      const res = await apiFetch(`/api/arena/${roomId}`);
       const data = await res.json();
       if (data.success) setRoom(data.data);
     } catch (e) { console.error(e); }
@@ -47,7 +48,7 @@ export default function ArenaRoomPage() {
   };
 
   const needDeckThen = async (): Promise<string | null> => {
-    const decksRes = await fetch('/api/decks?userId=temp-user');
+    const decksRes = await apiFetch('/api/decks?userId=temp-user');
     const decksData = await decksRes.json();
     const full = decksData.data?.find((d: { cardCount: number; id: string }) => d.cardCount === 5);
     return full?.id ?? null;
@@ -60,7 +61,7 @@ export default function ArenaRoomPage() {
     if (!confirm(`ใช้ Coin ${room?.entryFee} เหรียญเพื่อเข้าท้าทายห้องนี้?`)) return;
     setBusy(true);
     try {
-      const res = await fetch(`/api/arena/${roomId}/join`, {
+      const res = await apiFetch(`/api/arena/${roomId}/join`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -81,7 +82,7 @@ export default function ArenaRoomPage() {
     if (!deckId) { setErr('ต้องมีเด็ค 5 ใบก่อน'); return; }
     setBusy(true);
     try {
-      const res = await fetch(`/api/arena/${roomId}/challenge`, {
+      const res = await apiFetch(`/api/arena/${roomId}/challenge`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

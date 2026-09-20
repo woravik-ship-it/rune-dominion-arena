@@ -1,5 +1,6 @@
 'use client';
 
+import { apiFetch } from '@/lib/api-client';
 import { useState, useEffect, useCallback } from 'react';
 
 interface QuestView {
@@ -101,7 +102,7 @@ export default function QuestsPage() {
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const res = await fetch('/api/quests?userId=temp-user');
+      const res = await apiFetch('/api/quests?userId=temp-user');
       const json = await res.json();
       if (json.success) setBoard(json.data);
     } catch (e) {
@@ -118,7 +119,7 @@ export default function QuestsPage() {
   const claim = async (questId: string) => {
     setClaimingId(questId);
     try {
-      const res = await fetch(`/api/quests/${questId}/claim`, {
+      const res = await apiFetch(`/api/quests/${questId}/claim`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ userId: 'temp-user' }),

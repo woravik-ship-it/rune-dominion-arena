@@ -1,5 +1,6 @@
 'use client';
 
+import { apiFetch } from '@/lib/api-client';
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
 
@@ -24,7 +25,7 @@ export default function DecksPage() {
   const loadDecks = async () => {
     try {
       setLoading(true);
-      const res = await fetch('/api/decks?userId=temp-user');
+      const res = await apiFetch('/api/decks?userId=temp-user');
       const data = await res.json();
       if (data.success) setDecks(data.data);
     } catch (e) { console.error(e); }
@@ -33,7 +34,7 @@ export default function DecksPage() {
 
   const handleDelete = async (id: string) => {
     if (!confirm('ลบเด็คนี้ใช่หรือไม่?')) return;
-    const res = await fetch(`/api/decks/${id}?userId=temp-user`, { method: 'DELETE' });
+    const res = await apiFetch(`/api/decks/${id}?userId=temp-user`, { method: 'DELETE' });
     if (res.ok) setDecks((prev) => prev.filter((d) => d.id !== id));
   };
 
@@ -43,7 +44,7 @@ export default function DecksPage() {
     if (!deckName.trim()) { setError('ต้องระบุชื่อเด็ค'); return; }
     setCreating(true);
     try {
-      const cardsRes = await fetch('/api/cards?userId=temp-user&limit=5');
+      const cardsRes = await apiFetch('/api/cards?userId=temp-user&limit=5');
       const cardsData = await cardsRes.json();
       if (!cardsData.success || cardsData.data.length < 5) {
         setError('ต้องมีการ์ดอย่างน้อย 5 ใบก่อน (ไปค้นหารูนก่อน)');
@@ -52,7 +53,7 @@ export default function DecksPage() {
       const slots = cardsData.data.slice(0, 5).map((c: { cardId: string }, i: number) => ({
         cardId: c.cardId, position: i,
       }));
-      const res = await fetch('/api/decks', {
+      const res = await apiFetch('/api/decks', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ userId: 'temp-user', name: deckName.trim(), slots }),

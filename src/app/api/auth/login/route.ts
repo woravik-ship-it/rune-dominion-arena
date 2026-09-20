@@ -17,7 +17,16 @@ export async function POST(request: NextRequest) {
 
     // Phase 10: rate limit กัน brute force — ต่อ IP และต่อบัญชีเป้าหมาย
     const rl = enforceRateLimit(request, 'AUTH_LOGIN');
-    if (rl) return rl;
+    if (rl) {
+      void logSecurityEvent({
+        type: 'AUTH_FAILURE_SPIKE',
+        severity: 'MEDIUM',
+        ip: getClientIp(request),
+        deviceId: getDeviceId(request),
+        detail: { endpoint: 'POST /api/auth/login', scope: 'AUTH_LOGIN', key: 'per-ip' },
+      });
+      return rl;
+    }
     const acctKey = `acct:${identifier.trim().toLowerCase()}`;
     const acctRl = enforceRateLimitForKey(request, 'AUTH_LOGIN', acctKey);
     if (acctRl) {

@@ -1,5 +1,6 @@
 'use client';
 
+import { apiFetch } from '@/lib/api-client';
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
 
@@ -68,7 +69,7 @@ export default function CardsPage() {
       if (rarityFilter) params.set('rarity', rarityFilter);
       if (search) params.set('search', search);
 
-      const response = await fetch(`/api/cards?${params}`);
+      const response = await apiFetch(`/api/cards?${params}`);
       const data = await response.json();
 
       if (data.success) {

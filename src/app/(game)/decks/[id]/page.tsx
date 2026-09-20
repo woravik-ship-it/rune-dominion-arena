@@ -1,5 +1,6 @@
 'use client';
 
+import { apiFetch } from '@/lib/api-client';
 import { useState, useEffect } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 
@@ -42,8 +43,8 @@ export default function DeckBuilderPage() {
     setLoading(true);
     try {
       const [deckRes, cardsRes] = await Promise.all([
-        fetch(`/api/decks/${deckId}`),
-        fetch('/api/cards?userId=temp-user&limit=100'),
+        apiFetch(`/api/decks/${deckId}`),
+        apiFetch('/api/cards?userId=temp-user&limit=100'),
       ]);
       const deckData = await deckRes.json();
       const cardsData = await cardsRes.json();
@@ -94,7 +95,7 @@ export default function DeckBuilderPage() {
     setSaving(true);
     try {
       const slots = placed.map((c, position) => ({ cardId: c!.cardId, position }));
-      const res = await fetch(`/api/decks/${deckId}`, {
+      const res = await apiFetch(`/api/decks/${deckId}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ userId: 'temp-user', name: deckName, slots }),

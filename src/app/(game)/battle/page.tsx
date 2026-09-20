@@ -1,5 +1,6 @@
 'use client';
 
+import { apiFetch } from '@/lib/api-client';
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
@@ -23,7 +24,7 @@ export default function BattleSetupPage() {
 
   const loadDecks = async () => {
     try {
-      const res = await fetch('/api/decks?userId=temp-user');
+      const res = await apiFetch('/api/decks?userId=temp-user');
       const data = await res.json();
       if (data.success) {
         setDecks(data.data);
@@ -39,7 +40,7 @@ export default function BattleSetupPage() {
     if (!selected) { setError('เลือกเด็คก่อน (ต้องมี 5 ใบ)'); return; }
     setFighting(true);
     try {
-      const res = await fetch('/api/battle/simulate', {
+      const res = await apiFetch('/api/battle/simulate', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ userId: 'temp-user', attackerDeckId: selected, bot: true }),

@@ -1,5 +1,6 @@
 'use client';
 
+import { apiFetch } from '@/lib/api-client';
 import { useState, useEffect, useRef } from 'react';
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
@@ -39,7 +40,7 @@ export default function BattleViewerPage() {
 
   const loadBattle = async () => {
     try {
-      const res = await fetch(`/api/battle/${battleId}/log`);
+      const res = await apiFetch(`/api/battle/${battleId}/log`);
       const data = await res.json();
       if (res.ok) {
         const bd = data.data.battleData;

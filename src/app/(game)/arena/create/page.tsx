@@ -1,5 +1,6 @@
 'use client';
 
+import { apiFetch } from '@/lib/api-client';
 import { useState, useEffect } from 'react';
 
 interface Deck {
@@ -16,7 +17,7 @@ export default function ArenaCreatePage() {
   const [err, setErr] = useState<string | null>(null);
 
   useEffect(() => {
-    fetch('/api/decks?userId=temp-user')
+    apiFetch('/api/decks?userId=temp-user')
       .then((r) => r.json())
       .then((d) => {
         if (d.success) {
@@ -35,7 +36,7 @@ export default function ArenaCreatePage() {
     if (!confirm('ใช้ Coin 30 เหรียญเพื่อเปิดห้องนี้?')) return;
     setBusy(true);
     try {
-      const res = await fetch('/api/arena/create', {
+      const res = await apiFetch('/api/arena/create', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ userId: 'temp-user', name: name.trim(), deckId }),
