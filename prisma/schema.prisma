@@ -84,6 +84,8 @@ model User {
   eventParticipations EventParticipation[]
   eventRaids          EventRaidAttempt[]
   eventPurchases      EventShopPurchase[]
+  eventQuestProgress  EventQuestProgress[]
+  inventory           UserInventoryItem[]
   discoveredCards     CardDefinition[]     @relation("FirstDiscoverer")
 
   @@map("users")
@@ -569,10 +571,33 @@ model EventQuest {
   createdAt      DateTime       @default(now())
 
   // Relations
-  event Event @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  event    Event                @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  progress EventQuestProgress[]
 
   @@index([eventId])
   @@map("event_quests")
+}
+
+// ความคืบหน้าของ Event Quest ต่อผู้เล่นต่องวด (Phase 11.2 — hook จาก raid จริง)
+model EventQuestProgress {
+  id            String    @id @default(cuid())
+  eventQuestId  String    @map("event_quest_id")
+  userId        String    @map("user_id")
+  periodKey     String    @map("period_key")
+  currentValue  Int       @default(0) @map("current_value")
+  isCompleted   Boolean   @default(false) @map("is_completed")
+  completedAt   DateTime? @map("completed_at")
+  rewardClaimed Boolean   @default(false) @map("reward_claimed")
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  // Relations
+  quest EventQuest @relation(fields: [eventQuestId], references: [id], onDelete: Cascade)
+  user  User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([eventQuestId, userId, periodKey])
+  @@index([userId, periodKey])
+  @@map("event_quest_progress")
 }
 
 enum EventQuestType {
@@ -776,4 +801,36 @@ model EventCommunityProgress {
   event Event @relation(fields: [eventId], references: [id], onDelete: Cascade)
 
   @@map("event_community_progress")
+}
+
+// ===== PHASE 11.3: ของสะสมผู้เล่น (ปลายทางของรางวัล cosmetic / crafting) =====
+
+// ของสะสมของผู้เล่น (การ์ดพิเศษ, เครื่องประดับ, ฉายา, วัตถุดิบ, บทเนื้อเรื่อง)
+model UserInventoryItem {
+  id         String            @id @default(cuid())
+  userId     String            @map("user_id")
+  itemType   InventoryItemType @map("item_type")
+  code       String
+  nameTh     String            @map("name_th")
+  quantity   Int               @default(1)
+  source     String?
+  eventId    String?           @map("event_id")
+  metadata   Json?
+  acquiredAt DateTime          @default(now()) @map("acquired_at")
+  updatedAt  DateTime          @updatedAt
+
+  // Relations
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, itemType, code])
+  @@index([userId, itemType])
+  @@map("user_inventory_items")
+}
+
+enum InventoryItemType {
+  CARD
+  COSMETIC
+  TITLE
+  CRAFTING_DUST
+  STORY_CHAPTER
 }

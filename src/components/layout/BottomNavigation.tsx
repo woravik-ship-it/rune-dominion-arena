@@ -20,6 +20,7 @@ const navItems: NavItem[] = [
   { href: '/wallet', label: 'Wallet', icon: '💰' },
   { href: '/quests', label: 'Quests', icon: '📜' },
   { href: '/events', label: 'Events', icon: '🌙' },
+  { href: '/inventory', label: 'คลัง', icon: '🎒' },
   { href: '/profile', label: 'Profile', icon: '👤' },
   { href: '/admin', label: 'Admin', icon: '⚙️', adminOnly: true },
 ];

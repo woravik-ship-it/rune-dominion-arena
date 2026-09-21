@@ -7,6 +7,7 @@ import { useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
 import EventHubView, {
   EventHubData,
+  EventQuestView,
   MilestoneView,
   StoryView,
 } from '@/components/events/EventHubView';
@@ -23,6 +24,7 @@ export default function EventHubPage({ params }: { params: { eventId: string } }
   const [hub, setHub] = useState<EventHubData | null>(null);
   const [milestones, setMilestones] = useState<MilestoneView[]>([]);
   const [story, setStory] = useState<StoryView[]>([]);
+  const [eventQuests, setEventQuests] = useState<EventQuestView[]>([]);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
@@ -36,12 +38,16 @@ export default function EventHubPage({ params }: { params: { eventId: string } }
         apiFetch('/api/events'),
         apiFetch(`/api/events/${params.eventId}/milestones`),
         apiFetch(`/api/events/${params.eventId}/story`),
+        apiFetch(`/api/events/${params.eventId}/quests`),
         apiFetch('/api/decks'),
       ]);
-      const [hubData, msData, storyData, decksData] = await Promise.all(results.map((r) => r.json()));
+      const [hubData, msData, storyData, questData, decksData] = await Promise.all(
+        results.map((r) => r.json())
+      );
       if (hubData.success) setHub(hubData.data);
       if (msData.success) setMilestones(msData.data);
       if (storyData.success) setStory(storyData.data);
+      if (questData.success) setEventQuests(questData.data);
       if (decksData.success && decksData.data.length > 0) setDeckId(decksData.data[0].id);
     } catch (e) {
       console.error(e);
@@ -90,6 +96,16 @@ export default function EventHubPage({ params }: { params: { eventId: string } }
     } finally { setBusy(false); }
   };
 
+  const handleClaimQuest = async (eventQuestId: string) => {
+    setBusy(true); setErr(null); setMsg(null);
+    try {
+      const { res, data } = await postJson(`/api/events/${params.eventId}/quests`, { eventQuestId });
+      if (!res.ok) { setErr(data.message || 'รับรางวัลไม่สำเร็จ'); return; }
+      setMsg(`${data.data.message} (+${data.data.coin} Coin)`);
+      await loadAll();
+    } finally { setBusy(false); }
+  };
+
   const handleBuy = async (itemId: string) => {
     setBusy(true); setErr(null); setMsg(null);
     try {
@@ -123,8 +139,8 @@ export default function EventHubPage({ params }: { params: { eventId: string } }
   }
 
   return <EventHubView
-    hub={hub} milestones={milestones} story={story} busy={busy}
+    hub={hub} milestones={milestones} story={story} eventQuests={eventQuests} busy={busy}
     msg={msg} err={err} deckId={deckId}
-    onRaid={handleRaid} onClaim={handleClaim} onBuy={handleBuy}
+    onRaid={handleRaid} onClaim={handleClaim} onClaimQuest={handleClaimQuest} onBuy={handleBuy}
   />;
 }

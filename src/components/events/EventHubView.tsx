@@ -18,6 +18,21 @@ export interface EventHubData {
   me: { veilShards: number; eventPoints: number; damageDealt: number; raidsToday: number; raidDailyCap: number } | null;
 }
 
+// ความคืบหน้า Event Quest จริง (Phase 11.2)
+export interface EventQuestView {
+  questId: string;
+  nameTh: string;
+  descriptionTh: string | null;
+  type: string;
+  metric: 'RAID' | 'DAMAGE' | 'SHARDS';
+  targetValue: number;
+  currentValue: number;
+  isCompleted: boolean;
+  rewardClaimed: boolean;
+  currencyReward: number;
+  coinReward: number;
+}
+
 export interface MilestoneView {
   id: string; scope: 'PERSONAL' | 'COMMUNITY'; tier: number; threshold: number;
   titleTh: string; rewardType: string; rewardAmount: number; rewardLabel: string | null;
@@ -47,17 +62,20 @@ interface Props {
   hub: EventHubData;
   milestones: MilestoneView[];
   story: StoryView[];
+  eventQuests: EventQuestView[];
   busy: boolean;
   msg: string | null;
   err: string | null;
   deckId: string | null;
   onRaid: () => void;
   onClaim: (milestoneId: string) => void;
+  onClaimQuest: (eventQuestId: string) => void;
   onBuy: (itemId: string) => void;
 }
 
 export default function EventHubView({
-  hub, milestones, story, busy, msg, err, deckId, onRaid, onClaim, onBuy,
+  hub, milestones, story, eventQuests, busy, msg, err, deckId,
+  onRaid, onClaim, onClaimQuest, onBuy,
 }: Props) {
   const bossPercent = hub.boss?.percent ?? 0;
   const shards = hub.me?.veilShards ?? 0;
@@ -167,11 +185,35 @@ export default function EventHubView({
         <section className="bg-gray-800 rounded-xl p-5 mb-4">
           <h2 className="text-lg font-bold text-white mb-3">📜 ภารกิจกิจกรรม</h2>
           <div className="space-y-2 text-sm">
-            {hub.quests.map((q) => (
-              <div key={q.id} className="border-b border-gray-700 pb-2">
-                <p className="text-white">{q.nameTh}</p>
-                <p className="text-xs text-gray-500">
-                  {q.descriptionTh} · เป้า {q.targetValue.toLocaleString('th-TH')} · รางวัล 💠{q.currencyReward} + {q.rewardAmount} Coin
+            {eventQuests.length === 0 && <p className="text-xs text-gray-500">ยังไม่มีภารกิจในกิจกรรมนี้</p>}
+            {eventQuests.map((q) => (
+              <div key={q.questId} className="border-b border-gray-700 pb-2">
+                <div className="flex justify-between items-center">
+                  <p className={q.isCompleted ? 'text-white' : 'text-gray-300'}>{q.nameTh}</p>
+                  {q.rewardClaimed ? (
+                    <span className="text-xs text-green-400">รับแล้ว</span>
+                  ) : q.isCompleted ? (
+                    <button
+                      onClick={() => onClaimQuest(q.questId)}
+                      disabled={busy}
+                      className="text-xs bg-amber-600 hover:bg-amber-500 text-white px-3 py-1 rounded disabled:opacity-50"
+                    >
+                      รับรางวัล
+                    </button>
+                  ) : (
+                    <span className="text-xs text-gray-500">
+                      {q.currentValue.toLocaleString('th-TH')} / {q.targetValue.toLocaleString('th-TH')}
+                    </span>
+                  )}
+                </div>
+                <div className="w-full bg-gray-700 rounded-full h-2 mt-1 overflow-hidden">
+                  <div
+                    className="bg-amber-500 h-full transition-all"
+                    style={{ width: `${Math.min(100, Math.round((q.currentValue / Math.max(1, q.targetValue)) * 100))}%` }}
+                  />
+                </div>
+                <p className="text-xs text-gray-500 mt-1">
+                  {q.descriptionTh} · รางวัล 💠{q.currencyReward} + {q.coinReward} Coin
                 </p>
               </div>
             ))}

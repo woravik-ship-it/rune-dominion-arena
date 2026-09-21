@@ -3,6 +3,7 @@
 // Raid: ค่าเข้า 10 Veil Shards / cap 10 ครั้งต่อวัน / แพ้ได้ participation / ชนะได้ clear bonus
 import { prisma } from '@/lib/prisma';
 import { WalletService } from '@/services/wallet';
+import { InventoryService } from '@/services/inventory';
 import {
   EVENT_GRACE_HOURS,
   RAID_CLEAR_BONUS_SHARDS,
@@ -358,7 +359,7 @@ export class EventService {
       };
     }
 
-    // รางวัล COIN เข้ากระเป๋าจริง (integer เท่านั้น) — ประเภทอื่นเก็บเป็น milestoneReached
+    // รางวัล COIN เข้ากระเป๋าจริง (integer เท่านั้น) — ที่เหลือเข้าคลังผู้เล่น
     if (milestone.rewardType === 'COIN' && milestone.rewardAmount > 0) {
       await WalletService.credit(
         params.userId,
@@ -368,6 +369,17 @@ export class EventService {
         'EVENT_MILESTONE',
         `กิจกรรม: ${milestone.titleTh}`
       );
+    } else {
+      // การ์ดพิเศษ / เครื่องประดับ / ฉายา / วัตถุดิบ / บทเนื้อเรื่อง → ของสะสมผู้เล่น
+      await InventoryService.grantEventReward({
+        userId: params.userId,
+        rewardType: milestone.rewardType,
+        rewardAmount: milestone.rewardAmount,
+        rewardLabel: milestone.rewardLabel,
+        titleTh: milestone.titleTh,
+        source: `EVENT_MILESTONE:${milestone.scope}:${milestone.tier}`,
+        eventId: params.eventId,
+      });
     }
 
     await prisma.eventParticipation.update({
@@ -455,6 +467,17 @@ export class EventService {
         'EVENT_SHOP',
         `ร้านค้ากิจกรรม: ${item.nameTh}`
       );
+    } else {
+      // ของประดับ/ฉายา/วัตถุดิบ → เข้าคลังผู้เล่นจริง
+      await InventoryService.grantEventReward({
+        userId: params.userId,
+        rewardType: item.rewardType,
+        rewardAmount: item.rewardAmount,
+        rewardLabel: item.nameTh,
+        titleTh: item.nameTh,
+        source: `EVENT_SHOP:${item.code}`,
+        eventId: params.eventId,
+      });
     }
 
     await prisma.eventShopPurchase.create({
