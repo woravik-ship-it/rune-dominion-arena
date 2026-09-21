@@ -347,18 +347,33 @@ export async function generateCardImageBytes(
       const apiKey = process.env.AI_IMAGE_API_KEY;
       if (!apiUrl || !apiKey) throw new Error('ไม่ได้ตั้งค่า AI provider (AI_IMAGE_API_URL / AI_IMAGE_API_KEY)');
 
+      const isOpenAi = /openai\.com/.test(apiUrl);
+      const model = process.env.AI_IMAGE_MODEL || (isOpenAi ? 'gpt-image-1' : undefined);
+      const size = process.env.AI_IMAGE_SIZE || `${options.width ?? 896}x${options.height ?? 512}`;
+      const quality = process.env.AI_IMAGE_QUALITY;
+      const outputFormat = process.env.AI_IMAGE_OUTPUT_FORMAT;
+      const compression = process.env.AI_IMAGE_COMPRESSION;
+
+      const requestBody: Record<string, unknown> = { prompt, n: 1, size };
+      if (model) requestBody.model = model;
+      if (quality) requestBody.quality = quality;
+      if (outputFormat) requestBody.output_format = outputFormat;
+      if (compression && outputFormat && outputFormat !== 'png') {
+        requestBody.output_compression = Number(compression);
+      }
+      // OpenAI ไม่รับ seed (การสุ่มเกิดที่ฝั่งผู้ให้บริการ) — ส่งเฉพาะ provider ที่รองรับ
+      if (!isOpenAi) requestBody.seed = seedFromHash(card.canonicalSeedHash);
+
       const res = await fetch(apiUrl, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${apiKey}` },
-        body: JSON.stringify({
-          prompt,
-          n: 1,
-          size: `${options.width ?? 896}x${options.height ?? 512}`,
-          seed: seedFromHash(card.canonicalSeedHash),
-        }),
+        body: JSON.stringify(requestBody),
         signal: AbortSignal.timeout(timeoutMs),
       });
-      if (!res.ok) throw new Error(`AI provider ตอบ ${res.status}`);
+      if (!res.ok) {
+        const detail = await res.text().catch(() => '');
+        throw new Error(`AI provider ตอบ ${res.status}${detail ? ` — ${detail.slice(0, 160)}` : ''}`);
+      }
       const json = (await res.json()) as { url?: string; data?: Array<{ url?: string; b64_json?: string }> };
       const direct = json.url ?? json.data?.[0]?.url;
       if (direct) {

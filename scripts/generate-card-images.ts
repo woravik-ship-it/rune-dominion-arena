@@ -82,11 +82,21 @@ async function main(): Promise<void> {
   let skipped = 0;
   let failed = 0;
 
-  for (const card of targets) {
+  // ผู้ให้บริการแบบ API คิดเงิน (เช่น OpenAI) ยิงขนานได้ → เร็วขึ้นมาก
+  // ส่วน pollinations ฟรีกักคิว 1 งาน/IP → ต้องยิงทีละใบ
+  const batchFriendly =
+    (process.env.AI_IMAGE_PROVIDER ?? '').toLowerCase() === 'generic' ||
+    /openai\.com/.test(process.env.AI_IMAGE_API_URL ?? '');
+  const CONCURRENCY = Math.max(1, Number(value('--concurrency') ?? (batchFriendly ? 4 : 1)));
+  console.log(`   concurrency: ${CONCURRENCY} · delay: ${DELAY_MS}ms`);
+
+  const queue = [...targets];
+
+  const processOne = async (card: (typeof targets)[number]): Promise<void> => {
     // ข้ามใบที่มีไฟล์ภาพจริงอยู่แล้ว (ยกเว้น --all / --ids ที่สั่งชัดเจน)
     if (!ALL && !IDS.length && (await hasCardArt(card.id))) {
       skipped += 1;
-      continue;
+      return;
     }
 
     const label = `${card.nameTh ?? card.name} (${card.rarity} · ${card.element})`;
@@ -116,8 +126,18 @@ async function main(): Promise<void> {
       console.error(`   ❌ ${label}: ${error instanceof Error ? error.message : error}`);
     }
 
-    await sleep(DELAY_MS);
-  }
+    if (DELAY_MS > 0) await sleep(DELAY_MS);
+  };
+
+  await Promise.all(
+    Array.from({ length: CONCURRENCY }, async () => {
+      for (;;) {
+        const card = queue.shift();
+        if (!card) break;
+        await processOne(card);
+      }
+    })
+  );
 
   const remaining = await prisma.cardDefinition.count();
   const withArt = await prisma.cardDefinition.count({ where: { imageUrl: { startsWith: '/api/cards/' } } });
