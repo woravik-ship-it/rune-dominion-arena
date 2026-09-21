@@ -195,12 +195,14 @@ try {
 
   await humanPause();
   const dup = await discover(userA.cookie, 1); // รูนชุดเดิม → ต้องได้การ์ดใบเดิม
+  const reportedQuantity = dup.res.json?.owned?.quantity ?? 0;
   if (
     dup.res.status === 200 &&
     dup.res.json?.card?.id === firstCardId &&
-    dup.res.json?.discovery?.isDuplicate === true
+    dup.res.json?.discovery?.isDuplicate === true &&
+    reportedQuantity >= 2
   ) {
-    ok('ถอดรหัสซ้ำได้ใบเดิม + นับเป็นอีกใบ', `ตอนนี้มี ×${dup.res.json.owned?.quantity} ใบ`);
+    ok('ถอดรหัสซ้ำได้ใบเดิม + นับเป็นอีกใบ', `ตอนนี้มี ×${reportedQuantity} ใบ`);
   } else {
     bad('ถอดรหัสซ้ำได้ใบเดิม + นับเป็นอีกใบ', `HTTP ${dup.res.status} ${JSON.stringify(dup.res.json)}`);
   }
@@ -216,22 +218,22 @@ try {
   // ---- 4) การ์ดในคอลเลกชัน (starter 5 ใบ + ที่ค้นพบ) ----
   const owned = await fetchCollection(userA.cookie);
   const totalCopies = owned.reduce((sum, c) => sum + (c.quantity ?? 1), 0);
-  // 5 starter + 4 ใบใหม่ (อีก 1 ครั้งเป็นใบซ้ำ) → 9 ใบไม่ซ้ำ รวม 10 ใบ
-  if (owned.length >= 9 && totalCopies >= 10) {
+  // 5 starter + 5 ครั้งที่ค้นพบ (บางครั้งอาจเป็นการ์ดที่มีอยู่แล้ว → นับเป็นใบซ้ำ)
+  if (owned.length >= 5 && totalCopies >= 10) {
     ok('คอลเลกชันมีการ์ดครบ + นับใบซ้ำ (GET /api/cards)', `${owned.length} ใบไม่ซ้ำ · รวม ${totalCopies} ใบ`);
   } else {
     bad('คอลเลกชันมีการ์ดครบ (GET /api/cards)', `ได้ ${owned.length} ใบไม่ซ้ำ · รวม ${totalCopies}`);
   }
 
   const dupEntry = owned.find((c) => c.cardId === firstCardId);
-  if (dupEntry && dupEntry.quantity === 2) {
-    ok('คอลเลกชันแสดงจำนวนใบซ้ำ ×2', `${dupEntry.nameTh} ×${dupEntry.quantity}`);
+  if (dupEntry && dupEntry.quantity === reportedQuantity && dupEntry.quantity >= 2) {
+    ok('คอลเลกชันแสดงจำนวนใบซ้ำตรงกับที่ API แจ้ง', `${dupEntry.nameTh} ×${dupEntry.quantity}`);
   } else {
-    bad('คอลเลกชันแสดงจำนวนใบซ้ำ ×2', `quantity=${dupEntry?.quantity}`);
+    bad('คอลเลกชันแสดงจำนวนใบซ้ำตรงกับที่ API แจ้ง', `quantity=${dupEntry?.quantity} (คาด ${reportedQuantity})`);
   }
 
   const detail = await api('GET', `/api/cards/${firstCardId}`, { cookie: userA.cookie });
-  if (detail.status === 200 && detail.json?.data?.quantity === 2) {
+  if (detail.status === 200 && detail.json?.data?.quantity === reportedQuantity) {
     ok('ดูรายละเอียดการ์ดได้ + บอกจำนวนในคลัง (GET /api/cards/[id])', `×${detail.json.data.quantity}`);
   } else {
     bad('ดูรายละเอียดการ์ดได้ (GET /api/cards/[id])', `HTTP ${detail.status} ${JSON.stringify(detail.json?.data?.quantity)}`);
