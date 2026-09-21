@@ -61,7 +61,7 @@ export async function GET(_request: NextRequest, { params }: { params: { id: str
     headers: {
       'Content-Type': 'image/svg+xml; charset=utf-8',
       // deterministic → cache ได้ยาว
-      'Cache-Control': 'public, max-age=86400, stale-while-revalidate=604800',
+      'Cache-Control': 'public, max-age=300, stale-while-revalidate=3600',
     },
   });
 }

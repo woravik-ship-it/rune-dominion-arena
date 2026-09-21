@@ -168,7 +168,7 @@ export default function CardDetailPage() {
           {/* Card Image — การ์ดเต็มใบ (ใช้รูปจริง ถ้าไม่มี fallback เป็นการ์ดที่เจนเอง) */}
           <div className={`h-80 relative flex items-center justify-center bg-black/70 ${elementInfo?.color ? 'bg-gradient-to-br ' + elementInfo.color : 'bg-gradient-to-br from-gray-600 to-gray-700'}`}>
             <img
-              src={card.imageUrl || `/api/cards/${card.id}/image`}
+              src={card.imageUrl || `/api/cards/${card.id}/image?v=2`}
               alt={card.nameTh || card.name}
               className="absolute inset-0 w-full h-full object-contain"
             />

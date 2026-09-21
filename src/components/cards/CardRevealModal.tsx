@@ -79,7 +79,7 @@ export default function CardRevealModal({
               <img src={card.imageUrl} alt={card.name} className="w-full h-full object-contain" />
             ) : (
               <img
-                src={`/api/cards/${card.id}/image`}
+                src={`/api/cards/${card.id}/image?v=2`}
                 alt={card.nameTh || card.name}
                 className="w-full h-full object-contain"
               />

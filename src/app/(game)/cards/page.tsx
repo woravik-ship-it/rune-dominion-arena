@@ -169,7 +169,7 @@ export default function CardsPage() {
                   {/* Card Image — การ์ดเต็มใบจาก /api/cards/[id]/image */}
                   <div className={`relative aspect-[7/10] bg-gradient-to-br ${getElementColor(userCard.element)}`}>
                     <img
-                      src={`/api/cards/${userCard.cardId}/image`}
+                      src={`/api/cards/${userCard.cardId}/image?v=2`}
                       alt={userCard.nameTh || userCard.name}
                       className="absolute inset-0 w-full h-full object-contain"
                     />

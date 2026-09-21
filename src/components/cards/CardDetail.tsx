@@ -51,7 +51,7 @@ export default function CardDetail({ card, onClose }: CardDetailProps) {
         ) : (
           <div className="w-full h-full flex flex-col items-center justify-center gap-2">
             <img
-              src={`/api/cards/${card.id}/image`}
+              src={`/api/cards/${card.id}/image?v=2`}
               alt={card.nameTh || card.name}
               className="w-full h-full object-contain rounded-lg"
             />

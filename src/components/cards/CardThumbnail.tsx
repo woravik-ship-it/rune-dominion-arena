@@ -44,7 +44,7 @@ export default function CardThumbnail({ card, size = 'md', onClick }: CardThumbn
       <div className="absolute inset-0 flex items-center justify-center">
         {!imgFailed ? (
           <img
-            src={card.imageUrl || `/api/cards/${card.id}/image`}
+            src={card.imageUrl || `/api/cards/${card.id}/image?v=2`}
             alt={card.nameTh || card.name}
             onError={() => setImgFailed(true)}
             className="w-full h-full object-contain"

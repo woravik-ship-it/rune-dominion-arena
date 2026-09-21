@@ -173,7 +173,7 @@ export default function DeckBuilderPage() {
                 {c ? (
                   <div>
                     <img
-                      src={`/api/cards/${c.cardId}/image`}
+                      src={`/api/cards/${c.cardId}/image?v=2`}
                       alt={c.nameTh || c.name}
                       className="w-full h-20 object-contain rounded-lg mb-1 bg-black/40"
                     />
@@ -210,7 +210,7 @@ export default function DeckBuilderPage() {
                 }`}
               >
                 <img
-                  src={`/api/cards/${c.cardId}/image`}
+                  src={`/api/cards/${c.cardId}/image?v=2`}
                   alt={c.nameTh || c.name}
                   className="w-full h-24 object-contain rounded-lg mb-1 bg-black/40"
                 />
