@@ -1,5 +1,5 @@
 import { generatePlaceholderSvg, isPromptSafe } from '@/lib/image-placeholder';
-import { aiImageEnabled } from '@/lib/ai-image';
+import { aiImageEnabled, buildCardImagePrompt, describeCardPrompt } from '@/lib/ai-image';
 import { saveCardArt } from '@/lib/card-art-store';
 import { backoffDelayMs, ImageService } from '@/services/image';
 import { prisma } from '@/lib/prisma';
@@ -523,5 +523,64 @@ describe('ImageService + AI provider (Phase 14)', () => {
     expect(result?.status).toBe('RETRY');
     expect(mocked.cardDefinition.update).not.toHaveBeenCalled();
   }, 30_000);
+});
+
+
+// Phase 14.2: prompt ต้อง "หลากหลายจริง" — คน/สัตว์/อสูร/สิ่งของ/ภูมิทัศน์ ไม่ใช่แนวเดิมซ้ำ
+describe('buildCardImagePrompt (ความหลากหลายของ prompt)', () => {
+  const base = {
+    name: 'Test Card',
+    nameTh: 'การ์ดทดสอบ',
+    element: 'EMBERBOUND',
+    rarity: 'RARE',
+    role: 'WARRIOR',
+    loreTh: 'อักษรแรกเริ่มถูกเผาไว้บนเถ้าถ่าน',
+  };
+  const hashOf = (seed: string) => require('crypto').createHash('sha256').update(seed).digest('hex');
+  const cards = Array.from({ length: 60 }, (_, i) => ({ ...base, canonicalSeedHash: hashOf(`prompt-${i}`) }));
+
+  test('การ์ดใบเดิม → prompt เดิมเสมอ (deterministic)', () => {
+    expect(buildCardImagePrompt(cards[0])).toBe(buildCardImagePrompt(cards[0]));
+    expect(describeCardPrompt(cards[0])).toEqual(describeCardPrompt(cards[0]));
+  });
+
+  test('60 ใบ → prompt ไม่ซ้ำกันเลย', () => {
+    const prompts = new Set(cards.map((c) => buildCardImagePrompt(c)));
+    expect(prompts.size).toBe(cards.length);
+  });
+
+  test('มี "ตัวแบบ" หลากหลายอย่างน้อย 10 แบบใน 60 ใบ (คน/สัตว์/อสูร/สิ่งของ/ภูมิทัศน์)', () => {
+    const subjects = new Set(cards.map((c) => describeCardPrompt(c).subject));
+    expect(subjects.size).toBeGreaterThanOrEqual(10);
+  });
+
+  test('ทุกรายละเอียดภาพ (องค์ประกอบ/แสง/สื่อ/รายละเอียด/พลิกฉาก) มีความหลากหลาย', () => {
+    const d = cards.map((c) => describeCardPrompt(c));
+    for (const key of ['composition', 'lighting', 'medium', 'detail', 'twist'] as const) {
+      const unique = new Set(d.map((x) => x[key]));
+      expect(unique.size).toBeGreaterThanOrEqual(3);
+    }
+  });
+
+  test('prompt มีข้อมูลการ์ด + คำสั่งห้ามข้อความในภาพ + ผ่าน isPromptSafe', () => {
+    for (const card of cards.slice(0, 10)) {
+      const prompt = buildCardImagePrompt(card);
+      const lower = prompt.toLowerCase();
+      expect(prompt).toContain(card.name);
+      expect(lower).toContain('no text');
+      expect(lower).toContain('no card frame');
+      expect(prompt).toContain('Composition:');
+      expect(prompt).not.toContain('[object');
+      expect(isPromptSafe(prompt)).toBe(true);
+    }
+  });
+
+  test('ธาตุ/บทบาท/ระดับ ยังถูกอ้างถึงใน prompt (ธีมไม่หลุด)', () => {
+    const prompt = buildCardImagePrompt({ ...cards[3], element: 'TIDEBORN', role: 'HEALER', rarity: 'MYTHIC' }).toLowerCase();
+    expect(prompt).toContain('tideborn');
+    expect(prompt).toContain('healer');
+    expect(prompt).toContain('mythic');
+    expect(prompt).toContain('deep blue, cyan and silver');
+  });
 });
 

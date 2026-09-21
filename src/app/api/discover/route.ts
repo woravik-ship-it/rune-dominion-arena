@@ -3,6 +3,7 @@ import { validateRuneSequence } from '@/services/seed';
 import { DiscoveryService } from '@/services/discovery';
 import { QuestService } from '@/services/quest';
 import { ImageService } from '@/services/image';
+import { aiImageEnabled } from '@/lib/ai-image';
 import { parseJsonBody, discoverSchema } from '@/lib/validation';
 import { enforceRateLimit } from '@/lib/api-guard';
 import { antiCheat, recordAction } from '@/lib/anti-cheat';
@@ -76,10 +77,13 @@ export async function POST(request: NextRequest) {
       console.error('Quest DISCOVERY hook error:', questError);
     }
 
-    // Image hook: การ์ดใหม่เข้าคิวสร้างภาพอัตโนมัติ + ลองประมวลผลทันที (ไม่กระทบ flow หลัก)
+    // Image hook: การ์ดใหม่เข้าคิวสร้างภาพอัตโนมัติ
+    // หมายเหตุ: ถ้าเปิด AI อยู่ ปล่อยให้ worker (rune-dominion-images) เป็นคนสร้างเท่านั้น
+    // เพราะผู้ให้บริการฟรีกักคิว 1 งาน/IP — ยิงพร้อมกันจะโดน 429 ทั้งคู่
     try {
       const img = await ImageService.enqueue(result.card.id);
-      if (img.enqueued) {
+      if (img.enqueued && !aiImageEnabled()) {
+        // โหมดไม่ใช้ AI (วาดเอง) → สร้างทันทีได้ ไม่ต้องพึ่ง worker
         void ImageService.processBatch(1).catch((e) =>
           console.error('Image process error:', e)
         );

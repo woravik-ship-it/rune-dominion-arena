@@ -8,6 +8,7 @@
 // หลักการ: prompt/metadata deterministic จาก canonicalSeedHash (seed เดิม → ภาพเดิม) และ prompt ต้องผ่าน isPromptSafe
 import { isPromptSafe } from '@/lib/image-placeholder';
 import { setDefaultResultOrder } from 'node:dns';
+import crypto from 'node:crypto';
 
 /**
  * ผู้ให้บริการฟรีกักคิวต่อ "IP" — พบว่า IPv6 ของเครื่องนี้ค้าง แต่ IPv4 ใช้ได้
@@ -42,52 +43,207 @@ export interface AiImageOptions {
   timeoutMs?: number;
 }
 
-const ELEMENT_VISUAL: Record<string, { en: string; motifs: string; scene: string; mood: string }> = {
-  EMBERBOUND: { en: 'fire', motifs: 'flame tongues, drifting ash, molten cracks, volcanic rock, glowing embers', scene: 'a ruined forge city under a crimson sky', mood: 'fierce and burning' },
-  TIDEBORN: { en: 'water', motifs: 'deep currents, mist, water crystals, coral ruins, silver droplets', scene: 'a drowned temple beneath a still lagoon', mood: 'serene yet dangerous' },
-  SKYRIVEN: { en: 'wind', motifs: 'spiral gales, feathers, torn clouds, lightning arcs, rising dust', scene: 'cliff peaks above an endless storm front', mood: 'swift and untamed' },
-  ROOTFORGED: { en: 'earth', motifs: 'ancient roots, carved stone, moss, ore veins, crystal geodes', scene: 'a hollow mountain mine lit by glowing ore', mood: 'steadfast and heavy' },
-  DAWNSWORN: { en: 'light', motifs: 'radiant beams, golden dust, geometric rune light, dawn halos, ivory banners', scene: 'a sky-tower at sunrise above the clouds', mood: 'hopeful and luminous' },
-  VEILMARKED: { en: 'shadow', motifs: 'veil mist, cracks in reality, crescent moon, violet runes, silver smoke', scene: 'a moonless gate wreathed in indigo fog', mood: 'mysterious and ominous' },
+// ===== คลังคำสำหรับสร้าง prompt (ให้หลากหลายจริง: คน/สัตว์/อสูร/สิ่งของ/ภูมิทัศน์/สถาปัตยกรรม) =====
+// ทุกมิติเลือกจาก canonicalSeedHash → deterministic (การ์ดเดิมได้ภาพเดิม) แต่การ์ดต่างใบได้คนละแนวชัดเจน
+
+interface SubjectDef {
+  id: string;
+  en: string;
+  /** ธาตุที่เข้ากันเป็นพิเศษ (ถ้ามี) — ใช้ถ่วงน้ำหนักให้เหมาะ ไม่ใช่บังคับ */
+  elements?: string[];
+}
+
+/** แบบของ "สิ่งที่อยู่ในภาพ" — ครอบคลุมทั้งคน สัตว์ สิ่งของ สถานที่ */
+const SUBJECTS: SubjectDef[] = [
+  // มนุษย์ / ฮีโร่
+  { id: 'hero', en: 'a lone hero in rune-etched armour' },
+  { id: 'sorceress', en: 'a robed sorceress weaving rune sigils in mid-air' },
+  { id: 'ranger', en: 'a hooded ranger on a rocky ledge with a longbow drawn' },
+  { id: 'monk', en: 'a martial monk in flowing wraps, caught mid-strike' },
+  { id: 'apprentice', en: 'a young apprentice clutching a glowing rune shard' },
+  { id: 'lorekeeper', en: 'an ancient lorekeeper with a staff carved with runes' },
+  { id: 'smith', en: 'a wandering smith at a portable forge, sparks flying' },
+  { id: 'bard', en: 'a travelling bard singing to a crowd in a torchlit square' },
+  // สัตว์ / อสูร
+  { id: 'beast', en: 'a six-legged elemental beast prowling low to the ground' },
+  { id: 'serpent', en: 'a colossal winged serpent coiling through storm clouds' },
+  { id: 'spiritfox', en: 'a many-tailed spirit fox with runes drifting from its fur' },
+  { id: 'crab', en: 'a giant crystal-shelled crab on black volcanic sand' },
+  { id: 'moth', en: 'a giant luminous moth with pattern-marked wings' },
+  { id: 'stag', en: 'a crowned stag whose antlers hold small floating flames' },
+  { id: 'whale', en: 'an enormous rune-scarred sky-whale drifting above the clouds' },
+  { id: 'wolfpack', en: 'a pack of spectral wolves running through shallow fog' },
+  // สิ่งของ / อาวุธ / สิ่งประดิษฐ์
+  { id: 'blade', en: 'a runed greatsword floating point-down, humming with power' },
+  { id: 'relic', en: 'an ornate relic chest half-buried, light leaking from its seams' },
+  { id: 'lantern', en: 'a floating regal lantern casting long dramatic shadows' },
+  { id: 'tome', en: 'a chained grimoire open on a stone lectern, pages turning by themselves' },
+  { id: 'emptyarmour', en: 'an empty suit of animated armour standing guard' },
+  { id: 'mosaic', en: 'a shattered rune mosaic reassembling itself in mid-air' },
+  { id: 'coin', en: 'a hoard of ancient rune-coins spilling from a broken urn' },
+  { id: 'banner', en: 'a tattered war-banner planted on a wind-blasted ridge' },
+  // ภูมิทัศน์ / สถาปัตยกรรม
+  { id: 'vista', en: 'a vast elemental vista with a tiny lone figure on a precipice' },
+  { id: 'gate', en: 'an immense rune gate half-swallowed by the landscape' },
+  { id: 'temple', en: 'a half-sunken temple with light shafts through collapsed domes' },
+  { id: 'bazaar', en: 'a crowded night bazaar of rune-traders lit by hanging lanterns' },
+  { id: 'bridge', en: 'a rope bridge spanning a glowing chasm between two spires' },
+  { id: 'library', en: 'an endless underground library of stone tablets and floating scrolls' },
+];
+
+const POSES = [
+  'standing tall', 'leaping forward', 'summoning with both hands raised', 'striking downward',
+  'guarding a threshold', 'kneeling in prayer', 'climbing a sheer cliff', 'riding into view',
+  'forging at an anvil', 'awakening from stone', 'walking away from an explosion of light',
+  'reaching toward a floating rune',
+];
+
+const COMPOSITIONS = [
+  'low-angle hero shot', 'wide establishing shot', 'tight medium close-up',
+  'over-the-shoulder framing', 'isometric diorama view', 'bold silhouette against a bright sky',
+  'centered symmetrical icon', 'diagonal dynamic composition', 'extreme foreshortening',
+  'top-down bird\'s-eye view',
+];
+
+const LIGHTING = [
+  'hard backlit rim light', 'stormy side light', 'warm torchlit key light',
+  'cold moonlit top light', 'pale dawn haze', 'underwater caustic light',
+  'ember glow from below', 'flickering lightning flashes', 'single shaft of light through fog',
+  'harsh midday desert sun',
+];
+
+const MEDIA = [
+  'painterly digital illustration', 'gouache fantasy painting', 'ink and watercolour wash',
+  'textured oil-painting look', 'stylised concept-art rendering', 'etched engraving with colour',
+];
+
+const DETAILS = [
+  'rich material textures', 'grass and dust caught in the wind', 'floating rune particles',
+  'rain-soaked reflective surfaces', 'steam and smoke curling upward', 'frost crystals in the air',
+  'ink-like brush strokes', 'scattered debris and footprints',
+];
+
+const SCENE_TWISTS = [
+  'with the ruins of a fallen colossus in the background',
+  'as a comet streaks across the sky',
+  'while a storm front rolls in behind',
+  'during a festival of floating lanterns',
+  'beside a mirror-still shattered lake',
+  'beneath an unnatural eclipse',
+  'amid drifting ash and falling petals',
+  'with colossal statues watching from the cliffs',
+];
+
+
+/** บรรยากาศ/สี/ฉากตามธาตุ (เป็น "กรอบอารมณ์" ของภาพ — ไม่ใช่ตัวกำหนดตัวแบบ) */
+const ELEMENT_VISUAL: Record<string, { en: string; motifs: string; scene: string; mood: string; palette: string }> = {
+  EMBERBOUND: {
+    en: 'fire', motifs: 'flame tongues, drifting ash, molten cracks, glowing embers',
+    scene: 'a ruined forge city under a crimson sky', mood: 'fierce and burning',
+    palette: 'crimson, orange and gold palette with blackened iron',
+  },
+  TIDEBORN: {
+    en: 'water', motifs: 'deep currents, mist, water crystals, silver droplets',
+    scene: 'a drowned temple beneath a still lagoon', mood: 'serene yet dangerous',
+    palette: 'deep blue, cyan and silver palette with wet stone',
+  },
+  SKYRIVEN: {
+    en: 'wind', motifs: 'spiral gales, feathers, torn clouds, lightning arcs',
+    scene: 'cliff peaks above an endless storm front', mood: 'swift and untamed',
+    palette: 'teal, mint and white palette with storm grey',
+  },
+  ROOTFORGED: {
+    en: 'earth', motifs: 'ancient roots, carved stone, moss, ore veins, crystal geodes',
+    scene: 'a hollow mountain mine lit by glowing ore', mood: 'steadfast and heavy',
+    palette: 'moss, ochre and bronze palette with warm stone',
+  },
+  DAWNSWORN: {
+    en: 'light', motifs: 'radiant beams, golden dust, geometric rune light, ivory banners',
+    scene: 'a sky-tower at sunrise above the clouds', mood: 'hopeful and luminous',
+    palette: 'ivory, gold and amber palette with pale sky',
+  },
+  VEILMARKED: {
+    en: 'shadow', motifs: 'veil mist, cracks in reality, crescent moon, violet runes',
+    scene: 'a moonless gate wreathed in indigo fog', mood: 'mysterious and ominous',
+    palette: 'indigo, violet and silver palette with deep black',
+  },
 };
 
 const ROLE_VISUAL: Record<string, string> = {
-  WARRIOR: 'a frontline warrior with a runed blade',
-  MAGE: 'an arcane spellcaster weaving rune sigils',
-  HEALER: 'a gentle healer with restorative aura',
-  TANK: 'a towering guardian in layered armour',
-  ASSASSIN: 'a swift shadow assassin with twin daggers',
-  SUPPORT: 'a banner-bearing support with protective wards',
+  WARRIOR: 'frontline fighter with practical battle-worn gear',
+  MAGE: 'spellcaster with an arcane focus and floating sigils',
+  HEALER: 'healer with soft restorative light and clean lines',
+  TANK: 'towering guardian in layered heavy armour',
+  ASSASSIN: 'swift shadow operative with minimal gear and blades',
+  SUPPORT: 'banner-bearer and ward-keeper in a supportive stance',
 };
 
 const RARITY_VISUAL: Record<string, string> = {
-  COMMON: 'plain, grounded, believable gear',
+  COMMON: 'grounded and believable, worn everyday detail',
   UNCOMMON: 'refined detail with a small magical flourish',
-  RARE: 'ornate gear with glowing signature accents',
-  EPIC: 'elaborate regalia with powerful magic aura',
+  RARE: 'ornate accents with one signature glowing element',
+  EPIC: 'elaborate regalia with a powerful magic aura',
   LEGENDARY: 'heroic, awe-inspiring presence with radiant effects',
   MYTHIC: 'mythic, otherworldly manifestation of raw elemental power',
 };
 
-/** สร้าง prompt สำหรับ AI — deterministic จากข้อมูลการ์ด (ต้องผ่าน isPromptSafe เสมอ) */
+/** หยิบคำตาม hash แบบ deterministic (คนละ index กับที่อื่น → ไม่ซ้ำแนวกัน) */
+function pickFrom<T>(list: T[], hash: string, salt: number): T {
+  const digest = crypto.createHash('sha256').update(`${hash}|prompt|${salt}`).digest();
+  const value = digest.readUInt32BE(0) % list.length;
+  return list[value];
+}
+
+/**
+ * สร้าง prompt สำหรับ AI — หลากหลายจริงและ deterministic
+ *
+ * องค์ประกอบที่ผสมกัน: ตัวแบบ (คน/สัตว์/อสูร/สิ่งของ/ภูมิทัศน์) × อากัปกิริยา × องค์ประกอบภาพ
+ * × แสง × สื่อ/เทคนิค × รายละเอียด × สถานการณ์พลิกฉาก × ธาตุ × บทบาท × ระดับความหายาก
+ * → การ์ดต่างใบแทบไม่มีทางได้แนวภาพซ้ำกัน (แต่การ์ดใบเดิมได้ภาพเดิมเสมอ)
+ */
 export function buildCardImagePrompt(card: AiImageCardInput): string {
   const element = ELEMENT_VISUAL[card.element] ?? ELEMENT_VISUAL.VEILMARKED;
   const role = ROLE_VISUAL[card.role] ?? 'a mysterious rune-touched figure';
   const rarity = RARITY_VISUAL[card.rarity] ?? 'balanced detail';
-  const lore = (card.loreTh ?? '').replace(/\s+/g, ' ').trim().slice(0, 90);
+  const lore = (card.loreTh ?? '').replace(/\s+/g, ' ').trim().slice(0, 70);
+
+  const subject = pickFrom(SUBJECTS, card.canonicalSeedHash, 1);
+  const pose = pickFrom(POSES, card.canonicalSeedHash, 2);
+  const composition = pickFrom(COMPOSITIONS, card.canonicalSeedHash, 3);
+  const lighting = pickFrom(LIGHTING, card.canonicalSeedHash, 4);
+  const medium = pickFrom(MEDIA, card.canonicalSeedHash, 5);
+  const detail = pickFrom(DETAILS, card.canonicalSeedHash, 6);
+  const twist = pickFrom(SCENE_TWISTS, card.canonicalSeedHash, 7);
 
   const prompt = [
-    `Original high-fantasy collectible card illustration of ${role}`,
-    `aligned to ${element.en} (${element.motifs}).`,
-    `Scene: ${element.scene}.`,
-    `Mood: ${element.mood}; ${rarity}.`,
-    'Dynamic cinematic composition, strong central silhouette, dramatic elemental magic, rich material textures, painterly digital illustration, original fantasy world, no text, no letters, no logo, no watermark, no card frame, no border, no UI.',
-    lore ? `Story hint: ${lore}` : '',
+    `Original high-fantasy collectible card illustration of ${subject.en}, ${pose}.`,
+    `This is the ${card.element.toLowerCase()} ${card.role.toLowerCase()} card "${card.name}" — ${role}.`,
+    `Scene: ${element.scene}, ${twist}.`,
+    `Elemental language: ${element.motifs}; ${element.palette}. Mood: ${element.mood}, ${rarity}.`,
+    `Composition: ${composition}; ${lighting}; ${detail}.`,
+    `Rendered as ${medium}, crisp focal subject, strong value contrast, original fantasy world.`,
+    'No text, no letters, no numbers, no logo, no watermark, no signature, no card frame, no border, no UI, no blood, no violence — family-friendly fantasy artwork.',
+    lore ? `Story hint: ${lore}.` : '',
   ]
     .filter(Boolean)
     .join(' ');
 
   return prompt.replace(/\s+/g, ' ').trim();
+}
+
+/** รายละเอียดของ prompt ที่ใช้ (สำหรับ debug/ทดสอบ) */
+export function describeCardPrompt(card: AiImageCardInput): {
+  subject: string; pose: string; composition: string; lighting: string; medium: string; detail: string; twist: string;
+} {
+  return {
+    subject: pickFrom(SUBJECTS, card.canonicalSeedHash, 1).id,
+    pose: pickFrom(POSES, card.canonicalSeedHash, 2),
+    composition: pickFrom(COMPOSITIONS, card.canonicalSeedHash, 3),
+    lighting: pickFrom(LIGHTING, card.canonicalSeedHash, 4),
+    medium: pickFrom(MEDIA, card.canonicalSeedHash, 5),
+    detail: pickFrom(DETAILS, card.canonicalSeedHash, 6),
+    twist: pickFrom(SCENE_TWISTS, card.canonicalSeedHash, 7),
+  };
 }
 
 /** seed ตัวเลข (0..2^31) จาก canonicalSeedHash → การ์ดเดิมได้ภาพเดิม */

@@ -107,7 +107,8 @@ prisma/                    schema.prisma · migrations/0_init · seed.ts
 | `npm run tunnel` | เปิด Cloudflare quick tunnel + แจ้งลิงก์เข้า Telegram |
 | `npm run db:seed` / `db:studio` | seed การ์ด+เควสต์ / เปิด Prisma Studio |
 | `npm run images:generate` | สร้างภาพการ์ดด้วย AI (ค่าเริ่มต้น pollinations/sana) เก็บไฟล์ในเครื่อง · `-- --all` ทำใหม่ทั้งหมด · `-- --limit 5` · `-- --dry` |
-| `bash scripts/run-image-generation.sh` | วนสร้างภาพต่อเนื่องจนครบทุกใบ (ผู้ให้บริการฟรีจำกัดคิว 1 งาน/IP) |
+| `bash scripts/run-image-generation.sh` | วนสร้างภาพต่อเนื่องจนครบทุกใบ · `ALL=1` = สร้างใหม่ทุกใบ (ใช้หลังปรับ prompt) |
+| `python3 scripts/measure-art-variety.py --dir var/card-art` | วัดความหลากหลายของภาพ (dHash + โทนสี) เทียบก่อน/หลังปรับ prompt |
 | `npm run db:refresh-meta` | รีเฟรชชื่อ/คำอธิบาย/lore ของการ์ดเดิมตามคลังคำใหม่ (ไม่แตะค่า gameplay) · `-- --dry` เพื่อดูก่อน |
 | `npm run admin:grant -- --list` | ดูว่าใครเป็น ADMIN/MODERATOR (ค่าเริ่มต้นของทุกคนคือ PLAYER) |
 | `npm run admin:grant -- <username> [ADMIN\|MODERATOR\|PLAYER]` | ตั้ง/ถอดสิทธิ์ผู้ดูแลระบบ (ตั้งจาก server เท่านั้น — สมัครเองไม่ได้) |

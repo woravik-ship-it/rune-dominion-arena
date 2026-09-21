@@ -192,6 +192,10 @@ bash scripts/run-image-generation.sh    # วนต่อเนื่องจ�
   - เครื่องที่ต่อ dual-stack แล้วค้างที่ IPv6: โค้ดตั้ง `dns.setDefaultResultOrder('ipv4first')` ให้แล้ว
 - สลับไปผู้ให้บริการที่มี key (คุณภาพ/ความเร็วสูงกว่า): `AI_IMAGE_PROVIDER=generic`, `AI_IMAGE_API_URL=<endpoint>`, `AI_IMAGE_API_KEY=<key>`
 - ไฟล์ภาพเก็บที่ `var/card-art/` (gitignored) และเสิร์ฟผ่าน `/api/cards/[id]/art` · การ์ดที่ยังไม่มีภาพจะแสดงการ์ดวาดเอง (SVG) แทนโดยอัตโนมัติ
+- **prompt สร้างจากหลายมิติแบบ deterministic** (ตัวแบบ 32 แบบ: คน/สัตว์/อสูร/สิ่งของ/ภูมิทัศน์ × อากัปกิริยา × องค์ประกอบภาพ × แสง × สื่อ × รายละเอียด × พลิกฉาก × ธาตุ × บทบาท × ระดับ) → การ์ดต่างใบได้คนละแนว
+  - หลังแก้ prompt ให้สร้างใหม่ทั้งคลัง: `ALL=1 bash scripts/run-image-generation.sh`
+  - วัดผลด้วย `python3 scripts/measure-art-variety.py --dir-a /tmp/art-before --dir-b var/card-art`
+  - ⚠️ ถ้า prompt มีคำที่ติด blocklist ของ moderation (`isPromptSafe`) งานจะ RETRY — อย่าใส่คำเช่น gore ในประโยคห้าม
 
 ### ข้อจำกัดที่ควรรู้ก่อนเปิดสาธารณะ
 

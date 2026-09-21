@@ -20,7 +20,12 @@ round=0
 while [ "$round" -lt "$MAX_ROUNDS" ]; do
     round=$((round + 1))
     echo "=== รอบที่ $round : เริ่มสร้างภาพการ์ด ==="
-    npx tsx scripts/generate-card-images.ts --delay "$DELAY" 2>&1 | grep -vE 'prisma:query'
+    # ALL=1 → สร้างใหม่ทุกใบ (ทับของเดิม) ใช้เมื่อปรับ prompt แล้วอยากให้ทั้งคลังได้ภาพชุดใหม่
+    if [ "${ALL:-0}" = "1" ]; then
+        npx tsx scripts/generate-card-images.ts --all --delay "$DELAY" 2>&1 | grep -vE 'prisma:query'
+    else
+        npx tsx scripts/generate-card-images.ts --delay "$DELAY" 2>&1 | grep -vE 'prisma:query'
+    fi
 
     missing=$(npx tsx -e "
 import { PrismaClient } from '@prisma/client';
