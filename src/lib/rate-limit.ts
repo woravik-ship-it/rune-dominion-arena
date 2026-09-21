@@ -18,7 +18,10 @@ export interface RateLimitResult {
 
 /** ค่าเริ่มต้นต่อ endpoint — ปรับผ่าน env RATE_LIMIT_<SCOPE>_LIMIT ได้ */
 export const RATE_LIMITS = {
-  API_BURST: { limit: 120, windowMs: 60_000 },       // ภาพรวมต่อ IP (ชั้นแรกใน middleware)
+  // Phase 12: ปรับจาก 120 → 600/นาที เพราะผู้ใช้มือถือในวง LAN/องค์กรมักออก IP เดียวกัน (NAT)
+  // 120/นาที = เพียง 2 req/s ต่อ IP ซึ่งผู้ใช้จริง 2-3 คนในบ้านเดียวก็ชนได้แล้ว
+  // การป้องกันที่แม่นจริงมาจากชั้น User/Device (DISCOVER/AUTH_* ด้านล่าง) ไม่ใช่ IP
+  API_BURST: { limit: 600, windowMs: 60_000 },       // ภาพรวมต่อ IP (ชั้นแรกใน middleware)
   AUTH_LOGIN: { limit: 10, windowMs: 60_000 },       // กัน brute force
   AUTH_REGISTER: { limit: 5, windowMs: 60_000 },
   DISCOVER: { limit: 30, windowMs: 60_000 },         // ถอดรหัสรูน (มี energy cap 5/วัน อยู่แล้ว)

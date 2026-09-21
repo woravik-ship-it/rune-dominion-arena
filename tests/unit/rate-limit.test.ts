@@ -52,6 +52,16 @@ describe('Rate Limiting (Phase 10)', () => {
     expect(checkRateLimit('SCOPE_B', 'u1', cfg, 1_000).allowed).toBe(true);
   });
 
+  test('ค่า rate limit สมดุลสำหรับ production (Phase 12)', () => {
+    // API_BURST ต้องสูงพอสำหรับผู้ใช้หลายคนหลัง NAT (>120/นาที)
+    expect(RATE_LIMITS.API_BURST.limit).toBeGreaterThanOrEqual(600);
+    // scope ที่กันการโจมตีจริงต้องยังเข้ม
+    expect(RATE_LIMITS.AUTH_LOGIN.limit).toBeLessThanOrEqual(10);
+    expect(RATE_LIMITS.AUTH_REGISTER.limit).toBeLessThanOrEqual(10);
+    expect(RATE_LIMITS.DISCOVER.limit).toBeLessThanOrEqual(30);
+    expect(RATE_LIMITS.ARENA_CREATE.limit).toBeLessThanOrEqual(10);
+  });
+
   test('rateLimitConfig รับ env override (RATE_LIMIT_<SCOPE>_LIMIT)', () => {
     const original = process.env.RATE_LIMIT_API_BURST_LIMIT;
     process.env.RATE_LIMIT_API_BURST_LIMIT = '5';

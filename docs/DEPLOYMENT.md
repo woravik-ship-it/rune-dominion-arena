@@ -1,0 +1,97 @@
+# Deployment — Rune Dominion Arena (Phase 12)
+
+## 1. ภาพรวม Pipeline
+
+```
+feature branch ──PR──> master ──(CI: typecheck + lint + test)──> Staging ──(smoke test)──> Production
+```
+
+| ขั้น | สิ่งที่รัน | เกณฑ์ผ่าน |
+|---|---|---|
+| CI (`ci.yml`) | `prisma generate` → `tsc --noEmit` → `next lint` → `jest` | ทุกคำสั่ง exit 0 · เทสต์ผ่านทั้งหมด |
+| Load test | `npm run load-test -- --users 120` | success rate ≥99% · p95 < 1500ms · ไม่มี error |
+| Smoke test | `curl /api/health` → `status: ok` · เปิดหน้าแรกได้ | `200` + DB ok |
+| Backup | `npm run backup` → `npm run backup:verify` | checksum ตรง · restore เข้า DB ชั่วคราวได้ |
+
+> เกณฑ์ปัจจุบัน (เครื่อง dev 12 cores): **138 req/s ที่ให้บริการได้จริง, success 100%, p95 106ms**
+
+## 2. Environment ที่ต้องตั้ง
+
+| ตัวแปร | Staging | Production |
+|---|---|---|
+| `DATABASE_URL` | Postgres แยกจาก prod | Postgres ของ prod (สำรองก่อน migrate) |
+| `AUTH_SECRET` | ค่าเฉพาะ staging | **สุ่มใหม่ ≥32 ตัวอักษร** |
+| `SERVER_PEPPER` | ค่าเฉพาะ staging | **สุ่มใหม่** — ⚠️ เปลี่ยนแล้วการ์ดเดิมจะคำนวณ hash ไม่ตรง |
+| `NODE_ENV` | `production` | `production` |
+| `CORS_ALLOWED_ORIGINS` | โดเมน staging | โดเมนจริง (ไม่ตั้ง = same-origin เท่านั้น) |
+| `LOG_LEVEL` | `debug` | `info` |
+| `SLOW_REQUEST_MS` | 1000 | 500 |
+| `USER_ID_FALLBACK` | ห้ามตั้ง | **ห้ามตั้งเด็ดขาด** |
+
+## 3. ขั้นตอน Deploy (manual runbook)
+
+```bash
+# 0) เตรียม
+git checkout master && git pull
+npm ci
+
+# 1) สำรองก่อนแตะ DB (สำคัญที่สุด)
+npm run backup && npm run backup:verify
+
+# 2) อัปเดต schema (ต้องตรวจ diff ก่อน)
+npx prisma migrate deploy      # prod ใช้ migrate deploy ไม่ใช่ db push
+npx prisma generate
+
+# 3) ตรวจสอบคุณภาพ
+npx tsc --noEmit && npm run lint && npm test
+
+# 4) Build + start
+npm run build
+npm run start                  # หรือ systemd/pm2
+
+# 5) Smoke test
+curl -s localhost:3000/api/health | grep '"status":"ok"'
+npm run load-test -- --users 60 --duration 10
+```
+
+## 4. Rollback
+
+```bash
+# กรณีโค้ดมีปัญหา
+git revert <commit> && npm run build && npm run start
+
+# กรณีข้อมูลเสียหาย — กู้จาก backup
+gunzip -c ~/backups/rune-dominion/rune_dominion-<STAMP>.sql.gz | psql "$DATABASE_URL"
+npx prisma generate && npm run start
+```
+
+**หลัก:** สำรอง **ก่อน** ทุกครั้งที่แตะ schema — และตรวจว่า restore ได้จริงด้วย `npm run backup:verify`
+
+## 5. Backup Strategy
+
+| หัวข้อ | ค่า |
+|---|---|
+| ความถี่ที่แนะนำ | ทุกวัน 03:00 (cron) + ก่อน deploy ทุกครั้ง |
+| เก็บย้อนหลัง | 7 วัน (ปรับ `KEEP_DAYS`) |
+| ที่เก็บ | `~/backups/rune-dominion` (ควรเป็นดิสก์/เครื่องอื่นด้วย) |
+| การตรวจสอบ | checksum (sha256) + restore เข้า DB ชั่วคราวอัตโนมัติ |
+| ตัวอย่าง cron | `0 3 * * * cd /path/to/app && npm run backup >> /var/log/rda-backup.log 2>&1` |
+
+## 6. CDN สำหรับ Static Assets (Next.js)
+
+- `next.config.js` ตั้ง `Cache-Control: public, max-age=604800, immutable` ให้ `/images` และ `/sounds` แล้ว
+- รูปการ์ดเป็น deterministic SVG จาก `/api/cards/[id]/image` → ตั้ง CDN cache ตาม `Cache-Control` ได้
+- เมื่อมีผู้ให้บริการจริง: ชี้ `AI_IMAGE_API_URL` ไปที่ storage (S3/R2) แล้วใส่ `remotePatterns` เพิ่มใน `next.config.js`
+
+## 7. Monitoring ที่มีในระบบ
+
+| กลไก | รายละเอียด |
+|---|---|
+| `GET /api/health` | uptime + DB latency + version → ใช้กับ uptime checker (คืน 503 เมื่อ DB ล่ม) |
+| Structured log | JSON 1 บรรทัด/คำขอ พร้อม `requestId`, `durationMs`, `status` |
+| Slow request | เกิน `SLOW_REQUEST_MS` → `level: "warn"`, `msg: "slow_request"` |
+| Security events | ตาราง `security_events` (rate limit, bot pattern, alt account, replay tamper) |
+| Admin action log | ตาราง `admin_action_logs` (before/after ทุก action) |
+| Client error | error boundary แสดง digest + `console.error` (พร้อมต่อ Sentry) |
+
+**การค้นหาปัญหา:** เอา `x-request-id` จาก response (หรือรหัส digest บนหน้าจอ error) ไป grep ใน log

@@ -14,7 +14,11 @@
     "db:push": "prisma db push",
     "db:migrate": "prisma migrate dev",
     "db:seed": "tsx prisma/seed.ts",
-    "db:studio": "prisma studio"
+    "db:studio": "prisma studio",
+    "load-test": "node scripts/load-test.mjs",
+    "backup": "bash scripts/backup-db.sh",
+    "backup:verify": "bash scripts/verify-backup.sh",
+    "health": "curl -s http://localhost:3000/api/health"
   },
   "dependencies": {
     "next": "^14.2.0",
