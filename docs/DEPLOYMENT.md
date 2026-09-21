@@ -38,8 +38,10 @@ npm ci
 # 1) สำรองก่อนแตะ DB (สำคัญที่สุด)
 npm run backup && npm run backup:verify
 
-# 2) อัปเดต schema (ต้องตรวจ diff ก่อน)
-npx prisma migrate deploy      # prod ใช้ migrate deploy ไม่ใช่ db push
+# 2) อัปเดต schema (migration-based — ตรวจก่อนใช้จริง)
+npm run migrate:check      # ตรวจว่า migration ตรงกับ schema (ไม่มี drift)
+npm run migrate:test       # ทดสอบ migrate deploy บน DB เปล่า (จำลอง production)
+npx prisma migrate deploy  # ใช้กับ DB จริง (ไม่ใช่ db push)
 npx prisma generate
 
 # 3) ตรวจสอบคุณภาพ
@@ -53,6 +55,22 @@ npm run start                  # หรือ systemd/pm2
 curl -s localhost:3000/api/health | grep '"status":"ok"'
 npm run load-test -- --users 60 --duration 10
 ```
+
+### Migration (baseline)
+
+โปรเจกต์นี้เริ่มจาก `db push` จึงมี **baseline migration** ชื่อ `0_init` (สร้างจาก schema ปัจจุบันและตรวจแล้วว่าไม่มี drift):
+
+```bash
+# DB ที่มีข้อมูลอยู่แล้วและยังไม่มี _prisma_migrations → baseline ครั้งเดียว
+npx prisma migrate resolve --applied 0_init
+
+# หลังจากนั้นทุกการเปลี่ยน schema
+#   1) แก้ prisma/schema.prisma
+#   2) สร้าง migration ใหม่:  npx prisma migrate dev --name <ชื่อ>
+#   3) deploy:                npx prisma migrate deploy
+```
+
+> ⚠️ `db push` ใช้ได้เฉพาะ dev — บน production ต้อง `migrate deploy` เพื่อมีประวัติและ rollback ได้
 
 ## 4. Rollback
 
