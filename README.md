@@ -9,13 +9,24 @@ Fantasy Trading Card Game / Auto Battle / Competitive Arena — เกมแน�
 
 | การตรวจ | คำสั่ง | ผล |
 |---|---|---|
-| Unit/Integration tests | `npm test` | **232 passed / 20 suites** |
+| Unit/Integration tests | `npm test` | **260 passed / 21 suites** |
 | Type check | `npx tsc --noEmit` | ผ่าน (exit 0) |
 | Production build | `npm run build` | ผ่าน — 26 หน้า · shared JS 87.3 kB · middleware 28.1 kB |
-| E2E critical flow (local) | `npm run e2e:flow` | **25/25 ผ่าน** |
+| E2E critical flow (local) | `npm run e2e:flow` | **31/31 ผ่าน** |
 | E2E critical flow (ผ่าน tunnel สาธารณะ) | `npm run e2e:flow -- --base https://…trycloudflare.com` | **25/25 ผ่าน** |
 | Load test 120 ผู้ใช้ | `npm run load-test -- --users 120 --duration 10` | 6,679 คำขอ · ให้บริการ 197.9 req/s · success 100% · p95 795ms (ส่วนที่เหลือ 429 = rate limit ต่อ IP ทำงานถูกต้อง) |
 | Backup + restore จริง | `npm run backup && npm run backup:verify` | 30 ตาราง · checksum ตรง · restore สำเร็จ |
+
+## ฟีเจอร์เด่น (Phase 13)
+
+| ฟีเจอร์ | รายละเอียด |
+|---|---|
+| การ์ดเริ่มต้น 5 ใบ | ผู้เล่นใหม่ได้การ์ด 5 ใบตอนสมัคร (เลือกให้จัดทีมได้จริง — ธาตุเดียวกันไม่เกิน 3 ใบ) → ลงทีมได้ทันที · บัญชีเก่าเติมได้ด้วย `npm run db:grant-starter` |
+| ใบซ้ำ = อีกใบ | ค้นพบการ์ดใบเดิม → ได้อีกใบ นับเป็น ×2, ×3 (คอลัมน์ `user_cards.quantity`) แสดงในหน้าการ์ด/คอลเลกชัน/modal |
+| เพิ่มลงทีมได้จริง | ปุ่ม "เพิ่มลงทีม" (หน้าเปิดการ์ด + หน้ารายละเอียด) เติมเข้าทีมเดิมหรือสร้างทีมใหม่ให้แล้วพาไปหน้าจัดทีม (`POST /api/decks/quick-add`) |
+| ล้างรูนอัตโนมัติ | ถอดรหัสสำเร็จ → กระดานรูนว่างทันที พร้อมค้นรอบใหม่ |
+| งานศิลป์หลากหลาย | ภาพการ์ดเป็น SVG หลายชั้น 6 ฉาก × 6 ลายธาตุ × 6 ตราบทบาท + ฝุ่นแสง + กรอบตามระดับ (การ์ดคนละใบภาพคนละแบบ แต่ใบเดิมภาพเดิมเสมอ) |
+| ชื่อการ์ดหลากหลาย | ชื่อไทย "ชื่อเฉพาะ + ฉายาบทบาท/ธาตุ" และชื่ออังกฤษ `Name, Epithet Title` + คำนำหน้าตามระดับ rarity (มหา/ราชัน/เทวะ) · การ์ดเดิมรีเฟรชชื่อได้ด้วย `npm run db:refresh-meta` |
 
 ## Getting Started
 
@@ -95,6 +106,8 @@ prisma/                    schema.prisma · migrations/0_init · seed.ts
 | `npm run migrate:check` / `migrate:test` | ตรวจ drift ของ migration / ทดสอบ `migrate deploy` บน DB เปล่า |
 | `npm run tunnel` | เปิด Cloudflare quick tunnel + แจ้งลิงก์เข้า Telegram |
 | `npm run db:seed` / `db:studio` | seed การ์ด+เควสต์ / เปิด Prisma Studio |
+| `npm run db:refresh-meta` | รีเฟรชชื่อ/คำอธิบาย/lore ของการ์ดเดิมตามคลังคำใหม่ (ไม่แตะค่า gameplay) · `-- --dry` เพื่อดูก่อน |
+| `npm run db:grant-starter` | เติมการ์ดเริ่มต้นให้บัญชีที่มีในคลังไม่ครบ 5 ใบ · `-- --dry` เพื่อดูก่อน |
 
 ## Environment Variables
 

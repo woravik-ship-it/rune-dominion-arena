@@ -87,10 +87,12 @@ Uptime + สถานะ DB (ไม่ต้องล็อกอิน)
   "card": { "id": "...", "nameTh": "ผู้พิทักษ์ แสง", "element": "DAWNSWORN", "rarity": "EPIC",
             "role": "TANK", "stats": { "atk": 117, "def": 52, "hp": 93, "spd": 20, "manaCost": 6 },
             "skills": [ { "name": "แสงศักดิ์สิทธิ์", "manaCost": 2 } ] },
-  "discovery": { "isFirstDiscovery": true, "seedHash": "a271...", "canonicalString": "version=1|runes=0101,..." },
+  "discovery": { "isFirstDiscovery": true, "isDuplicate": false, "seedHash": "a271...", "canonicalString": "version=1|runes=0101,..." },
+  "owned": { "quantity": 1 },
   "energy": { "remaining": 4, "max": 5 } }
 ```
 - `400` พลังค้นหาไม่พอ / runes ผิดกติกา · `401` ยังไม่ล็อกอิน
+- **ใบซ้ำนับเป็นอีกใบ (Phase 13):** ถอดรหัสได้การ์ดที่ตัวเองมีอยู่แล้ว → `discovery.isDuplicate: true` และ `owned.quantity` เพิ่มขึ้น (×2, ×3, …) ไม่ทิ้งใบซ้ำ
 
 ### `GET /api/energy` → `{ "success": true, "energy": { "remaining": 4, "max": 5 } }`
 
@@ -98,11 +100,14 @@ Uptime + สถานะ DB (ไม่ต้องล็อกอิน)
 Query: `page`, `limit` (≤100), `element`, `rarity`, `search`
 ```jsonc
 { "success": true, "data": [ { "id", "cardId", "nameTh", "element", "rarity", "role",
-  "stats": {...}, "imageUrl", "imageStatus", "obtainedMethod", "isFavorite" } ],
+  "stats": {...}, "imageUrl", "imageStatus", "obtainedMethod", "isFavorite",
+  "quantity": 2 } ],
   "pagination": { "page": 1, "limit": 12, "total": 6, "totalPages": 1 } }
 ```
+- `quantity` = จำนวนใบที่ถือครอง (ค้นพบซ้ำแล้วได้อีกใบ)
 
 ### `GET /api/cards/[id]` — รายละเอียดการ์ด + สถิติการค้นพบ
+- เพิ่ม `quantity` (ของเรา), `isFavorite`, `ownerCount` (จำนวนผู้เล่นที่ถือการ์ดใบนี้)
 
 ### `GET /api/cards/[id]/image`
 - `200 image/svg+xml` placeholder แบบ deterministic (ตามธาตุ/rarity) เมื่อยังไม่มีภาพจริง
@@ -130,6 +135,24 @@ Query: `page`, `limit` (≤100), `element`, `rarity`, `search`
 ### `GET /api/decks/[id]` — รายละเอียดเด็ค
 ### `PUT /api/decks/[id]` — อัปเดต (name/description/isActive/slots) — `403` ถ้าไม่ใช่เจ้าของ
 ### `DELETE /api/decks/[id]` — ลบเด็ค — `403` ถ้าไม่ใช่เจ้าของ
+
+### `POST /api/decks/quick-add` — "เพิ่มลงทีม" จากการ์ดใบเดียว (Phase 13)
+```jsonc
+{ "cardId": "..." }
+```
+พฤติกรรม (เรียงตามลำดับที่ระบบเลือกให้):
+1. การ์ดอยู่ในทีมอยู่แล้ว → `200 { "added": false, "reason": "alreadyInDeck" }`
+2. มีทีมที่ยังไม่ครบ 5 ใบและเพิ่มได้โดยไม่ผิดกติกา → เติมเข้าทีมนั้น → `201`
+3. ไม่มี → สร้างทีมใหม่ 5 ใบจากคลัง (บังคับให้การ์ดใบนี้อยู่ในทีม) → `201 { "created": true }`
+4. การ์ดในคลังไม่พอจัดทีม → `400` พร้อมเหตุผล
+
+```jsonc
+// 201
+{ "success": true,
+  "data": { "deckId": "...", "deckName": "ทีมด่วน 2", "added": true, "created": true,
+            "filled": 5, "message": "สร้างทีม \"ทีมด่วน 2\" ให้แล้ว (5/5)" } }
+```
+- `400` ยังไม่มีการ์ดใบนี้ในคลัง · `401` ยังไม่ล็อกอิน · rate limit `DECK_WRITE`
 
 ---
 
