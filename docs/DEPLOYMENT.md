@@ -129,6 +129,7 @@ systemctl --user enable --now rune-dominion-postgres rune-dominion-arena
 | `rune-dominion-postgres.service` | PostgreSQL 18.6 portable (`~/pg-portable`, พอร์ต 5432) | ตั้ง `LD_LIBRARY_PATH=~/pg-portable/lib` ให้เอง · `KillSignal=SIGINT` = fast shutdown |
 | `rune-dominion-arena.service` | `next start` โหมด production (พอร์ต 3000) | โหลด `.env` แล้วทับด้วย `NODE_ENV=production`, `LOG_LEVEL=info`, `SLOW_REQUEST_MS=500` |
 | `rune-dominion-tunnel.service` | Cloudflare quick tunnel → HTTPS สาธารณะ | รอ `/api/health` ตอบก่อน · ส่งลิงก์เข้า Telegram · `PartOf` ทำให้ restart ตามแอป |
+| `rune-dominion-images.service` | worker สร้างภาพการ์ดด้วย AI (วนต่อเนื่องจนครบ) | ผู้ให้บริการฟรีกักคิว 1 งาน/IP → ตั้ง `DELAY`/`PAUSE_BETWEEN_ROUNDS` · restart อัตโนมัติ |
 
 ```bash
 # ตรวจสถานะ/ล็อก
