@@ -26,6 +26,26 @@ interface StoredBattleData {
   teams?: { A?: CombatCard[]; B?: CombatCard[] };
 }
 
+/**
+ * JSON แบบเรียงคีย์คงที่ (canonical) สำหรับเทียบข้อมูลที่ผ่าน DB
+ *
+ * จำเป็นเพราะ `battle_data` เป็นคอลัมน์ `jsonb` ของ Postgres ซึ่ง **ไม่รักษาลำดับคีย์**
+ * (jsonb เรียงคีย์ใหม่ตอนเก็บ) ถ้าใช้ `JSON.stringify` ตรงๆ จะได้สตริงไม่เท่ากันเสมอ
+ * แม้ข้อมูลจะเหมือนกันทุกค่าตัว → replay ของทุกรบจริงจะถูกตีเป็น TAMPERED (false positive)
+ */
+function stableStringify(value: unknown): string {
+  if (value === null || value === undefined) return 'null';
+  if (typeof value !== 'object') return JSON.stringify(value) ?? 'null';
+  if (Array.isArray(value)) {
+    // ลำดับของ array ยังคงมีผล (สลับบรรทัด log = แก้ข้อมูล → ต้องจับได้)
+    return `[${value.map(stableStringify).join(',')}]`;
+  }
+  const entries = Object.entries(value as Record<string, unknown>)
+    .filter(([, v]) => v !== undefined)
+    .sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0));
+  return `{${entries.map(([k, v]) => `${JSON.stringify(k)}:${stableStringify(v)}`).join(',')}}`;
+}
+
 /** ตรวจสอบ battleData ด้วยการคำนวณซ้ำ (pure — ไม่แตะ DB) */
 export function verifyBattleReplay(battleData: unknown): ReplayVerification {
   const data = (battleData ?? {}) as StoredBattleData;
@@ -65,7 +85,7 @@ export function verifyBattleReplay(battleData: unknown): ReplayVerification {
       `teamBHpRemaining: บันทึกไว้=${data.teamBHpRemaining} คำนวณใหม่=${result.teamBHpRemaining}`
     );
   }
-  if (JSON.stringify(data.log ?? null) !== JSON.stringify(result.log)) {
+  if (stableStringify(data.log ?? null) !== stableStringify(result.log)) {
     mismatches.push('battle log ไม่ตรงกับผลคำนวณใหม่');
   }
 

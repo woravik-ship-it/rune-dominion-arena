@@ -85,4 +85,43 @@ describe('Battle Replay Verification (Phase 10)', () => {
     expect(verifyBattleReplay(null).status).toBe('UNVERIFIABLE');
     expect(verifyBattleReplay({}).status).toBe('UNVERIFIABLE');
   });
+
+  // Regression: `battle_data` เป็น jsonb ของ Postgres ซึ่งไม่รักษาลำดับคีย์
+  // ก่อนแก้ใช้ JSON.stringify ตรงๆ → log ที่อ่านกลับจาก DB ไม่ตรงกับที่คำนวณใหม่เสมอ
+  // ทำให้ replay ของทุกรบจริงถูกตีเป็น TAMPERED (false positive)
+  test('log ที่คีย์ถูกสลับลำดับแบบ jsonb → ยังต้อง VERIFIED', () => {
+    const entries = result.log as unknown as Array<Record<string, unknown>>;
+    const reorderedKeys = entries.map((entry) => {
+      const out: Record<string, unknown> = {};
+      for (const key of Object.keys(entry).sort()) out[key] = entry[key];
+      return out;
+    });
+    expect(JSON.stringify(reorderedKeys)).not.toBe(JSON.stringify(entries));
+    expect(verifyBattleReplay({ ...stored, log: reorderedKeys }).status).toBe('VERIFIED');
+  });
+
+  test('แถมบรรทัด log ปลอมเข้าไป → TAMPERED', () => {
+    const entries = result.log as unknown as Array<Record<string, unknown>>;
+    const forged = {
+      round: 999,
+      order: 999,
+      actorId: 'forged-card',
+      actorSide: 'A',
+      action: 'attack',
+      damage: 9999,
+      hpAfter: 1,
+      messageTh: 'บรรทัดที่ถูกแถมเข้ามา',
+    };
+    const tampered = { ...stored, log: [...entries, forged] };
+    const v = verifyBattleReplay(tampered);
+    expect(v.status).toBe('TAMPERED');
+    expect(v.mismatches?.some((m) => m.includes('log'))).toBe(true);
+  });
+
+  test('สลับลำดับบรรทัด log → TAMPERED (ลำดับยังคงมีผล)', () => {
+    const entries = result.log as unknown as Array<Record<string, unknown>>;
+    const reversed = [...entries].reverse();
+    expect(entries.length).toBeGreaterThan(1);
+    expect(verifyBattleReplay({ ...stored, log: reversed }).status).toBe('TAMPERED');
+  });
 });
