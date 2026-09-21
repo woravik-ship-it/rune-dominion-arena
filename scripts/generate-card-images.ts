@@ -102,6 +102,12 @@ async function main(): Promise<void> {
     const label = `${card.nameTh ?? card.name} (${card.rarity} · ${card.element})`;
     const started = Date.now();
     try {
+      // บอกสถานะ "กำลังสร้าง" ก่อน → UI จะแสดงสถานะรอ ไม่โชว์การ์ดวาดเอง/ภาพเก่า
+      await prisma.cardDefinition.update({
+        where: { id: card.id },
+        data: { imageStatus: 'PROCESSING' },
+      });
+
       const generated = await generateCardImageBytes({
         name: card.name,
         nameTh: card.nameTh,
@@ -124,6 +130,10 @@ async function main(): Promise<void> {
     } catch (error) {
       failed += 1;
       console.error(`   ❌ ${label}: ${error instanceof Error ? error.message : error}`);
+      // ให้ UI บอกว่า "สร้างไม่สำเร็จ" (ไม่กลับไปโชว์การ์ดวาดเอง)
+      await prisma.cardDefinition
+        .update({ where: { id: card.id }, data: { imageStatus: 'FAILED' } })
+        .catch(() => undefined);
     }
 
     if (DELAY_MS > 0) await sleep(DELAY_MS);

@@ -172,6 +172,7 @@ export default function CardsPage() {
                     <CardFace
                       cardId={userCard.cardId}
                       imageUrl={userCard.imageUrl}
+                      imageStatus={userCard.imageStatus}
                       alt={userCard.nameTh || userCard.name}
                     />
                     {/* จำนวนใบที่ถือครอง — ค้นพบซ้ำจะได้อีกใบ */}

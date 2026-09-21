@@ -521,7 +521,11 @@ describe('ImageService + AI provider (Phase 14)', () => {
     const result = await ImageService.processNext();
 
     expect(result?.status).toBe('RETRY');
-    expect(mocked.cardDefinition.update).not.toHaveBeenCalled();
+    // ต้องไม่อัปเดต imageUrl (ไม่บันทึกของที่ไม่ใช่ภาพ) — อนุญาตให้ตั้งสถานะ PROCESSING ก่อนลองได้
+    const imageUrlWrites = mocked.cardDefinition.update.mock.calls.filter(
+      (call) => call[0]?.data && typeof call[0].data === 'object' && 'imageUrl' in call[0].data
+    );
+    expect(imageUrlWrites).toHaveLength(0);
   }, 30_000);
 });
 

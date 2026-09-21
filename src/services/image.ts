@@ -143,6 +143,12 @@ export class ImageService {
       });
       if (!card) throw new Error('ไม่พบการ์ดของงานนี้');
 
+      // บอกสถานะ "กำลังสร้าง" → ฝั่งเว็บจะแสดงสถานะรอ (ไม่โชว์การ์ดวาดเอง/ภาพเก่า)
+      await prisma.cardDefinition.update({
+        where: { id: card.id },
+        data: { imageStatus: 'PROCESSING' },
+      });
+
       const prompt = eligible.imagePrompt ?? buildImagePrompt(card);
       if (!isPromptSafe(prompt)) throw new Error('prompt ไม่ผ่านการตรวจเนื้อหา');
 

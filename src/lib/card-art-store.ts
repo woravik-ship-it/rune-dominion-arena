@@ -1,6 +1,7 @@
 // Card Art Storage — เก็บภาพ AI ที่สร้างไว้ในเครื่อง แล้วเสิร์ฟผ่าน /api/cards/[id]/art
 // เหตุผล: ภาพจากผู้ให้บริการฟรีไม่ควรถูกดึงซ้ำทุกครั้งที่เปิดหน้า + ทำให้การ์ดแสดงเร็วและคงที่
-import { mkdir, readFile, writeFile, stat } from 'node:fs/promises';
+import { mkdir, readFile, writeFile, stat, rm } from 'node:fs/promises';
+import { createHash } from 'node:crypto';
 import path from 'node:path';
 
 /** โฟลเดอร์เก็บภาพ (อยู่นอก public เพื่อคุมแคช/สิทธิ์เองได้) */
@@ -19,13 +20,28 @@ export function cardArtUrl(cardId: string): string {
   return `/api/cards/${cardId}/art`;
 }
 
-/** บันทึกภาพการ์ดลงดิสก์ → คืน URL สาธารณะ */
+/**
+ * บันทึกภาพการ์ดลงดิสก์ → คืน URL สาธารณะ **พร้อมเวอร์ชันตามเนื้อไฟล์**
+ *
+ * ทำไมต้องมี ?v=<hash>: ภาพเดิมถูกแคชในเบราว์เซอร์ 24 ชม. ถ้าสร้างใหม่ทับไฟล์เดิม
+ * แต่ URL เดิม ผู้ใช้จะยังเห็นภาพเก่า (เคสจริง: "สร้างใหม่แล้วรูปเปลี่ยนใบเดียว")
+ * → ใส่ hash ของเนื้อไฟล์เป็น query ทำให้ URL เปลี่ยนเมื่อภาพเปลี่ยน จึงเห็นของใหม่ทันที
+ */
 export async function saveCardArt(cardId: string, bytes: Buffer, contentType: string): Promise<string> {
   const ext = EXT_BY_TYPE[contentType] ?? 'jpg';
   const dir = cardArtDir();
   await mkdir(dir, { recursive: true });
+
+  // ลบไฟล์นามสกุลอื่นของใบเดิม (กันภาพเก่าค้าง)
+  for (const other of Object.values(EXT_BY_TYPE)) {
+    if (other === ext) continue;
+    await rm(path.join(dir, `${cardId}.${other}`), { force: true }).catch(() => undefined);
+  }
+
   await writeFile(path.join(dir, `${cardId}.${ext}`), bytes);
-  return cardArtUrl(cardId);
+
+  const version = createHash('sha1').update(bytes).digest('hex').slice(0, 10);
+  return `${cardArtUrl(cardId)}?v=${version}`;
 }
 
 /** อ่านภาพการ์ด (คืน null ถ้ายังไม่มีไฟล์) */

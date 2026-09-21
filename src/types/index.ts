@@ -34,6 +34,8 @@ export interface CardDefinition {
   stats: CardStats;
   skills: Skill[];
   imageUrl?: string;
+  /** สถานะภาพ: PENDING | PROCESSING | READY | FAILED (ใช้แสดง "กำลังสร้างภาพ…" ฝั่งเว็บ) */
+  imageStatus?: string;
   thumbnailUrl?: string;
 }
 

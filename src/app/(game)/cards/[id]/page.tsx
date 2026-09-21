@@ -171,6 +171,7 @@ export default function CardDetailPage() {
             <CardFace
               cardId={card.id}
               imageUrl={card.imageUrl}
+              imageStatus={card.imageStatus}
               alt={card.nameTh || card.name}
             />
             {card.imageStatus === 'PENDING' && (

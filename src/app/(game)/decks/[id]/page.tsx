@@ -13,6 +13,7 @@ interface PoolCard {
   element: string;
   rarity: string;
   imageUrl?: string | null;
+  imageStatus?: string | null;
   stats: { atk: number; def: number; hp: number; spd: number; manaCost: number };
 }
 
@@ -178,6 +179,7 @@ export default function DeckBuilderPage() {
                       <CardFace
                         cardId={c.cardId}
                         imageUrl={c.imageUrl}
+                        imageStatus={c.imageStatus}
                         alt={c.nameTh || c.name}
                       />
                     </div>
@@ -217,6 +219,7 @@ export default function DeckBuilderPage() {
                   <CardFace
                     cardId={c.cardId}
                     imageUrl={c.imageUrl}
+                    imageStatus={c.imageStatus}
                     alt={c.nameTh || c.name}
                   />
                 </div>

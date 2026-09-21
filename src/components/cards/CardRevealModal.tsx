@@ -77,6 +77,7 @@ export default function CardRevealModal({
           <CardFace
             cardId={card.id}
             imageUrl={card.imageUrl}
+            imageStatus={card.imageStatus}
             alt={card.nameTh || card.name}
           />
           
