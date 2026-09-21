@@ -59,9 +59,17 @@ async function main(): Promise<void> {
     orderBy: { createdAt: 'asc' },
   });
 
-  const targets = LIMIT > 0 ? cards.slice(0, LIMIT) : cards;
-  console.log(`🎨 สร้างภาพ AI ให้การ์ด ${targets.length} ใบ (จากทั้งหมด ${cards.length})`);
-  console.log(`   provider: ${process.env.AI_IMAGE_PROVIDER ?? 'pollinations'} · model: ${process.env.AI_IMAGE_MODEL ?? 'flux'}`);
+  const ownedRows = await prisma.userCard.groupBy({ by: ['cardId'], _count: { cardId: true } });
+  const ownedCount = new Map(ownedRows.map((row) => [row.cardId, row._count.cardId]));
+
+  // ให้ความสำคัญกับการ์ดที่ "ผู้เล่นถืออยู่จริง" ก่อน → คนเล่นเห็นภาพจริงเร็วที่สุด
+  const targets = (LIMIT > 0 ? cards.slice(0, LIMIT) : cards).sort(
+    (a, b) => (ownedCount.get(b.id) ?? 0) - (ownedCount.get(a.id) ?? 0)
+  );
+  const ownedTargets = targets.filter((card) => (ownedCount.get(card.id) ?? 0) > 0).length;
+
+  console.log(`🎨 สร้างภาพ AI ให้การ์ด ${targets.length} ใบ (จากทั้งหมด ${cards.length}) — ในคลังผู้เล่น ${ownedTargets} ใบ`);
+  console.log(`   provider: ${process.env.AI_IMAGE_PROVIDER ?? 'pollinations'} · model: ${process.env.AI_IMAGE_MODEL ?? 'sana'}`);
   if (DRY) {
     for (const card of targets.slice(0, 10)) {
       console.log(`   - ${card.nameTh ?? card.name} (${card.rarity}/${card.element})`);

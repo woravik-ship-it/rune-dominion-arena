@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<!-- หน้าทดสอบชั่วคราว 2: ตรวจ "หน้าเว็บจริง" ว่าการ์ดแต่ละใบแสดงภาพหรือไม่
+     - set session cookie (httpOnly flag ไม่สำคัญสำหรับการทดสอบนี้) แล้วเรียก /api/cards จริง
+     - ประกอบภาพเหมือน CardFace บน canvas แล้ววัดว่า "มีรูปจริง" (stdev สูง) กี่ใบ -->
+<html lang="th">
+<head><meta charset="utf-8"><title>cards grid check</title></head>
+<body style="background:#111;color:#eee;font-family:monospace">
+<pre id="out">running…</pre>
+<script>
+const p = new URLSearchParams(location.search);
+if (p.get('token')) document.cookie = `rda_session=${p.get('token')}; path=/`;
+
+const W = 420, H = 600;
+const ART = { left: 0.0571, top: 0.1767, width: 0.8857, height: 0.37 };
+
+const load = (src) => new Promise((res, rej) => { const i = new Image(); i.onload = () => res(i); i.onerror = () => rej(new Error('load fail ' + src)); i.src = src; });
+
+function stdev(data) {
+  let r = 0, g = 0, b = 0, n = 0; const rs = [];
+  for (let i = 0; i < data.length; i += 4) {
+    r += data[i]; g += data[i + 1]; b += data[i + 2]; n += 1;
+    if (i % 400 === 0) rs.push(data[i]);
+  }
+  const mr = r / n; let v = 0;
+  for (const x of rs) v += (x - mr) ** 2;
+  return { mean: Math.round(mr), stdev: +Math.sqrt(v / rs.length).toFixed(1) };
+}
+
+(async () => {
+  const out = document.getElementById('out');
+  try {
+    const res = await fetch('/api/cards?limit=12', { credentials: 'same-origin' });
+    const json = await res.json();
+    if (!json.success) { out.textContent = 'API_ERROR: ' + JSON.stringify(json); return; }
+    const cards = json.data;
+
+    const canvas = document.createElement('canvas');
+    canvas.width = W; canvas.height = H;
+    const ctx = canvas.getContext('2d');
+    const ax = ART.left * W, ay = ART.top * H, aw = ART.width * W, ah = ART.height * H;
+
+    const rows = [];
+    let withArt = 0, withPicture = 0;
+
+    for (const card of cards) {
+      const artSrc = card.imageUrl && !(card.imageUrl.startsWith('/api/cards/') && card.imageUrl.includes('/image')) ? card.imageUrl : null;
+      if (!artSrc) {
+        // ไม่มีภาพ AI → การ์ดวาดเองทั้งใบ: ตรวจว่าภาพโหลดได้
+        try {
+          const full = await load(`/api/cards/${card.cardId}/image?v=4`);
+          ctx.clearRect(0, 0, W, H);
+          ctx.drawImage(full, 0, 0, W, H);
+          const s = stdev(ctx.getImageData(0, 0, W, H).data);
+          rows.push({ card: card.nameTh, mode: 'self-drawn', w: full.naturalWidth, h: full.naturalHeight, mean: s.mean, stdev: s.stdev, ok: full.naturalWidth > 0 });
+        } catch (e) {
+          rows.push({ card: card.nameTh, mode: 'self-drawn', error: e.message });
+        }
+        continue;
+      }
+
+      withArt += 1;
+      try {
+        const art = await load(artSrc);
+        const overlay = await load(`/api/cards/${card.cardId}/image?v=4&mode=overlay`);
+        ctx.clearRect(0, 0, W, H);
+        ctx.drawImage(art, ax, ay, aw, ah);
+        const before = stdev(ctx.getImageData(ax, ay, aw, ah).data);
+        ctx.drawImage(overlay, 0, 0, W, H);
+        const after = stdev(ctx.getImageData(ax, ay, aw, ah).data);
+        if (after.stdev > 15) withPicture += 1;
+        rows.push({
+          card: card.nameTh, mode: 'AI-art', src: artSrc,
+          artSize: `${art.naturalWidth}x${art.naturalHeight}`,
+          artStdev: before.stdev, composedStdev: after.stdev,
+          textureVisible: after.stdev > 15,
+        });
+      } catch (e) {
+        rows.push({ card: card.nameTh, mode: 'AI-art', error: e.message });
+      }
+    }
+
+    out.textContent = JSON.stringify({
+      totalCards: cards.length, withArt, withPicture,
+      summary: `${cards.length} ใบ · มีภาพ AI ${withArt} ใบ · แสดงเป็นรูปได้จริง ${withPicture} ใบ`,
+      rows,
+    }, null, 2);
+  } catch (e) {
+    out.textContent = 'ERROR: ' + e.message;
+  }
+})();
+</script>
+</body>
+</html>

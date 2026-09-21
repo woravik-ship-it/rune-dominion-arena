@@ -531,10 +531,34 @@ function holoSheen(frame: RarityFrame): string {
     </g>`;
 }
 
-/** กรอบการ์ด + ขอบใน + เพชรมุม + โฮโลแกรม */
-function frameLayer(frame: RarityFrame): string {
-  return `<rect x="${FRAME.x}" y="${FRAME.y}" width="${FRAME.w}" height="${FRAME.h}" rx="${FRAME.r}" fill="url(#cardFrame)" stroke="${frame.dark}" stroke-width="2.5"/>
-    ${frame.foil ? holoSheen(frame) : ''}
+/** path ของสี่เหลี่ยมมุมมน (ใช้สร้างกรอบวงแหวนแบบโปร่งกลาง) */
+function roundedRectPath(x: number, y: number, w: number, h: number, r: number): string {
+  const rr = Math.min(r, Math.min(w, h) / 2);
+  return [
+    `M${x + rr},${y}`,
+    `H${x + w - rr}`,
+    `A${rr},${rr} 0 0 1 ${x + w},${y + rr}`,
+    `V${y + h - rr}`,
+    `A${rr},${rr} 0 0 1 ${x + w - rr},${y + h}`,
+    `H${x + rr}`,
+    `A${rr},${rr} 0 0 1 ${x},${y + h - rr}`,
+    `V${y + rr}`,
+    `A${rr},${rr} 0 0 1 ${x + rr},${y}`,
+    'Z',
+  ].join(' ');
+}
+
+/** กรอบการ์ด + ขอบใน + เพชรมุม
+ * โหมด overlay ต้อง "โปร่งกลาง" (วงแหวน) เพื่อให้ภาพ AI ที่ซ้อนอยู่ข้างล่างมองเห็นได้
+ */
+function frameLayer(frame: RarityFrame, overlayOnly = false): string {
+  const frameShape = overlayOnly
+    ? // วงแหวน: สี่เหลี่ยมใหญ่ − สี่เหลี่ยมใน (evenodd) → กลางโปร่ง
+      `<path d="${roundedRectPath(FRAME.x, FRAME.y, FRAME.w, FRAME.h, FRAME.r)} ${roundedRectPath(INNER.x, INNER.y, INNER.w, INNER.h, INNER.r)}" fill="url(#cardFrame)" fill-rule="evenodd"/>`
+    : `<rect x="${FRAME.x}" y="${FRAME.y}" width="${FRAME.w}" height="${FRAME.h}" rx="${FRAME.r}" fill="url(#cardFrame)"/>`;
+
+  return `${frameShape}
+    <rect x="${FRAME.x}" y="${FRAME.y}" width="${FRAME.w}" height="${FRAME.h}" rx="${FRAME.r}" fill="none" stroke="${frame.dark}" stroke-width="2.5"/>
     <rect x="${INNER.x}" y="${INNER.y}" width="${INNER.w}" height="${INNER.h}" rx="${INNER.r}" fill="none" stroke="#000000" stroke-opacity="0.5" stroke-width="2.5"/>
     <rect x="${INNER.x + 3.5}" y="${INNER.y + 3.5}" width="${INNER.w - 7}" height="${INNER.h - 7}" rx="${INNER.r - 2}" fill="none" stroke="${frame.light}" stroke-opacity="0.45" stroke-width="1.2"/>
     ${cornerGems(frame)}`;
@@ -669,7 +693,7 @@ export function generatePlaceholderSvg(card: PlaceholderCardInput, options: Card
   ${buildDefs(art, frame, rarityColor, gradAngle, grainRot)}
   <g clip-path="url(#cardFrameClip)">
     ${overlayOnly ? '' : `<rect x="${FRAME.x}" y="${FRAME.y}" width="${FRAME.w}" height="${FRAME.h}" rx="${FRAME.r}" fill="#03040a"/>`}
-    ${frameLayer(frame)}
+    ${frameLayer(frame, overlayOnly)}
 
     <g clip-path="url(#cardArtClip)">
       ${artLayers}

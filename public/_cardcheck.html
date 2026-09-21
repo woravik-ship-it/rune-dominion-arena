@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<!-- หน้าทดสอบชั่วคราว: ตรวจว่า "ในช่องภาพ" แสดงภาพ AI จริงหรือไม่ (วาดบน canvas แล้ววัดค่าพิกเซล) -->
+<html lang="th">
+<head><meta charset="utf-8"><title>card render check</title></head>
+<body style="background:#111;color:#eee;font-family:monospace">
+<pre id="out">running…</pre>
+<script>
+const CARD = new URLSearchParams(location.search).get('card');
+const W = 420, H = 600;
+const ART = { left: 0.0571, top: 0.1767, width: 0.8857, height: 0.37 };
+
+function stats(data) {
+  let r = 0, g = 0, b = 0, n = 0;
+  const rs = [];
+  for (let i = 0; i < data.length; i += 4) {
+    r += data[i]; g += data[i + 1]; b += data[i + 2]; n += 1;
+    if (i % 400 === 0) rs.push(data[i]);
+  }
+  const mr = r / n, mg = g / n, mb = b / n;
+  let v = 0;
+  for (const x of rs) v += (x - mr) ** 2;
+  return { r: +mr.toFixed(1), g: +mg.toFixed(1), b: +mb.toFixed(1), stdev: +Math.sqrt(v / rs.length).toFixed(1), samples: n };
+}
+
+function load(src) {
+  return new Promise((res, rej) => { const i = new Image(); i.onload = () => res(i); i.onerror = () => rej(new Error('load fail: ' + src)); i.src = src; });
+}
+
+(async () => {
+  const out = document.getElementById('out');
+  try {
+    const art = await load(`/api/cards/${CARD}/art`);
+    const overlay = await load(`/api/cards/${CARD}/image?v=4&mode=overlay`);
+    const full = await load(`/api/cards/${CARD}/image?v=4`);
+
+    const canvas = document.createElement('canvas');
+    canvas.width = W; canvas.height = H;
+    const ctx = canvas.getContext('2d');
+
+    const ax = ART.left * W, ay = ART.top * H, aw = ART.width * W, ah = ART.height * H;
+
+    // 1) ภาพ AI ล้วน (ในช่องภาพ)
+    ctx.drawImage(art, ax, ay, aw, ah);
+    const artOnly = stats(ctx.getImageData(ax, ay, aw, ah).data);
+
+    // 2) ซ้อนเลเยอร์การ์ดทับ (เหมือน CardFace)
+    ctx.drawImage(overlay, 0, 0, W, H);
+    const composed = stats(ctx.getImageData(ax, ay, aw, ah).data);
+
+    // 3) ตรวจว่าเลเยอร์การ์ด "โปร่ง" ในช่องภาพจริงไหม (วาด overlay บนพื้นหลังสีเดียว)
+    const probe = document.createElement('canvas');
+    probe.width = W; probe.height = H;
+    const pctx = probe.getContext('2d');
+    pctx.fillStyle = '#ff0000'; pctx.fillRect(0, 0, W, H);
+    pctx.drawImage(overlay, 0, 0, W, H);
+    const centerPixel = pctx.getImageData(Math.round(ax + aw / 2), Math.round(ay + ah / 2), 1, 1).data;
+    const cornerPixel = pctx.getImageData(4, 4, 1, 1).data; // มุมกรอบ (ควรถูกกรอบทึบ)
+
+    // 4) ภาพการ์ดเต็มใบ (โหมด full) เพื่อเทียบว่ายังวาดได้
+    ctx.clearRect(0, 0, W, H);
+    ctx.drawImage(full, 0, 0, W, H);
+    const fullCard = stats(ctx.getImageData(0, 0, W, H).data);
+
+    out.textContent = JSON.stringify({
+      card: CARD,
+      artOnly,
+      composed,
+      overlayCenterPixel: Array.from(centerPixel),
+      overlayCornerPixel: Array.from(cornerPixel),
+      fullCard,
+      artVisibleThroughOverlay: composed.stdev > 10 && Math.abs(composed.r - artOnly.r) < 60 && Math.abs(composed.g - artOnly.g) < 60,
+      overlayTransparentInArtWindow: centerPixel[0] > 200 && centerPixel[1] < 60,
+    }, null, 2);
+  } catch (e) {
+    out.textContent = 'ERROR: ' + e.message;
+  }
+})();
+</script>
+</body>
+</html>
