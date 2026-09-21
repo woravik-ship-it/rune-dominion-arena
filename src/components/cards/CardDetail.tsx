@@ -45,15 +45,15 @@ export default function CardDetail({ card, onClose }: CardDetailProps) {
       </div>
 
       {/* Card Image */}
-      <div className="w-full aspect-[3/4] bg-gradient-to-b from-gray-700 to-gray-800 rounded-lg mb-4 flex items-center justify-center">
+      <div className="w-full aspect-[7/10] bg-gradient-to-b from-gray-700 to-gray-800 rounded-lg mb-4 flex items-center justify-center">
         {card.imageUrl ? (
-          <img src={card.imageUrl} alt={card.name} className="w-full h-full object-cover rounded-lg" />
+          <img src={card.imageUrl} alt={card.name} className="w-full h-full object-contain rounded-lg" />
         ) : (
           <div className="w-full h-full flex flex-col items-center justify-center gap-2">
             <img
               src={`/api/cards/${card.id}/image`}
               alt={card.nameTh || card.name}
-              className="w-full h-full object-cover rounded-lg"
+              className="w-full h-full object-contain rounded-lg"
             />
           </div>
         )}

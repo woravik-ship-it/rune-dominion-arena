@@ -10,6 +10,10 @@ export async function GET(_request: NextRequest, { params }: { params: { id: str
     select: {
       id: true, name: true, nameTh: true, element: true,
       rarity: true, role: true, canonicalSeedHash: true, imageUrl: true,
+      atk: true, def: true, hp: true, spd: true, manaCost: true,
+      skill1Name: true, skill1Desc: true, skill1ManaCost: true,
+      skill2Name: true, skill2Desc: true, skill2ManaCost: true,
+      descriptionTh: true, loreTh: true,
     },
   });
 
@@ -37,6 +41,20 @@ export async function GET(_request: NextRequest, { params }: { params: { id: str
     rarity: card.rarity,
     role: card.role,
     canonicalSeedHash: card.canonicalSeedHash,
+    // ข้อมูลสำหรับพิมพ์ลงในกรอบการ์ด (สกิล/คำอธิบาย/สเตตัส)
+    stats: {
+      atk: card.atk,
+      def: card.def,
+      hp: card.hp,
+      spd: card.spd,
+      manaCost: card.manaCost,
+    },
+    skills: [
+      card.skill1Name && { name: card.skill1Name, description: card.skill1Desc, manaCost: card.skill1ManaCost },
+      card.skill2Name && { name: card.skill2Name, description: card.skill2Desc, manaCost: card.skill2ManaCost },
+    ].filter(Boolean) as Array<{ name: string; description: string | null; manaCost: number | null }>,
+    descriptionTh: card.descriptionTh,
+    loreTh: card.loreTh,
   });
   return new NextResponse(svg, {
     status: 200,

@@ -166,12 +166,12 @@ export default function CardsPage() {
                   href={`/cards/${userCard.cardId}`}
                   className={`bg-gray-800 rounded-lg overflow-hidden border-2 ${getRarityBorder(userCard.rarity)} hover:scale-105 transition-transform`}
                 >
-                  {/* Card Image — placeholder จาก /api/cards/[id]/image */}
-                  <div className={`h-32 relative bg-gradient-to-br ${getElementColor(userCard.element)}`}>
+                  {/* Card Image — การ์ดเต็มใบจาก /api/cards/[id]/image */}
+                  <div className={`relative aspect-[7/10] bg-gradient-to-br ${getElementColor(userCard.element)}`}>
                     <img
                       src={`/api/cards/${userCard.cardId}/image`}
                       alt={userCard.nameTh || userCard.name}
-                      className="absolute inset-0 w-full h-full object-cover"
+                      className="absolute inset-0 w-full h-full object-contain"
                     />
                     {/* จำนวนใบที่ถือครอง — ค้นพบซ้ำจะได้อีกใบ */}
                     {userCard.quantity > 1 && (

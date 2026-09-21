@@ -71,17 +71,17 @@ export default function CardRevealModal({
           )}
         </div>
 
-        {/* Card Display */}
-        <div className={`relative w-48 h-64 mx-auto rounded-xl bg-gradient-to-b ${elementColors[card.element]} shadow-lg ${rarityGlow[card.rarity]} mb-6`}>
+        {/* Card Display — การ์ดเต็มใบ (กรอบ/คำบรรยาย/สเตตัสอยู่ในภาพ) */}
+        <div className={`relative w-60 h-[343px] mx-auto rounded-xl bg-gradient-to-b ${elementColors[card.element]} shadow-lg ${rarityGlow[card.rarity]} mb-6 overflow-hidden`}>
           {/* Card Image or Placeholder */}
           <div className="absolute inset-0 flex items-center justify-center">
             {card.imageUrl ? (
-              <img src={card.imageUrl} alt={card.name} className="w-full h-full object-cover rounded-xl" />
+              <img src={card.imageUrl} alt={card.name} className="w-full h-full object-contain" />
             ) : (
               <img
                 src={`/api/cards/${card.id}/image`}
                 alt={card.nameTh || card.name}
-                className="w-full h-full object-cover rounded-xl"
+                className="w-full h-full object-contain"
               />
             )}
           </div>

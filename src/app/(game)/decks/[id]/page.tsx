@@ -175,7 +175,7 @@ export default function DeckBuilderPage() {
                     <img
                       src={`/api/cards/${c.cardId}/image`}
                       alt={c.nameTh || c.name}
-                      className="w-full h-20 object-cover rounded-lg mb-1"
+                      className="w-full h-20 object-contain rounded-lg mb-1 bg-black/40"
                     />
                     <div className="font-bold truncate">{c.nameTh || c.name}</div>
                     <div className="text-amber-400">⚡{c.stats.atk + c.stats.def + c.stats.hp + c.stats.spd}</div>
@@ -212,7 +212,7 @@ export default function DeckBuilderPage() {
                 <img
                   src={`/api/cards/${c.cardId}/image`}
                   alt={c.nameTh || c.name}
-                  className="w-full h-24 object-cover rounded-lg mb-1"
+                  className="w-full h-24 object-contain rounded-lg mb-1 bg-black/40"
                 />
                 <div className="font-bold truncate">{c.nameTh || c.name}</div>
                 <div className="text-gray-400 truncate">{c.name}</div>

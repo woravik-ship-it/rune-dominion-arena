@@ -110,8 +110,9 @@ Query: `page`, `limit` (≤100), `element`, `rarity`, `search`
 - เพิ่ม `quantity` (ของเรา), `isFavorite`, `ownerCount` (จำนวนผู้เล่นที่ถือการ์ดใบนี้)
 
 ### `GET /api/cards/[id]/image`
-- `200 image/svg+xml` placeholder แบบ deterministic (ตามธาตุ/rarity) เมื่อยังไม่มีภาพจริง
-- ใช้กับ `<img>` ได้ตรง ๆ (`imageUrl` ของการ์ดชี้มาที่นี่เมื่อเจนเสร็จ)
+- `200 image/svg+xml` — **การ์ดเต็มใบ 420×600** (deterministic) ประกอบด้วย: กรอบโลหะตามระดับความหายาก (ทอง = MYTHIC), แถบชื่อไทย/อังกฤษ, ตราธาตุ, ดาวระดับ, ช่องภาพ (ฉาก+ลายธาตุ+ตัวแบบ), กล่องคำบรรยายคุณสมบัติ (สกิล/คำอธิบาย/lore), แถบ ATK/DEF/HP/SPD/MP และโฮโลแกรมสำหรับ RARE ขึ้นไป
+- ใช้กับ `<img>` ได้ตรง ๆ (`imageUrl` ของการ์ดชี้มาที่นี่) — ควรแสดงด้วย `object-contain` เพื่อเห็นกรอบครบทั้งใบ
+- ถ้าการ์ดมี `imageUrl` จากภายนอก (AI) → redirect ไปภาพนั้น
 
 ### `POST /api/cards/favorite`
 ```jsonc

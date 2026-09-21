@@ -133,15 +133,67 @@ describe('generatePlaceholderSvg (ความหลากหลายของ�
     expect(svg).toMatch(/<path d="M/);
   });
 
-  test('ภาพมีองค์ประกอบครบ (gradient/ฉาก/วงรูน/กรอบ/ชื่อไทย)', () => {
-    const svg = generatePlaceholderSvg({ ...CARD_BASE, role: 'MAGE', canonicalSeedHash: hashOf('rich') });
-    expect(svg).toContain('url(#bg)');
-    expect(svg).toContain('url(#motifGrad)');
-    expect(svg).toContain('clip-path="url(#frameClip)"');
-    expect(svg).toContain('url(#plate)');
+  test('การ์ดมีองค์ประกอบครบ (กรอบ/ช่องภาพ/กล่องคำบรรยาย/แถบสเตตัส)', () => {
+    const svg = generatePlaceholderSvg({
+      ...CARD_BASE,
+      role: 'MAGE',
+      canonicalSeedHash: hashOf('rich'),
+      stats: { atk: 120, def: 90, hp: 300, spd: 22, manaCost: 3 },
+      skills: [{ name: 'แสงศักดิ์สิทธิ์', description: 'สร้างดาเมจแก่ Veilmarked เป็นพิเศษ', manaCost: 3 }],
+      descriptionTh: 'นักรบจากดินแดนเพลิง',
+      loreTh: 'อักษรแรกเริ่มถูกเผาไว้บนเถ้าถ่าน',
+    });
+    // กรอบ + ช่องภาพ + ฉาก + ลายธาตุ + ตัวแบบ + กล่องข้อความ + แถบสเตตัส
+    expect(svg).toContain('url(#cardFrame)');
+    expect(svg).toContain('url(#cardArt)');
+    expect(svg).toContain('clip-path="url(#cardArtClip)"');
+    expect(svg).toContain('url(#cardMotif)');
+    expect(svg).toContain('url(#cardText)');
+    expect(svg).toContain('คุณสมบัติ / EFFECT');
+    expect(svg).toContain('ATK');
+    expect(svg).toContain('DEF');
+    expect(svg).toContain('แสงศักดิ์สิทธิ์');
     expect(svg).toContain('นักรบเพลิง');
     // รายละเอียดมากพอที่จะดู "อลังการ" (เดิม ~1.5KB)
     expect(svg.length).toBeGreaterThan(6000);
+  });
+
+  test('ระดับความหายากกำหนดสีกรอบ — ทอง (MYTHIC) ต่างจากเทา (COMMON)', () => {
+    // ใช้ธาตุน้ำเพื่อไม่ให้ปนกับสีทองของธาตุเพลิง
+    const base = { ...CARD_BASE, element: 'TIDEBORN' };
+    const common = generatePlaceholderSvg({ ...base, rarity: 'COMMON', canonicalSeedHash: hashOf('frame') });
+    const mythic = generatePlaceholderSvg({ ...base, rarity: 'MYTHIC', canonicalSeedHash: hashOf('frame') });
+    expect(common).toContain('stop-color="#9ca3af"'); // กรอบเทาเหล็ก
+    expect(mythic).toContain('stop-color="#fbbf24"'); // กรอบทองคำ
+    expect(mythic).not.toContain('stop-color="#9ca3af"');
+  });
+
+  test('การ์ดระดับสูงมีเอฟเฟกต์โฮโลแกรม ส่วนระดับล่างไม่มี', () => {
+    const common = generatePlaceholderSvg({ ...CARD_BASE, rarity: 'COMMON', canonicalSeedHash: hashOf('holo') });
+    const epic = generatePlaceholderSvg({ ...CARD_BASE, rarity: 'EPIC', canonicalSeedHash: hashOf('holo') });
+    expect(common).not.toContain('url(#cardHolo)');
+    expect(epic).toContain('url(#cardHolo)');
+  });
+
+  test('พิมพ์คำบรรยายคุณสมบัติลงในกรอบการ์ด (สกิล + คำอธิบาย + lore)', () => {
+    const svg = generatePlaceholderSvg({
+      ...CARD_BASE,
+      role: 'HEALER',
+      canonicalSeedHash: hashOf('text'),
+      stats: { atk: 88, def: 60, hp: 240, spd: 18, manaCost: 4 },
+      skills: [
+        { name: 'วังวนแห่งความทรงจำ', description: 'ฟื้นฟูหลายเป้าหมายและล้าง Weaken', manaCost: 3 },
+        { name: 'โล่เกลียวคลื่น', description: 'สร้างโล่ให้แนวหน้าและล้าง debuff', manaCost: 4 },
+      ],
+      descriptionTh: 'ผู้รักษาจากห้วงน้ำแห่งความทรงจำ',
+      loreTh: 'สายน้ำใน Aetherra จดจำเรื่องนี้ไว้ว่า',
+    });
+    expect(svg).toContain('วังวนแห่งความทรงจำ');
+    expect(svg).toContain('ฟื้นฟูหลายเป้าหมายและล้าง Weaken');
+    expect(svg).toContain('โล่เกลียวคลื่น');
+    expect(svg).toContain('ผู้รักษาจากห้วงน้ำแห่งความทรงจำ');
+    expect(svg).toContain('จดจำเรื่องนี้ไว้ว่า');
+    expect(svg).toContain('88'); // ATK ถูกพิมพ์ในแถบสเตตัส
   });
 });
 

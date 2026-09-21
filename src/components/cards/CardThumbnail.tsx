@@ -47,7 +47,7 @@ export default function CardThumbnail({ card, size = 'md', onClick }: CardThumbn
             src={card.imageUrl || `/api/cards/${card.id}/image`}
             alt={card.nameTh || card.name}
             onError={() => setImgFailed(true)}
-            className="w-full h-full object-cover"
+            className="w-full h-full object-contain"
           />
         ) : (
           <div className="text-white/50 text-4xl">?</div>
