@@ -173,7 +173,6 @@ export default function CardsPage() {
                       cardId={userCard.cardId}
                       imageUrl={userCard.imageUrl}
                       alt={userCard.nameTh || userCard.name}
-                      className="absolute inset-0"
                     />
                     {/* จำนวนใบที่ถือครอง — ค้นพบซ้ำจะได้อีกใบ */}
                     {userCard.quantity > 1 && (

@@ -172,7 +172,6 @@ export default function CardDetailPage() {
               cardId={card.id}
               imageUrl={card.imageUrl}
               alt={card.nameTh || card.name}
-              className="absolute inset-0"
             />
             {card.imageStatus === 'PENDING' && (
               <span className="absolute top-2 right-2 bg-yellow-600 text-xs px-2 py-1 rounded">

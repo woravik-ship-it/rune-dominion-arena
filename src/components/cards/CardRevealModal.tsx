@@ -78,7 +78,6 @@ export default function CardRevealModal({
             cardId={card.id}
             imageUrl={card.imageUrl}
             alt={card.nameTh || card.name}
-            className="absolute inset-0"
           />
           
           {/* Rarity Badge */}

@@ -27,7 +27,8 @@
     "backup:verify": "bash scripts/verify-backup.sh",
     "migrate:check": "bash scripts/check-migration.sh",
     "migrate:test": "bash scripts/test-migrate-deploy.sh",
-    "health": "curl -s http://localhost:3000/api/health"
+    "health": "curl -s http://localhost:3000/api/health",
+    "inspect:cards": "node scripts/inspect-cards-page.mjs"
   },
   "dependencies": {
     "next": "^14.2.0",

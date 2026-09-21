@@ -179,7 +179,6 @@ export default function DeckBuilderPage() {
                         cardId={c.cardId}
                         imageUrl={c.imageUrl}
                         alt={c.nameTh || c.name}
-                        className="absolute inset-0"
                       />
                     </div>
                     <div className="font-bold truncate">{c.nameTh || c.name}</div>
@@ -219,7 +218,6 @@ export default function DeckBuilderPage() {
                     cardId={c.cardId}
                     imageUrl={c.imageUrl}
                     alt={c.nameTh || c.name}
-                    className="absolute inset-0"
                   />
                 </div>
                 <div className="font-bold truncate">{c.nameTh || c.name}</div>
