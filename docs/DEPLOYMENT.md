@@ -113,3 +113,58 @@ npx prisma generate && npm run start
 | Client error | error boundary แสดง digest + `console.error` (พร้อมต่อ Sentry) |
 
 **การค้นหาปัญหา:** เอา `x-request-id` จาก response (หรือรหัส digest บนหน้าจอ error) ไป grep ใน log
+
+## 8. รันถาวรบนเครื่องนี้ (systemd user service)
+
+unit files ถูกเก็บใน repo ที่ `deploy/systemd/` — ติดตั้งด้วย:
+
+```bash
+cp deploy/systemd/*.service ~/.config/systemd/user/
+systemctl --user daemon-reload
+systemctl --user enable --now rune-dominion-postgres rune-dominion-arena
+```
+
+| Unit | หน้าที่ | หมายเหตุ |
+|---|---|---|
+| `rune-dominion-postgres.service` | PostgreSQL 18.6 portable (`~/pg-portable`, พอร์ต 5432) | ตั้ง `LD_LIBRARY_PATH=~/pg-portable/lib` ให้เอง · `KillSignal=SIGINT` = fast shutdown |
+| `rune-dominion-arena.service` | `next start` โหมด production (พอร์ต 3000) | โหลด `.env` แล้วทับด้วย `NODE_ENV=production`, `LOG_LEVEL=info`, `SLOW_REQUEST_MS=500` |
+| `rune-dominion-tunnel.service` | Cloudflare quick tunnel → HTTPS สาธารณะ | รอ `/api/health` ตอบก่อน · ส่งลิงก์เข้า Telegram · `PartOf` ทำให้ restart ตามแอป |
+
+```bash
+# ตรวจสถานะ/ล็อก
+systemctl --user status rune-dominion-arena
+journalctl --user -u rune-dominion-arena -f
+curl -s localhost:3000/api/health | grep '"status":"ok"'
+
+# รีสตาร์ทหลัง deploy (tunnel จะรีสตาร์ทตามเอง)
+systemctl --user restart rune-dominion-arena
+```
+
+### Tunnel สาธารณะ
+
+```bash
+npm run tunnel               # เท่ากับ scripts/start-tunnel.sh
+cat ~/.rune-dominion-tunnel/url.txt   # URL ปัจจุบัน
+```
+
+> ⚠️ quick tunnel เป็น URL ชั่วคราว — **เปลี่ยนทุกครั้งที่รีสตาร์ท** และไม่ควรใช้เป็น production จริงระยะยาว
+> ถ้าต้องการโดเมนคงที่ ให้ใช้ named tunnel + DNS ของโดเมนตัวเอง หรือย้ายขึ้น host ที่มี HTTPS ให้
+
+### หลักฐานการรันจริง (2026-09-21, เครื่องนี้)
+
+| การตรวจ | ผล |
+|---|---|
+| `npm test` | 232 passed / 20 suites |
+| `npx tsc --noEmit` | exit 0 |
+| `npm run build` | ผ่าน (26 หน้า · shared JS 87.3 kB) |
+| `npm run e2e:flow` (localhost) | **25/25 ผ่าน** |
+| `npm run e2e:flow --base <public URL>` | **25/25 ผ่าน** (ผ่าน Cloudflare) |
+| `npm run backup` | 30 ตาราง · gzip/checksum ผ่าน |
+| `/api/health` ผ่าน tunnel | `{"status":"ok", database ok}` |
+
+### ข้อจำกัดที่ควรรู้ก่อนเปิดสาธารณะ
+
+- Rate limit และ anti-cheat เก็บในหน่วยความจำของโปรเซส (single instance) — ขยายหลายอินสแตนซ์ต้องย้ายไป Redis
+- ยังไม่มี Sentry — ได้แค่ structured log + `x-request-id` + digest บนหน้า error
+- `/api/arena/settle` เปิดให้เรียกได้โดยไม่มี auth (ออกแบบให้ scheduler เรียก) — ถ้าเปิดสาธารณะควรจำกัดที่ network/secret
+- ภาพการ์ดยังเป็น SVG placeholder (Phase 8 รอต่อผู้ให้บริการ AI image)

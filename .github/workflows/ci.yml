@@ -126,6 +126,17 @@ jobs:
           curl -si http://localhost:3000/api/health | grep -qi 'x-request-id'
           echo "✅ smoke test ผ่าน"
 
+      - name: Seed ข้อมูลตั้งต้น (การ์ด + เควสต์) สำหรับ E2E
+        run: npm run db:seed
+        env:
+          DATABASE_URL: 'postgresql://postgres:postgres@localhost:5432/rune_dominion?schema=public'
+
+      - name: E2E critical flow (Discovery → Deck → Battle → Arena)
+        run: npm run e2e:flow
+        env:
+          BASE_URL: 'http://localhost:3000'
+          DATABASE_URL: 'postgresql://postgres:postgres@localhost:5432/rune_dominion?schema=public'
+
       - name: แสดง log เมื่อล้มเหลว
         if: failure()
         run: tail -50 /tmp/next.log || true

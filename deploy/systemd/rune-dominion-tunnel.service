@@ -1,0 +1,20 @@
+[Unit]
+Description=Rune Dominion Arena — Cloudflare quick tunnel (LAN/localhost → public HTTPS)
+Documentation=file:/home/woravik/E2_Lab/Game_Card/rune-dominion-arena/scripts/start-tunnel.sh
+After=network.target rune-dominion-arena.service
+Wants=rune-dominion-arena.service
+
+[Service]
+Type=simple
+WorkingDirectory=/home/woravik/E2_Lab/Game_Card/rune-dominion-arena
+Environment=HOME=/home/woravik
+Environment=PATH=/home/woravik/.local/bin:/usr/bin:/bin:/usr/local/bin
+Environment=TARGET=http://localhost:3000
+ExecStart=/home/woravik/E2_Lab/Game_Card/rune-dominion-arena/scripts/start-tunnel.sh
+Restart=on-failure
+RestartSec=10
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=default.target

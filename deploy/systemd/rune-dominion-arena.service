@@ -1,0 +1,28 @@
+[Unit]
+Description=Rune Dominion Arena — Next.js production server (port 3000)
+Documentation=file:/home/woravik/E2_Lab/Game_Card/rune-dominion-arena/docs/DEPLOYMENT.md
+After=network.target rune-dominion-postgres.service
+Wants=rune-dominion-postgres.service
+# restart ตาม tunnel ด้วยเมื่อสั่ง restart ตัวนี้
+PartOf=rune-dominion-tunnel.service
+
+[Service]
+Type=simple
+WorkingDirectory=/home/woravik/E2_Lab/Game_Card/rune-dominion-arena
+# .env ของโปรเจกต์ (DATABASE_URL / AUTH_SECRET / SERVER_PEPPER ...)
+EnvironmentFile=/home/woravik/E2_Lab/Game_Card/rune-dominion-arena/.env
+# ค่าที่ต้องทับ .env ตอนรันจริง (บรรทัดหลังสุดชนะ)
+Environment=NODE_ENV=production
+Environment=PORT=3000
+Environment=LOG_LEVEL=info
+Environment=SLOW_REQUEST_MS=500
+Environment=APP_VERSION=beta
+# ผูกกับทุก interface เพราะหน้าเว็บถูกใช้ทั้งในวง LAN และผ่าน tunnel
+ExecStart=/usr/bin/node /home/woravik/E2_Lab/Game_Card/rune-dominion-arena/node_modules/next/dist/bin/next start --port 3000 --hostname 0.0.0.0
+Restart=always
+RestartSec=5
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=default.target

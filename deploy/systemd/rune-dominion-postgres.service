@@ -1,0 +1,19 @@
+[Unit]
+Description=Rune Dominion Postgres (PostgreSQL 18.6 portable, port 5432)
+Documentation=file:/home/woravik/E2_Lab/Game_Card/rune-dominion-arena/docs/DEPLOYMENT.md
+After=network.target
+
+[Service]
+Type=simple
+# ต้องตั้ง LD_LIBRARY_PATH ให้ postgres หา lib ที่แถมมากับชุด portable
+Environment=LD_LIBRARY_PATH=/home/woravik/pg-portable/lib
+Environment=PGDATA=/home/woravik/pg-portable/data
+ExecStart=/home/woravik/pg-portable/postgresql-18.6.0-x86_64-unknown-linux-gnu/bin/postgres -D /home/woravik/pg-portable/data -p 5432
+# SIGTERM → fast shutdown (rollback transaction ที่ค้าง ไม่รอ client)
+KillSignal=SIGINT
+TimeoutStopSec=30
+Restart=on-failure
+RestartSec=3
+
+[Install]
+WantedBy=default.target
