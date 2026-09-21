@@ -160,6 +160,7 @@ cat ~/.rune-dominion-tunnel/url.txt   # URL ปัจจุบัน
 | `npm run e2e:flow` (localhost) | **25/25 ผ่าน** |
 | `npm run e2e:flow --base <public URL>` | **25/25 ผ่าน** (ผ่าน Cloudflare) |
 | `npm run backup` | 30 ตาราง · gzip/checksum ผ่าน |
+| `npm run load-test -- --users 120 --duration 10` | 197.9 req/s ที่ให้บริการ · success 100% · p95 795ms (429 = rate limit ต่อ IP) |
 | `/api/health` ผ่าน tunnel | `{"status":"ok", database ok}` |
 
 ### ข้อจำกัดที่ควรรู้ก่อนเปิดสาธารณะ

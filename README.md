@@ -14,7 +14,7 @@ Fantasy Trading Card Game / Auto Battle / Competitive Arena — เกมแน�
 | Production build | `npm run build` | ผ่าน — 26 หน้า · shared JS 87.3 kB · middleware 28.1 kB |
 | E2E critical flow (local) | `npm run e2e:flow` | **25/25 ผ่าน** |
 | E2E critical flow (ผ่าน tunnel สาธารณะ) | `npm run e2e:flow -- --base https://…trycloudflare.com` | **25/25 ผ่าน** |
-| Load test 120 ผู้ใช้ | `npm run load-test -- --users 120` | 247.5 req/s · success 100% · p95 195ms |
+| Load test 120 ผู้ใช้ | `npm run load-test -- --users 120 --duration 10` | 6,679 คำขอ · ให้บริการ 197.9 req/s · success 100% · p95 795ms (ส่วนที่เหลือ 429 = rate limit ต่อ IP ทำงานถูกต้อง) |
 | Backup + restore จริง | `npm run backup && npm run backup:verify` | 30 ตาราง · checksum ตรง · restore สำเร็จ |
 
 ## Getting Started
