@@ -1,23 +1,21 @@
 [Unit]
-Description=Rune Dominion Arena — card art generation worker (AI images, background)
+Description=Rune Dominion Arena — card art generation (one pass, AI images)
 Documentation=file:/home/woravik/E2_Lab/Game_Card/rune-dominion-arena/scripts/run-image-generation.sh
 After=network-online.target rune-dominion-postgres.service
 Wants=rune-dominion-postgres.service
 
 [Service]
-Type=simple
+Type=oneshot
 WorkingDirectory=/home/woravik/E2_Lab/Game_Card/rune-dominion-arena
 Environment=HOME=/home/woravik
 Environment=PATH=/home/woravik/.local/bin:/usr/bin:/bin:/usr/local/bin
-# หน่วงระหว่างคำขอ (ผู้ให้บริการฟรีกักคิว 1 งาน/IP) — ปรับได้ตามความเร็วที่ผู้ให้บริการยอมให้
-Environment=DELAY=3000
-Environment=MAX_ROUNDS=500
-Environment=PAUSE_BETWEEN_ROUNDS=30
+# หน่วงระหว่างคำขอ (ผู้ให้บริการถูกกว่า/ฟรีมักจำกัดคิว) — ปรับได้ตามผู้ให้บริการ
+Environment=DELAY=500
+# ทำรอบเดียวแล้วจบ (ให้ timer เป็นตัวเรียกซ้ำ) — ALL=1 เมื่อต้องการสร้างใหม่ทั้งคลัง
+Environment=RUN_ONCE=1
+Environment=ALL=0
 ExecStart=/usr/bin/bash /home/woravik/E2_Lab/Game_Card/rune-dominion-arena/scripts/run-image-generation.sh
-Restart=on-failure
-RestartSec=30
-StandardOutput=journal
-StandardError=journal
+TimeoutStartSec=1800
 
 [Install]
 WantedBy=default.target

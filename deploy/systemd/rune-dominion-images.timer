@@ -1,0 +1,13 @@
+[Unit]
+Description=Rune Dominion Arena — card art generation timer (ตรวจการ์ดที่ยังไม่มีภาพทุก 2 นาที)
+Documentation=file:/home/woravik/E2_Lab/Game_Card/rune-dominion-arena/docs/DEPLOYMENT.md
+
+[Timer]
+# เริ่มหลังบูต 1 นาที แล้วตรวจซ้ำทุก 2 นาที (การ์ดใหม่จากผู้เล่นจะได้ภาพภายใน ~2 นาที)
+OnBootSec=1min
+OnUnitActiveSec=2min
+Persistent=true
+AccuracySec=15s
+
+[Install]
+WantedBy=timers.target

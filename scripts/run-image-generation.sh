@@ -27,16 +27,7 @@ while [ "$round" -lt "$MAX_ROUNDS" ]; do
         npx tsx scripts/generate-card-images.ts --delay "$DELAY" 2>&1 | grep -vE 'prisma:query'
     fi
 
-    missing=$(npx tsx -e "
-import { PrismaClient } from '@prisma/client';
-import { hasCardArt } from './src/lib/card-art-store';
-const prisma = new PrismaClient();
-const cards = await prisma.cardDefinition.findMany({ select: { id: true } });
-let missing = 0;
-for (const card of cards) { if (!(await hasCardArt(card.id))) missing += 1; }
-console.log(missing);
-await prisma.\$disconnect();
-" 2>/dev/null | tail -1)
+    missing=$(npx tsx scripts/count-missing-art.mts 2>/dev/null | tail -1)
 
     echo "=== การ์ดที่ยังไม่มีภาพ: ${missing:-?} ใบ ==="
     if [ "${missing:-1}" = "0" ]; then

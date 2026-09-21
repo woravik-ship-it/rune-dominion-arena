@@ -28,7 +28,7 @@ export async function GET(request: NextRequest) {
         where,
         select: {
           id: true, name: true, nameTh: true, element: true,
-          rarity: true, role: true, imageUrl: true, discoveryCount: true,
+          rarity: true, role: true, imageUrl: true, imageStatus: true, discoveryCount: true,
           _count: { select: { userCards: true } },
         },
         orderBy: { createdAt: 'desc' },

@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import CardFace from '@/components/cards/CardFace';
 
 interface AdminCard {
   id: string;
@@ -9,8 +10,22 @@ interface AdminCard {
   element: string;
   rarity: string;
   role: string;
+  imageUrl: string | null;
+  imageStatus: string | null;
   discoveryCount: number;
   ownerCount: number;
+}
+
+/** ป้ายสถานะภาพการ์ด (ให้แอดมินเห็นว่าอยู่ขั้นไหน) */
+function ImageStatusBadge({ status }: { status?: string | null }) {
+  const map: Record<string, { label: string; cls: string }> = {
+    READY: { label: 'มีภาพแล้ว', cls: 'text-green-400' },
+    PROCESSING: { label: 'กำลังสร้าง…', cls: 'text-amber-300' },
+    PENDING: { label: 'รอคิวสร้าง', cls: 'text-amber-300' },
+    FAILED: { label: 'สร้างไม่สำเร็จ', cls: 'text-red-400' },
+  };
+  const info = map[status ?? ''] ?? { label: status ?? 'ไม่ทราบสถานะ', cls: 'text-gray-400' };
+  return <span className={info.cls}>{info.label}</span>;
 }
 
 export default function AdminCardsPage() {
@@ -21,6 +36,28 @@ export default function AdminCardsPage() {
   const [editForm, setEditForm] = useState({ nameTh: '', loreTh: '' });
   const [msg, setMsg] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [regeneratingId, setRegeneratingId] = useState<string | null>(null);
+
+  /** สั่งสร้างภาพการ์ดใบนี้ใหม่ → สถานะเป็น "กำลังสร้าง" จนภาพใหม่พร้อม (CardFace poll เอง) */
+  const regenerate = async (card: AdminCard) => {
+    setRegeneratingId(card.id);
+    setMsg(null);
+    setError(null);
+    try {
+      const res = await fetch(`/api/admin/cards/${card.id}/regenerate`, { method: 'POST' });
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        setError(data.error || 'สั่งสร้างภาพไม่สำเร็จ');
+        return;
+      }
+      setMsg(data.data?.message ?? 'สั่งสร้างภาพใหม่แล้ว');
+      setCards((prev) => prev.map((item) => (item.id === card.id ? { ...item, imageStatus: 'PROCESSING' } : item)));
+    } catch {
+      setError('สั่งสร้างภาพไม่สำเร็จ');
+    } finally {
+      setRegeneratingId(null);
+    }
+  };
 
   const load = async (q = '') => {
     setLoading(true);
@@ -96,6 +133,7 @@ export default function AdminCardsPage() {
           <table className="w-full text-sm">
             <thead className="bg-gray-700 text-gray-300">
               <tr>
+                <th className="p-2 text-left">รูป</th>
                 <th className="p-2 text-left">การ์ด</th>
                 <th className="p-2 text-left">ธาตุ/ความหายาก</th>
                 <th className="p-2 text-right">ครั้งที่ค้นพบ</th>
@@ -107,6 +145,20 @@ export default function AdminCardsPage() {
               {cards.map((c) => (
                 <tr key={c.id} className="border-t border-gray-700 text-gray-200">
                   <td className="p-2">
+                    {/* การ์ดย่อ: ภาพ AI + กรอบ (ระหว่างสร้างจะขึ้น "กำลังสร้างภาพด้วย AI…") */}
+                    <div className="relative w-20 aspect-[7/10] rounded bg-black/40 overflow-hidden">
+                      <CardFace
+                        cardId={c.id}
+                        imageUrl={c.imageUrl}
+                        imageStatus={c.imageStatus}
+                        alt={c.nameTh || c.name}
+                      />
+                    </div>
+                    <div className="mt-1 text-[10px]">
+                      <ImageStatusBadge status={c.imageStatus} />
+                    </div>
+                  </td>
+                  <td className="p-2">
                     <div className="font-bold">{c.nameTh || c.name}</div>
                     <div className="text-xs text-gray-500">{c.name}</div>
                   </td>
@@ -116,8 +168,15 @@ export default function AdminCardsPage() {
                   </td>
                   <td className="p-2 text-right">{c.discoveryCount}</td>
                   <td className="p-2 text-right">{c.ownerCount}</td>
-                  <td className="p-2 text-center">
+                  <td className="p-2 text-center space-y-1">
                     <button onClick={() => openEdit(c)} className="btn-secondary text-xs px-3 py-1">แก้ไข</button>
+                    <button
+                      onClick={() => regenerate(c)}
+                      disabled={regeneratingId === c.id}
+                      className="btn-primary text-xs px-3 py-1 disabled:opacity-50"
+                    >
+                      {regeneratingId === c.id ? 'กำลังสั่ง…' : '🔄 สร้างรูปใหม่'}
+                    </button>
                   </td>
                 </tr>
               ))}

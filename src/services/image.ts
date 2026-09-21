@@ -253,5 +253,40 @@ export class ImageService {
     }
     return result.count;
   }
+
+  /**
+   * สั่ง "สร้างภาพใหม่" ให้การ์ดใบเดียว (ใช้จากแผงแอดมิน)
+   * - ยกเลิกงานเดิมที่ยังค้าง · สร้างงานใหม่พร้อม prompt ล่าสุด · ตั้งสถานะ PROCESSING ให้ UI ขึ้น "กำลังสร้าง"
+   * - สั่งประมวลผลทันทีแบบไม่บล็อกคำตอบ (worker ก็หยิบงานนี้ได้เช่นกัน)
+   */
+  static async regenerateCard(cardId: string): Promise<{ enqueued: boolean; jobId?: string }> {
+    const card = await prisma.cardDefinition.findUnique({
+      where: { id: cardId },
+      select: {
+        id: true, name: true, nameTh: true, element: true, rarity: true,
+        role: true, loreTh: true, canonicalSeedHash: true,
+      },
+    });
+    if (!card) return { enqueued: false };
+
+    await prisma.imageJob.updateMany({
+      where: { cardId, status: { in: ['PENDING', 'PROCESSING'] } },
+      data: { status: 'FAILED', errorMessage: 'ถูกแทนที่ด้วยคำสั่งสร้างใหม่จากแอดมิน' },
+    });
+
+    const job = await prisma.imageJob.create({
+      data: { cardId, imagePrompt: buildImagePrompt(card), status: 'PENDING' },
+    });
+
+    await prisma.cardDefinition.update({
+      where: { id: cardId },
+      data: { imageStatus: 'PROCESSING' },
+    });
+
+    // ให้ worker/คิวเป็นผู้สร้าง (ไม่ยิง provider ซ้อนกันเอง)
+    void this.processBatch(1).catch((error) => console.error('Regenerate error:', error));
+
+    return { enqueued: true, jobId: job.id };
+  }
 }
 
