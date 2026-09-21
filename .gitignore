@@ -42,3 +42,6 @@ next-env.d.ts
 
 # Generated card art (สร้างใหม่ได้ด้วย npm run images:generate)
 var/
+
+# Diagnostic screenshots (regenerate เองได้)
+public/_shots/
