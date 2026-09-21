@@ -12,6 +12,7 @@ interface SessionUser {
 
 export default function TopHeader() {
   const [balance, setBalance] = useState<number | null>(null);
+  const [energy, setEnergy] = useState<number | null>(null);
   const [user, setUser] = useState<SessionUser | null>(null);
 
   useEffect(() => {
@@ -19,10 +20,13 @@ export default function TopHeader() {
     Promise.all([
       fetch('/api/wallet').then((r) => r.json()).catch(() => null),
       fetch('/api/auth/me').then((r) => (r.ok ? r.json() : null)).catch(() => null),
-    ]).then(([walletData, meData]) => {
+      // Phase 5: แสดงพลังค้นหาในหัวเว็บ (เดิมแสดงแค่ Coin)
+      fetch('/api/energy').then((r) => (r.ok ? r.json() : null)).catch(() => null),
+    ]).then(([walletData, meData, energyData]) => {
       if (cancelled) return;
       if (walletData?.success) setBalance(walletData.data.balance);
       if (meData?.success) setUser(meData.data.user);
+      if (energyData?.success) setEnergy(energyData.energy.remaining);
     });
     return () => {
       cancelled = true;
@@ -72,6 +76,9 @@ export default function TopHeader() {
               ⚙️ Admin
             </Link>
           )}
+          <Link href="/discover" className="shrink-0 whitespace-nowrap text-sm font-bold text-sky-300 hover:text-sky-200 transition-colors" title="พลังค้นหา (เหลือ/วัน)">
+            ⚡ {energy === null ? '...' : energy}
+          </Link>
           <Link href="/wallet" className="text-sm font-bold text-amber-400 hover:text-amber-300 transition-colors">
             🪙 {balance === null ? '...' : balance.toLocaleString('th-TH')}
           </Link>

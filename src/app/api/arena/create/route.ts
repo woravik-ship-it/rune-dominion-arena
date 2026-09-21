@@ -3,6 +3,7 @@ import { prisma } from '@/lib/prisma';
 import {
   ARENA_CREATE_COST,
   ARENA_JOIN_COST,
+  ARENA_COOLDOWN_MINUTES,
   arenaExpiryFrom,
   calculateArenaReward,
   validateRoomName,
@@ -35,8 +36,12 @@ export async function POST(request: NextRequest) {
       where: { hostId: userId },
       orderBy: { createdAt: 'desc' },
     });
-    if (lastRoom && Date.now() - lastRoom.createdAt.getTime() < 5 * 60 * 1000) {
-      return NextResponse.json({ error: 'เปิดห้องได้ทุก 5 นาที กรุณารอสักครู่' }, { status: 429 });
+    // Phase 6: cooldown ระหว่างเปิดห้อง (ค่าจาก constants เพื่อปรับที่เดียว)
+    if (lastRoom && Date.now() - lastRoom.createdAt.getTime() < ARENA_COOLDOWN_MINUTES * 60 * 1000) {
+      return NextResponse.json(
+        { error: `เปิดห้องได้ทุก ${ARENA_COOLDOWN_MINUTES} นาที กรุณารอสักครู่` },
+        { status: 429 }
+      );
     }
 
     const deck = await prisma.deck.findUnique({

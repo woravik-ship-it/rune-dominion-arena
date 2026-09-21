@@ -7,12 +7,14 @@ import {
   ARENA_MAX_REWARD,
   ARENA_DURATION_HOURS,
   ARENA_DAILY_LIMIT,
+  ARENA_COOLDOWN_MINUTES,
 } from '@/lib/constants';
 
 export const ARENA_CREATE_COST = ARENA_CREATE_FEE;
 export const ARENA_JOIN_COST = ARENA_ENTRY_FEE;
 export const ARENA_DURATION_MS = ARENA_DURATION_HOURS * 60 * 60 * 1000;
 export const ARENA_JOIN_DAILY_LIMIT = ARENA_DAILY_LIMIT;
+export { ARENA_COOLDOWN_MINUTES };
 
 /** รางวัลสุดท้ายตามจำนวนผู้เข้าร่วม (เพดานตาม GDD) */
 export function calculateArenaReward(participantCount: number): number {

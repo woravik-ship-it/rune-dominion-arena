@@ -3,6 +3,7 @@
 // Rules: deterministic placeholder / idempotent enqueue / retry + exponential backoff
 import { prisma } from '@/lib/prisma';
 import { isPromptSafe } from '@/lib/image-placeholder';
+import { sendImageWebhook } from '@/lib/image-webhook';
 
 const BACKOFF_BASE_MS = 30_000; // 30 วิ
 const BACKOFF_MAX_MS = 10 * 60_000; // 10 นาที
@@ -123,12 +124,12 @@ export class ImageService {
     });
     if (locked.count !== 1) return { jobId: eligible.id, status: 'SKIPPED' };
 
-    let card: { id: string; name: string; element: string; rarity: string; role: string; loreTh: string | null; canonicalSeedHash: string } | null = null;
+    let card: { id: string; name: string; nameTh: string | null; element: string; rarity: string; role: string; loreTh: string | null; canonicalSeedHash: string } | null = null;
     try {
       card = await prisma.cardDefinition.findUnique({
         where: { id: eligible.cardId },
         select: {
-          id: true, name: true, element: true, rarity: true,
+          id: true, name: true, nameTh: true, element: true, rarity: true,
           role: true, loreTh: true, canonicalSeedHash: true,
         },
       });
@@ -150,6 +151,17 @@ export class ImageService {
         where: { id: card.id },
         data: { imageUrl: resultUrl, imageStatus: 'READY' },
       });
+      // Phase 8: แจ้งปลายทางเมื่องานเสร็จ (ไม่กระทบ flow แม้ webhook ล้มเหลว)
+      await sendImageWebhook({
+        event: 'image.completed',
+        jobId: eligible.id,
+        cardId: card.id,
+        cardNameTh: card.nameTh,
+        status: 'COMPLETED',
+        resultUrl,
+        retryCount: eligible.retryCount,
+        occurredAt: now.toISOString(),
+      }).catch(() => undefined);
       return { jobId: eligible.id, status: 'COMPLETED', resultUrl };
     } catch (error) {
       const message = error instanceof Error ? error.message : 'unknown error';
@@ -167,6 +179,17 @@ export class ImageService {
           where: { id: card.id },
           data: { imageStatus: 'FAILED' },
         });
+        // Phase 8: แจ้งปลายทางเมื่องานล้มเหลวถาวร (ให้ ops ตรวจได้)
+        await sendImageWebhook({
+          event: 'image.failed',
+          jobId: eligible.id,
+          cardId: card.id,
+          cardNameTh: card.nameTh,
+          status: 'FAILED',
+          error: message,
+          retryCount: nextRetry,
+          occurredAt: now.toISOString(),
+        }).catch(() => undefined);
       }
       return { jobId: eligible.id, status: failed ? 'FAILED' : 'RETRY', error: message };
     }
