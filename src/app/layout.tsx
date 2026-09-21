@@ -1,7 +1,9 @@
-import type { Metadata } from 'next';
+import type { Metadata, Viewport } from 'next';
 import { Noto_Sans_Thai } from 'next/font/google';
 import './globals.css';
 import AppShell from '@/components/layout/AppShell';
+import { AudioProvider } from '@/components/providers/AudioProvider';
+import { OnboardingProvider } from '@/components/providers/OnboardingProvider';
 
 const notoSansThai = Noto_Sans_Thai({
   subsets: ['thai', 'latin'],
@@ -23,6 +25,13 @@ export const metadata: Metadata = {
   },
 };
 
+export const viewport: Viewport = {
+  width: 'device-width',
+  initialScale: 1,
+  maximumScale: 5,
+  themeColor: '#0b1020',
+};
+
 export default function RootLayout({
   children,
 }: {
@@ -31,9 +40,13 @@ export default function RootLayout({
   return (
     <html lang="th" className={notoSansThai.variable}>
       <body className="font-thai">
-        <AppShell>
-          {children}
-        </AppShell>
+        <AudioProvider>
+          <OnboardingProvider>
+            <AppShell>
+              {children}
+            </AppShell>
+          </OnboardingProvider>
+        </AudioProvider>
       </body>
     </html>
   );

@@ -5,6 +5,8 @@ import { useState, useEffect } from 'react';
 import RuneCanvas from '@/components/rune/RuneCanvas';
 import CardRevealModal from '@/components/cards/CardRevealModal';
 import { CardDefinition } from '@/types';
+import { useAudio } from '@/components/providers/AudioProvider';
+import { revealSfxFor } from '@/lib/sfx';
 
 export default function DiscoverPage() {
   const [selectedRunes, setSelectedRunes] = useState<number[]>([]);
@@ -14,6 +16,7 @@ export default function DiscoverPage() {
   const [error, setError] = useState<string | null>(null);
   const [energy, setEnergy] = useState<number>(5);
   const [isLoadingEnergy, setIsLoadingEnergy] = useState(true);
+  const { play } = useAudio();
 
   // Load energy on mount
   useEffect(() => {
@@ -39,21 +42,25 @@ export default function DiscoverPage() {
   const handleSelectionChange = (runes: number[]) => {
     setSelectedRunes(runes);
     setError(null);
+    if (runes.length > 0) play('rune_select');
   };
 
   const handleDiscover = async () => {
     if (selectedRunes.length < 8) {
       setError('ต้องเลือกรูนอย่างน้อย 8 ตำแหน่ง');
+      play('ui_error');
       return;
     }
 
     if (energy <= 0) {
       setError('พลังค้นหาไม่เพียงพอ');
+      play('ui_error');
       return;
     }
 
     setIsDiscovering(true);
     setError(null);
+    play('rune_discover');
 
     try {
       const response = await apiFetch('/api/discover', {
@@ -72,6 +79,8 @@ export default function DiscoverPage() {
 
       setRevealedCard(data.card);
       setIsFirstDiscovery(data.discovery.isFirstDiscovery);
+      // เสียงเปิดการ์ดตาม rarity (GDD §17)
+      play(revealSfxFor(data.card?.rarity ?? 'COMMON'));
       
       // Update energy from response
       if (data.energy) {
@@ -79,6 +88,7 @@ export default function DiscoverPage() {
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'เกิดข้อผิดพลาด');
+      play('ui_error');
     } finally {
       setIsDiscovering(false);
     }

@@ -21,6 +21,7 @@ const navItems: NavItem[] = [
   { href: '/quests', label: 'Quests', icon: '📜' },
   { href: '/events', label: 'Events', icon: '🌙' },
   { href: '/inventory', label: 'คลัง', icon: '🎒' },
+  { href: '/settings', label: 'ตั้งค่า', icon: '⚙️' },
   { href: '/profile', label: 'Profile', icon: '👤' },
   { href: '/admin', label: 'Admin', icon: '⚙️', adminOnly: true },
 ];

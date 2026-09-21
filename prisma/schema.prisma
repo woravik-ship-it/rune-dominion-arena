@@ -88,6 +88,10 @@ model User {
   inventory           UserInventoryItem[]
   discoveredCards     CardDefinition[]     @relation("FirstDiscoverer")
 
+  // Phase 12: index สำหรับ fingerprint lookup (ทุกครั้งที่สมัคร/ล็อกอิน) + admin filter
+  @@index([signupDeviceId])
+  @@index([lastDeviceId])
+  @@index([role])
   @@map("users")
 }
 

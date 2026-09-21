@@ -2,6 +2,7 @@
 
 // ส่วนแสดงผลของ Event Hub (แยกจาก page.tsx เพื่อให้อ่านง่าย + ไฟล์ไม่ใหญ่เกิน)
 import Link from 'next/link';
+import { useAudio } from '@/components/providers/AudioProvider';
 
 export interface EventBossView {
   id: string; nameTh: string; maxHp: number; currentHp: number;
@@ -79,6 +80,7 @@ export default function EventHubView({
 }: Props) {
   const bossPercent = hub.boss?.percent ?? 0;
   const shards = hub.me?.veilShards ?? 0;
+  const { play } = useAudio();
 
   return (
     <main className="min-h-screen p-4 pb-24">
@@ -129,7 +131,7 @@ export default function EventHubView({
             </div>
 
             <button
-              onClick={onRaid}
+              onClick={() => { play('raid_hit'); onRaid(); }}
               disabled={busy || !deckId || hub.boss.isDefeated}
               className="btn-primary w-full disabled:opacity-50"
             >
@@ -168,7 +170,7 @@ export default function EventHubView({
                   <span className="text-xs text-green-400">รับแล้ว</span>
                 ) : m.reached ? (
                   <button
-                    onClick={() => onClaim(m.id)}
+                    onClick={() => { play('reward_claim'); onClaim(m.id); }}
                     disabled={busy}
                     className="text-xs bg-amber-600 hover:bg-amber-500 text-white px-3 py-1 rounded disabled:opacity-50"
                   >
@@ -194,7 +196,7 @@ export default function EventHubView({
                     <span className="text-xs text-green-400">รับแล้ว</span>
                   ) : q.isCompleted ? (
                     <button
-                      onClick={() => onClaimQuest(q.questId)}
+                      onClick={() => { play('reward_claim'); onClaimQuest(q.questId); }}
                       disabled={busy}
                       className="text-xs bg-amber-600 hover:bg-amber-500 text-white px-3 py-1 rounded disabled:opacity-50"
                     >
@@ -230,7 +232,7 @@ export default function EventHubView({
                   <p className="text-xs text-gray-500">{s.descriptionTh}</p>
                 </div>
                 <button
-                  onClick={() => onBuy(s.id)}
+                  onClick={() => { play('arena_join'); onBuy(s.id); }}
                   disabled={busy || shards < s.price}
                   className="text-xs bg-indigo-600 hover:bg-indigo-500 text-white px-3 py-1 rounded disabled:opacity-50"
                 >

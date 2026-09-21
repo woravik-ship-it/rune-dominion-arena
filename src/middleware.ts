@@ -1,9 +1,23 @@
-// Middleware — Logger + Security Headers (Phase 0) + CORS + Rate Limit (Phase 10)
+// Middleware — Logger + Security Headers (Phase 0) + CORS + Rate Limit (Phase 10) + Request ID (Phase 12)
 // หมายเหตุ: middleware รันบน edge runtime — ห้าม import module ที่ใช้ node:crypto (เช่น session.ts)
 // จึง import เฉพาะ pure core จาก @/lib/rate-limit และ parse IP เอง
 import { NextRequest, NextResponse } from 'next/server';
 import { checkRateLimit, rateLimitConfig } from '@/lib/rate-limit';
 import { corsGuard, corsPreflightResponse } from '@/lib/cors';
+
+const REQUEST_ID_HEADER = 'x-request-id';
+
+/** request id สำหรับ correlate log (edge-safe — ใช้ Web Crypto) */
+function makeRequestId(): string {
+  try {
+    if (typeof crypto !== 'undefined' && 'randomUUID' in crypto) {
+      return crypto.randomUUID().slice(0, 18);
+    }
+  } catch {
+    // fallthrough
+  }
+  return `r${Date.now().toString(36)}${Math.random().toString(36).slice(2, 8)}`;
+}
 
 // ===== Security Headers =====
 
@@ -34,11 +48,12 @@ function contentSecurityPolicy(): string {
   ].join('; ');
 }
 
-function applySecurityHeaders(res: NextResponse): NextResponse {
+function applySecurityHeaders(res: NextResponse, requestId?: string): NextResponse {
   for (const [key, value] of SECURITY_HEADERS) {
     res.headers.set(key, value);
   }
   res.headers.set('Content-Security-Policy', contentSecurityPolicy());
+  if (requestId) res.headers.set(REQUEST_ID_HEADER, requestId);
   if (process.env.NODE_ENV === 'production') {
     res.headers.set('Strict-Transport-Security', 'max-age=31536000; includeSubDomains');
   }
@@ -59,6 +74,8 @@ function getClientIpFromRequest(request: NextRequest): string {
 export function middleware(request: NextRequest) {
   const start = Date.now();
   const { pathname } = request.nextUrl;
+  // Phase 12: request id เดียวตลอดเส้นทาง (client ส่งมาได้เพื่อ correlate ข้ามระบบ)
+  const requestId = request.headers.get(REQUEST_ID_HEADER) || makeRequestId();
 
   // ===== API: CORS + Rate limit ชั้นแรก (per IP) =====
   if (pathname.startsWith('/api')) {
@@ -67,7 +84,8 @@ export function middleware(request: NextRequest) {
     }
     const corsBlocked = corsGuard(request);
     if (corsBlocked) {
-      return applySecurityHeaders(corsBlocked);
+      logRequestLine(request, 403, start, requestId, pathname);
+      return applySecurityHeaders(corsBlocked, requestId);
     }
 
     const burst = checkRateLimit(
@@ -87,19 +105,40 @@ export function middleware(request: NextRequest) {
           },
         }
       );
-      return applySecurityHeaders(res);
+      logRequestLine(request, 429, start, requestId, pathname);
+      return applySecurityHeaders(res, requestId);
     }
   }
 
   const res = NextResponse.next();
-
-  // Request log (ข้าม static)
   if (!pathname.startsWith('/_next')) {
-    console.log(
-      `[${new Date().toISOString()}] ${request.method} ${pathname} -> ${res.status} (${Date.now() - start}ms)`
-    );
+    logRequestLine(request, res.status, start, requestId, pathname);
   }
-  return applySecurityHeaders(res);
+  return applySecurityHeaders(res, requestId);
+}
+
+/** log 1 บรรทัดแบบ structured (edge-safe — ไม่พึ่ง node API) */
+function logRequestLine(
+  request: NextRequest,
+  status: number,
+  start: number,
+  requestId: string,
+  pathname: string
+): void {
+  const durationMs = Date.now() - start;
+  const slowMs = Number(process.env.SLOW_REQUEST_MS) || 1000;
+  console.log(
+    JSON.stringify({
+      ts: new Date().toISOString(),
+      level: durationMs >= slowMs ? 'warn' : 'info',
+      msg: durationMs >= slowMs ? 'slow_request' : 'request',
+      requestId,
+      method: request.method,
+      path: pathname,
+      status,
+      durationMs,
+    })
+  );
 }
 
 export const config = {
