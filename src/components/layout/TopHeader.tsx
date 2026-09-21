@@ -48,6 +48,9 @@ export default function TopHeader() {
           <Link href="/quests" className="shrink-0 whitespace-nowrap text-sm text-gray-300 hover:text-white transition-colors">
             Quests
           </Link>
+          <Link href="/events" className="shrink-0 whitespace-nowrap text-sm text-purple-300 hover:text-purple-200 transition-colors">
+            Events
+          </Link>
           <Link href="/cards" className="shrink-0 whitespace-nowrap text-sm text-gray-300 hover:text-white transition-colors">
             Cards
           </Link>

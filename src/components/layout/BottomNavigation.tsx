@@ -19,6 +19,7 @@ const navItems: NavItem[] = [
   { href: '/arena', label: 'Arena', icon: '⚔️' },
   { href: '/wallet', label: 'Wallet', icon: '💰' },
   { href: '/quests', label: 'Quests', icon: '📜' },
+  { href: '/events', label: 'Events', icon: '🌙' },
   { href: '/profile', label: 'Profile', icon: '👤' },
   { href: '/admin', label: 'Admin', icon: '⚙️', adminOnly: true },
 ];

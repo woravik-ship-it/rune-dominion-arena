@@ -51,38 +51,40 @@ model SecurityEvent {
 // ===== AUTH / USER =====
 
 model User {
-  id            String    @id @default(cuid())
-  email         String    @unique
-  username      String    @unique
-  passwordHash  String
-  displayName   String?
-  avatarUrl     String?
-  role          UserRole  @default(PLAYER)
-  isActive      Boolean   @default(true)
-  discoveryEnergy Int     @default(5) @map("discovery_energy")
+  id                String    @id @default(cuid())
+  email             String    @unique
+  username          String    @unique
+  passwordHash      String
+  displayName       String?
+  avatarUrl         String?
+  role              UserRole  @default(PLAYER)
+  isActive          Boolean   @default(true)
+  discoveryEnergy   Int       @default(5) @map("discovery_energy")
   lastEnergyResetAt DateTime? @map("last_energy_reset_at")
 
   // Phase 10: fingerprint สำหรับตรวจ Alt-account (device id + IP)
-  signupDeviceId String?   @map("signup_device_id")
-  lastDeviceId   String?   @map("last_device_id")
-  signupIp       String?   @map("signup_ip")
-  lastIp         String?   @map("last_ip")
+  signupDeviceId String? @map("signup_device_id")
+  lastDeviceId   String? @map("last_device_id")
+  signupIp       String? @map("signup_ip")
+  lastIp         String? @map("last_ip")
 
-  createdAt     DateTime  @default(now())
-  updatedAt     DateTime  @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   // Relations
-  wallet        Wallet?
-  cards         UserCard[]
-  decks         Deck[]
-  discoveries   DiscoveryLog[]
-  attackerBattles BattleLog[] @relation("BattleAttacker")
-  defenderBattles BattleLog[] @relation("BattleDefender")
-  quests       QuestProgress[]
-  arenaRooms    ArenaRoom[]
+  wallet              Wallet?
+  cards               UserCard[]
+  decks               Deck[]
+  discoveries         DiscoveryLog[]
+  attackerBattles     BattleLog[]          @relation("BattleAttacker")
+  defenderBattles     BattleLog[]          @relation("BattleDefender")
+  quests              QuestProgress[]
+  arenaRooms          ArenaRoom[]
   arenaParticipations ArenaParticipant[]
   eventParticipations EventParticipation[]
-  discoveredCards CardDefinition[] @relation("FirstDiscoverer")
+  eventRaids          EventRaidAttempt[]
+  eventPurchases      EventShopPurchase[]
+  discoveredCards     CardDefinition[]     @relation("FirstDiscoverer")
 
   @@map("users")
 }
@@ -96,51 +98,51 @@ enum UserRole {
 // ===== CARD SYSTEM =====
 
 model CardDefinition {
-  id              String   @id @default(cuid())
-  canonicalSeedHash String @unique @map("canonical_seed_hash")
-  name            String
-  nameTh          String?  @map("name_th")
-  description     String?
-  descriptionTh   String?  @map("description_th")
-  lore            String?
-  loreTh          String?  @map("lore_th")
-  
+  id                String  @id @default(cuid())
+  canonicalSeedHash String  @unique @map("canonical_seed_hash")
+  name              String
+  nameTh            String? @map("name_th")
+  description       String?
+  descriptionTh     String? @map("description_th")
+  lore              String?
+  loreTh            String? @map("lore_th")
+
   // Stats
-  element         Element
-  rarity          Rarity
-  role            CardRole
-  atk             Int
-  def             Int
-  hp              Int
-  spd             Int
-  manaCost        Int      @map("mana_cost")
-  
+  element  Element
+  rarity   Rarity
+  role     CardRole
+  atk      Int
+  def      Int
+  hp       Int
+  spd      Int
+  manaCost Int      @map("mana_cost")
+
   // Skills
-  skill1Name      String?  @map("skill1_name")
-  skill1Desc      String?  @map("skill1_desc")
-  skill1ManaCost  Int?     @map("skill1_mana_cost")
-  skill2Name      String?  @map("skill2_name")
-  skill2Desc      String?  @map("skill2_desc")
-  skill2ManaCost  Int?     @map("skill2_mana_cost")
-  
+  skill1Name     String? @map("skill1_name")
+  skill1Desc     String? @map("skill1_desc")
+  skill1ManaCost Int?    @map("skill1_mana_cost")
+  skill2Name     String? @map("skill2_name")
+  skill2Desc     String? @map("skill2_desc")
+  skill2ManaCost Int?    @map("skill2_mana_cost")
+
   // Media
-  imageUrl        String?  @map("image_url")
-  imageStatus     ImageStatus @default(PENDING) @map("image_status")
-  thumbnailUrl    String?  @map("thumbnail_url")
-  
+  imageUrl     String?     @map("image_url")
+  imageStatus  ImageStatus @default(PENDING) @map("image_status")
+  thumbnailUrl String?     @map("thumbnail_url")
+
   // Metadata
-  discoveryCount  Int      @default(0) @map("discovery_count")
-  firstDiscovererId String? @map("first_discoverer_id")
+  discoveryCount    Int       @default(0) @map("discovery_count")
+  firstDiscovererId String?   @map("first_discoverer_id")
   firstDiscoveredAt DateTime? @map("first_discovered_at")
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime  @updatedAt
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
 
   // Relations
   userCards       UserCard[]
   discoveries     DiscoveryLog[]
   deckSlots       DeckSlot[]
   imageJobs       ImageJob[]
-  firstDiscoverer User?     @relation("FirstDiscoverer", fields: [firstDiscovererId], references: [id])
+  firstDiscoverer User?          @relation("FirstDiscoverer", fields: [firstDiscovererId], references: [id])
 
   @@index([element])
   @@index([rarity])
@@ -183,18 +185,18 @@ enum ImageStatus {
 }
 
 model UserCard {
-  id              String   @id @default(cuid())
-  userId          String   @map("user_id")
-  cardId          String   @map("card_id")
-  isFavorite      Boolean  @default(false) @map("is_favorite")
-  obtainedMethod  String   @map("obtained_method")
-  obtainedAt      DateTime @default(now()) @map("obtained_at")
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
+  id             String   @id @default(cuid())
+  userId         String   @map("user_id")
+  cardId         String   @map("card_id")
+  isFavorite     Boolean  @default(false) @map("is_favorite")
+  obtainedMethod String   @map("obtained_method")
+  obtainedAt     DateTime @default(now()) @map("obtained_at")
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
 
   // Relations
-  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  card            CardDefinition @relation(fields: [cardId], references: [id], onDelete: Cascade)
+  user User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  card CardDefinition @relation(fields: [cardId], references: [id], onDelete: Cascade)
 
   @@unique([userId, cardId])
   @@index([userId])
@@ -203,19 +205,19 @@ model UserCard {
 }
 
 model DiscoveryLog {
-  id              String   @id @default(cuid())
-  userId          String   @map("user_id")
-  cardId          String   @map("card_id")
-  runeSequence    String   @map("rune_sequence")
-  canonicalString String   @map("canonical_string")
-  seedHash        String   @map("seed_hash")
-  isFirstDiscovery Boolean @map("is_first_discovery")
-  idempotencyKey  String?  @unique @map("idempotency_key")
-  createdAt       DateTime @default(now())
+  id               String   @id @default(cuid())
+  userId           String   @map("user_id")
+  cardId           String   @map("card_id")
+  runeSequence     String   @map("rune_sequence")
+  canonicalString  String   @map("canonical_string")
+  seedHash         String   @map("seed_hash")
+  isFirstDiscovery Boolean  @map("is_first_discovery")
+  idempotencyKey   String?  @unique @map("idempotency_key")
+  createdAt        DateTime @default(now())
 
   // Relations
-  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  card            CardDefinition @relation(fields: [cardId], references: [id], onDelete: Cascade)
+  user User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  card CardDefinition @relation(fields: [cardId], references: [id], onDelete: Cascade)
 
   @@index([userId])
   @@index([seedHash])
@@ -225,36 +227,36 @@ model DiscoveryLog {
 // ===== WALLET =====
 
 model Wallet {
-  id              String   @id @default(cuid())
-  userId          String   @unique @map("user_id")
-  balance         Int      @default(0)
-  totalEarned     Int      @default(0) @map("total_earned")
-  totalSpent      Int      @default(0) @map("total_spent")
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
+  id          String   @id @default(cuid())
+  userId      String   @unique @map("user_id")
+  balance     Int      @default(0)
+  totalEarned Int      @default(0) @map("total_earned")
+  totalSpent  Int      @default(0) @map("total_spent")
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
 
   // Relations
-  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  transactions    WalletTransaction[]
+  user         User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+  transactions WalletTransaction[]
 
   @@map("wallets")
 }
 
 model WalletTransaction {
-  id              String   @id @default(cuid())
-  walletId        String   @map("wallet_id")
-  amount          Int
-  type            TransactionType
-  referenceId     String?  @map("reference_id")
-  referenceType   String?  @map("reference_type")
-  description     String?
-  balanceBefore   Int      @map("balance_before")
-  balanceAfter    Int      @map("balance_after")
-  idempotencyKey  String?  @unique @map("idempotency_key")
-  createdAt       DateTime @default(now())
+  id             String          @id @default(cuid())
+  walletId       String          @map("wallet_id")
+  amount         Int
+  type           TransactionType
+  referenceId    String?         @map("reference_id")
+  referenceType  String?         @map("reference_type")
+  description    String?
+  balanceBefore  Int             @map("balance_before")
+  balanceAfter   Int             @map("balance_after")
+  idempotencyKey String?         @unique @map("idempotency_key")
+  createdAt      DateTime        @default(now())
 
   // Relations
-  wallet          Wallet   @relation(fields: [walletId], references: [id], onDelete: Cascade)
+  wallet Wallet @relation(fields: [walletId], references: [id], onDelete: Cascade)
 
   @@index([walletId])
   @@index([type])
@@ -272,32 +274,32 @@ enum TransactionType {
 // ===== DECK =====
 
 model Deck {
-  id              String   @id @default(cuid())
-  userId          String   @map("user_id")
-  name            String
-  description     String?
-  isActive        Boolean  @default(true)
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
+  id          String   @id @default(cuid())
+  userId      String   @map("user_id")
+  name        String
+  description String?
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
 
   // Relations
-  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  slots           DeckSlot[]
+  user  User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  slots DeckSlot[]
 
   @@index([userId])
   @@map("decks")
 }
 
 model DeckSlot {
-  id              String   @id @default(cuid())
-  deckId          String   @map("deck_id")
-  cardId          String   @map("card_id")
-  position        Int
-  createdAt       DateTime @default(now())
+  id        String   @id @default(cuid())
+  deckId    String   @map("deck_id")
+  cardId    String   @map("card_id")
+  position  Int
+  createdAt DateTime @default(now())
 
   // Relations
-  deck            Deck     @relation(fields: [deckId], references: [id], onDelete: Cascade)
-  card            CardDefinition @relation(fields: [cardId], references: [id], onDelete: Cascade)
+  deck Deck           @relation(fields: [deckId], references: [id], onDelete: Cascade)
+  card CardDefinition @relation(fields: [cardId], references: [id], onDelete: Cascade)
 
   @@unique([deckId, cardId])
   @@index([deckId])
@@ -307,19 +309,19 @@ model DeckSlot {
 // ===== BATTLE =====
 
 model BattleLog {
-  id              String   @id @default(cuid())
-  attackerId      String   @map("attacker_id")
-  defenderId      String   @map("defender_id")
-  attackerDeckId  String?  @map("attacker_deck_id")
-  defenderDeckId  String?  @map("defender_deck_id")
-  winnerId        String?  @map("winner_id")
-  battleData      Json     @map("battle_data")
-  rewardAmount    Int      @default(0) @map("reward_amount")
-  createdAt       DateTime @default(now())
+  id             String   @id @default(cuid())
+  attackerId     String   @map("attacker_id")
+  defenderId     String   @map("defender_id")
+  attackerDeckId String?  @map("attacker_deck_id")
+  defenderDeckId String?  @map("defender_deck_id")
+  winnerId       String?  @map("winner_id")
+  battleData     Json     @map("battle_data")
+  rewardAmount   Int      @default(0) @map("reward_amount")
+  createdAt      DateTime @default(now())
 
   // Relations
-  attacker        User     @relation("BattleAttacker", fields: [attackerId], references: [id])
-  defender        User     @relation("BattleDefender", fields: [defenderId], references: [id])
+  attacker User @relation("BattleAttacker", fields: [attackerId], references: [id])
+  defender User @relation("BattleDefender", fields: [defenderId], references: [id])
 
   @@index([attackerId])
   @@index([defenderId])
@@ -329,28 +331,28 @@ model BattleLog {
 // ===== ARENA =====
 
 model ArenaRoom {
-  id              String   @id @default(cuid())
-  hostId          String   @map("host_id")
-  name            String
-  status          ArenaStatus @default(WAITING)
-  maxPlayers      Int      @default(8) @map("max_players")
-  currentRound    Int      @default(0) @map("current_round")
-  startedAt       DateTime? @map("started_at")
-  endedAt         DateTime? @map("ended_at")
+  id             String      @id @default(cuid())
+  hostId         String      @map("host_id")
+  name           String
+  status         ArenaStatus @default(WAITING)
+  maxPlayers     Int         @default(8) @map("max_players")
+  currentRound   Int         @default(0) @map("current_round")
+  startedAt      DateTime?   @map("started_at")
+  endedAt        DateTime?   @map("ended_at")
   // Phase 6: วงจร 24 ชม. + แชมป์ + รางวัล
-  entryFee        Int      @default(10) @map("entry_fee")
-  rewardPool      Int      @default(100) @map("reward_pool")
-  championId      String?  @map("champion_id")
-  championDeckId  String?  @map("champion_deck_id")
-  expiresAt       DateTime? @map("expires_at")
-  settledAt       DateTime? @map("settled_at")
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
+  entryFee       Int         @default(10) @map("entry_fee")
+  rewardPool     Int         @default(100) @map("reward_pool")
+  championId     String?     @map("champion_id")
+  championDeckId String?     @map("champion_deck_id")
+  expiresAt      DateTime?   @map("expires_at")
+  settledAt      DateTime?   @map("settled_at")
+  createdAt      DateTime    @default(now())
+  updatedAt      DateTime    @updatedAt
 
   // Relations
-  host            User     @relation(fields: [hostId], references: [id])
-  participants    ArenaParticipant[]
-  challenges      ArenaChallenge[]
+  host         User               @relation(fields: [hostId], references: [id])
+  participants ArenaParticipant[]
+  challenges   ArenaChallenge[]
 
   @@index([status])
   @@index([expiresAt])
@@ -369,19 +371,19 @@ enum ArenaStatus {
 }
 
 model ArenaParticipant {
-  id              String   @id @default(cuid())
-  roomId          String   @map("room_id")
-  userId          String   @map("user_id")
-  deckId          String?  @map("deck_id")
-  placement       Int?
-  prizeAmount     Int      @default(0) @map("prize_amount")
-  wins            Int      @default(0)
-  losses          Int      @default(0)
-  joinedAt        DateTime @default(now()) @map("joined_at")
+  id          String   @id @default(cuid())
+  roomId      String   @map("room_id")
+  userId      String   @map("user_id")
+  deckId      String?  @map("deck_id")
+  placement   Int?
+  prizeAmount Int      @default(0) @map("prize_amount")
+  wins        Int      @default(0)
+  losses      Int      @default(0)
+  joinedAt    DateTime @default(now()) @map("joined_at")
 
   // Relations
-  room            ArenaRoom @relation(fields: [roomId], references: [id], onDelete: Cascade)
-  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  room ArenaRoom @relation(fields: [roomId], references: [id], onDelete: Cascade)
+  user User      @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([roomId, userId])
   @@index([roomId])
@@ -389,19 +391,19 @@ model ArenaParticipant {
 }
 
 model ArenaChallenge {
-  id              String   @id @default(cuid())
-  roomId          String   @map("room_id")
-  challengerId    String   @map("challenger_id")
-  challengerDeckId String  @map("challenger_deck_id")
-  defenderId      String   @map("defender_id")
-  defenderDeckId  String   @map("defender_deck_id")
-  winnerId        String?  @map("winner_id")
-  battleLogId     String?  @map("battle_log_id")
-  idempotencyKey  String?  @unique @map("idempotency_key")
-  createdAt       DateTime @default(now())
+  id               String   @id @default(cuid())
+  roomId           String   @map("room_id")
+  challengerId     String   @map("challenger_id")
+  challengerDeckId String   @map("challenger_deck_id")
+  defenderId       String   @map("defender_id")
+  defenderDeckId   String   @map("defender_deck_id")
+  winnerId         String?  @map("winner_id")
+  battleLogId      String?  @map("battle_log_id")
+  idempotencyKey   String?  @unique @map("idempotency_key")
+  createdAt        DateTime @default(now())
 
   // Relations
-  room            ArenaRoom @relation(fields: [roomId], references: [id], onDelete: Cascade)
+  room ArenaRoom @relation(fields: [roomId], references: [id], onDelete: Cascade)
 
   @@index([roomId])
   @@index([challengerId])
@@ -411,23 +413,23 @@ model ArenaChallenge {
 // ===== QUESTS =====
 
 model Quest {
-  id              String   @id @default(cuid())
-  code            String   @unique
-  name            String
-  nameTh          String   @map("name_th")
-  description     String?
-  descriptionTh   String?  @map("description_th")
-  type            QuestType
-  metric          QuestMetric
-  targetValue     Int      @map("target_value")
-  rewardAmount    Int      @map("reward_amount")
-  isActive        Boolean  @default(true)
-  startDate       DateTime? @map("start_date")
-  endDate         DateTime? @map("end_date")
-  createdAt       DateTime @default(now())
+  id            String      @id @default(cuid())
+  code          String      @unique
+  name          String
+  nameTh        String      @map("name_th")
+  description   String?
+  descriptionTh String?     @map("description_th")
+  type          QuestType
+  metric        QuestMetric
+  targetValue   Int         @map("target_value")
+  rewardAmount  Int         @map("reward_amount")
+  isActive      Boolean     @default(true)
+  startDate     DateTime?   @map("start_date")
+  endDate       DateTime?   @map("end_date")
+  createdAt     DateTime    @default(now())
 
   // Relations
-  progress        QuestProgress[]
+  progress QuestProgress[]
 
   @@index([type])
   @@index([isActive])
@@ -451,21 +453,21 @@ enum QuestMetric {
 }
 
 model QuestProgress {
-  id              String   @id @default(cuid())
-  questId         String   @map("quest_id")
-  userId          String   @map("user_id")
+  id            String    @id @default(cuid())
+  questId       String    @map("quest_id")
+  userId        String    @map("user_id")
   // คีย์ของงวด เช่น "2025-09-13" (รายวัน) / "2025-W37" (รายสัปดาห์) / "ALL" (ถาวร)
-  periodKey       String   @map("period_key")
-  currentValue    Int      @default(0) @map("current_value")
-  isCompleted     Boolean  @default(false) @map("is_completed")
-  completedAt     DateTime? @map("completed_at")
-  rewardClaimed   Boolean  @default(false) @map("reward_claimed")
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
+  periodKey     String    @map("period_key")
+  currentValue  Int       @default(0) @map("current_value")
+  isCompleted   Boolean   @default(false) @map("is_completed")
+  completedAt   DateTime? @map("completed_at")
+  rewardClaimed Boolean   @default(false) @map("reward_claimed")
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
 
   // Relations
-  quest           Quest    @relation(fields: [questId], references: [id], onDelete: Cascade)
-  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  quest Quest @relation(fields: [questId], references: [id], onDelete: Cascade)
+  user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([questId, userId, periodKey])
   @@index([userId, periodKey])
@@ -475,21 +477,21 @@ model QuestProgress {
 // ===== IMAGE JOBS =====
 
 model ImageJob {
-  id              String   @id @default(cuid())
-  cardId          String   @map("card_id")
-  status          ImageJobStatus @default(PENDING)
-  priority        Int      @default(0)
-  retryCount      Int      @default(0) @map("retry_count")
-  maxRetries      Int      @default(3) @map("max_retries")
-  imagePrompt     String?  @map("image_prompt")
-  errorMessage    String?  @map("error_message")
-  resultUrl       String?  @map("result_url")
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
-  processedAt     DateTime? @map("processed_at")
+  id           String         @id @default(cuid())
+  cardId       String         @map("card_id")
+  status       ImageJobStatus @default(PENDING)
+  priority     Int            @default(0)
+  retryCount   Int            @default(0) @map("retry_count")
+  maxRetries   Int            @default(3) @map("max_retries")
+  imagePrompt  String?        @map("image_prompt")
+  errorMessage String?        @map("error_message")
+  resultUrl    String?        @map("result_url")
+  createdAt    DateTime       @default(now())
+  updatedAt    DateTime       @updatedAt
+  processedAt  DateTime?      @map("processed_at")
 
   // Relations
-  card            CardDefinition @relation(fields: [cardId], references: [id], onDelete: Cascade)
+  card CardDefinition @relation(fields: [cardId], references: [id], onDelete: Cascade)
 
   @@index([status])
   @@index([priority])
@@ -506,25 +508,32 @@ enum ImageJobStatus {
 // ===== EVENTS =====
 
 model Event {
-  id              String   @id @default(cuid())
-  name            String
-  nameTh          String   @map("name_th")
-  description     String?
-  descriptionTh   String?  @map("description_th")
-  eventType       EventType @map("event_type")
-  status          EventStatus @default(UPCOMING)
-  startDate       DateTime @map("start_date")
-  endDate         DateTime @map("end_date")
-  gracePeriodEnd  DateTime? @map("grace_period_end")
-  currencyName    String   @map("currency_name")
-  maxCurrency     Int?     @map("max_currency")
-  isActive        Boolean  @default(true)
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
+  id             String      @id @default(cuid())
+  name           String
+  nameTh         String      @map("name_th")
+  description    String?
+  descriptionTh  String?     @map("description_th")
+  eventType      EventType   @map("event_type")
+  status         EventStatus @default(UPCOMING)
+  startDate      DateTime    @map("start_date")
+  endDate        DateTime    @map("end_date")
+  gracePeriodEnd DateTime?   @map("grace_period_end")
+  currencyName   String      @map("currency_name")
+  maxCurrency    Int?        @map("max_currency")
+  isActive       Boolean     @default(true)
+  createdAt      DateTime    @default(now())
+  updatedAt      DateTime    @updatedAt
 
   // Relations
-  quests          EventQuest[]
-  participations  EventParticipation[]
+  quests         EventQuest[]
+  participations EventParticipation[]
+  bosses         EventBoss[]
+  raids          EventRaidAttempt[]
+  milestones     EventMilestone[]
+  shopItems      EventShopItem[]
+  purchases      EventShopPurchase[]
+  storyChapters  EventStoryChapter[]
+  community      EventCommunityProgress?
 
   @@index([status])
   @@index([startDate])
@@ -546,21 +555,21 @@ enum EventStatus {
 }
 
 model EventQuest {
-  id              String   @id @default(cuid())
-  eventId         String   @map("event_id")
-  name            String
-  nameTh          String   @map("name_th")
-  description     String?
-  descriptionTh   String?  @map("description_th")
-  type            EventQuestType
-  targetValue     Int      @map("target_value")
-  rewardAmount    Int      @map("reward_amount")
-  currencyReward  Int      @default(0) @map("currency_reward")
-  isActive        Boolean  @default(true)
-  createdAt       DateTime @default(now())
+  id             String         @id @default(cuid())
+  eventId        String         @map("event_id")
+  name           String
+  nameTh         String         @map("name_th")
+  description    String?
+  descriptionTh  String?        @map("description_th")
+  type           EventQuestType
+  targetValue    Int            @map("target_value")
+  rewardAmount   Int            @map("reward_amount")
+  currencyReward Int            @default(0) @map("currency_reward")
+  isActive       Boolean        @default(true)
+  createdAt      DateTime       @default(now())
 
   // Relations
-  event           Event    @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  event Event @relation(fields: [eventId], references: [id], onDelete: Cascade)
 
   @@index([eventId])
   @@map("event_quests")
@@ -574,22 +583,197 @@ enum EventQuestType {
 }
 
 model EventParticipation {
-  id              String   @id @default(cuid())
-  eventId         String   @map("event_id")
-  userId          String   @map("user_id")
-  currencyEarned  Int      @default(0) @map("currency_earned")
-  currencySpent   Int      @default(0) @map("currency_spent")
+  id                String   @id @default(cuid())
+  eventId           String   @map("event_id")
+  userId            String   @map("user_id")
+  currencyEarned    Int      @default(0) @map("currency_earned")
+  currencySpent     Int      @default(0) @map("currency_spent")
+  eventPoints       Int      @default(0) @map("event_points")
+  damageDealt       Int      @default(0) @map("damage_dealt")
   milestonesReached String[] @map("milestones_reached")
-  rewardsClaimed  Json?    @map("rewards_claimed")
-  joinedAt        DateTime @default(now())
-  updatedAt       DateTime @updatedAt
+  rewardsClaimed    Json?    @map("rewards_claimed")
+  joinedAt          DateTime @default(now())
+  updatedAt         DateTime @updatedAt
 
   // Relations
-  event           Event    @relation(fields: [eventId], references: [id], onDelete: Cascade)
-  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  event Event              @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  user  User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  raids EventRaidAttempt[]
 
   @@unique([eventId, userId])
   @@index([eventId])
   @@index([userId])
   @@map("event_participations")
+}
+
+// ===== PHASE 11: SEASONAL EVENT — Call of the Moonless Gate (GDD §13) =====
+
+// Boss Raid ประจำ event — 4 Phase ตามช่วง HP (GDD §13.3)
+model EventBoss {
+  id          String    @id @default(cuid())
+  eventId     String    @map("event_id")
+  name        String
+  nameTh      String    @map("name_th")
+  maxHp       Int       @map("max_hp")
+  currentHp   Int       @map("current_hp")
+  totalDamage Int       @default(0) @map("total_damage")
+  isDefeated  Boolean   @default(false) @map("is_defeated")
+  defeatedAt  DateTime? @map("defeated_at")
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  // Relations
+  event    Event              @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  attempts EventRaidAttempt[]
+
+  @@index([eventId])
+  @@map("event_bosses")
+}
+
+// การเข้า Raid 1 ครั้ง — idempotent ด้วย idempotencyKey
+model EventRaidAttempt {
+  id              String   @id @default(cuid())
+  eventId         String   @map("event_id")
+  bossId          String   @map("boss_id")
+  userId          String   @map("user_id")
+  participationId String   @map("participation_id")
+  deckId          String   @map("deck_id")
+  idempotencyKey  String?  @unique @map("idempotency_key")
+  damageDealt     Int      @default(0) @map("damage_dealt")
+  eventPoints     Int      @default(0) @map("event_points")
+  shardsSpent     Int      @default(0) @map("shards_spent")
+  shardsEarned    Int      @default(0) @map("shards_earned")
+  won             Boolean  @default(false)
+  elementBonus    Boolean  @default(false) @map("element_bonus")
+  bossPhaseBefore Int      @map("boss_phase_before")
+  bossPhaseAfter  Int      @map("boss_phase_after")
+  elementsUsed    String[] @map("elements_used")
+  battleData      Json?    @map("battle_data")
+  createdAt       DateTime @default(now())
+
+  // Relations
+  boss          EventBoss          @relation(fields: [bossId], references: [id], onDelete: Cascade)
+  event         Event              @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  user          User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  participation EventParticipation @relation(fields: [participationId], references: [id], onDelete: Cascade)
+
+  @@index([eventId, userId])
+  @@index([bossId])
+  @@index([createdAt])
+  @@map("event_raid_attempts")
+}
+
+// รางวัล Milestone ทั้ง personal และ community (GDD §13.6–13.7)
+model EventMilestone {
+  id           String              @id @default(cuid())
+  eventId      String              @map("event_id")
+  scope        EventMilestoneScope
+  tier         Int
+  threshold    Int
+  title        String
+  titleTh      String              @map("title_th")
+  rewardType   EventRewardType     @map("reward_type")
+  rewardAmount Int                 @default(0) @map("reward_amount")
+  rewardLabel  String?             @map("reward_label")
+  createdAt    DateTime            @default(now())
+
+  // Relations
+  event Event @relation(fields: [eventId], references: [id], onDelete: Cascade)
+
+  @@unique([eventId, scope, tier])
+  @@index([eventId])
+  @@map("event_milestones")
+}
+
+enum EventMilestoneScope {
+  PERSONAL
+  COMMUNITY
+}
+
+enum EventRewardType {
+  COIN
+  VEIL_SHARDS
+  CRAFTING_DUST
+  CARD
+  COSMETIC
+  TITLE
+  STORY_CHAPTER
+}
+
+// ของใน Event Shop (ซื้อด้วย Veil Shards)
+model EventShopItem {
+  id            String          @id @default(cuid())
+  eventId       String          @map("event_id")
+  code          String
+  name          String
+  nameTh        String          @map("name_th")
+  descriptionTh String?         @map("description_th")
+  price         Int
+  rewardType    EventRewardType @map("reward_type")
+  rewardAmount  Int             @default(0) @map("reward_amount")
+  perUserLimit  Int             @default(0) @map("per_user_limit")
+  isActive      Boolean         @default(true) @map("is_active")
+  createdAt     DateTime        @default(now())
+
+  // Relations
+  event     Event               @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  purchases EventShopPurchase[]
+
+  @@unique([eventId, code])
+  @@index([eventId])
+  @@map("event_shop_items")
+}
+
+model EventShopPurchase {
+  id             String   @id @default(cuid())
+  eventId        String   @map("event_id")
+  itemId         String   @map("item_id")
+  userId         String   @map("user_id")
+  idempotencyKey String?  @unique @map("idempotency_key")
+  pricePaid      Int      @map("price_paid")
+  createdAt      DateTime @default(now())
+
+  // Relations
+  item  EventShopItem @relation(fields: [itemId], references: [id], onDelete: Cascade)
+  event Event         @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  user  User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([eventId, userId])
+  @@index([itemId])
+  @@map("event_shop_purchases")
+}
+
+// เนื้อเรื่องที่ปลดล็อกตาม Community Damage
+model EventStoryChapter {
+  id             String   @id @default(cuid())
+  eventId        String   @map("event_id")
+  chapterNo      Int      @map("chapter_no")
+  title          String
+  titleTh        String   @map("title_th")
+  bodyTh         String   @map("body_th")
+  unlockAtDamage Int      @default(0) @map("unlock_at_damage")
+  createdAt      DateTime @default(now())
+
+  // Relations
+  event Event @relation(fields: [eventId], references: [id], onDelete: Cascade)
+
+  @@unique([eventId, chapterNo])
+  @@index([eventId])
+  @@map("event_story_chapters")
+}
+
+// สถิติรวมระดับ event (community progress) — 1 แถวต่อ 1 event
+model EventCommunityProgress {
+  id               String   @id @default(cuid())
+  eventId          String   @unique @map("event_id")
+  totalDamage      Int      @default(0) @map("total_damage")
+  totalPoints      Int      @default(0) @map("total_points")
+  participantCount Int      @default(0) @map("participant_count")
+  raidCount        Int      @default(0) @map("raid_count")
+  updatedAt        DateTime @updatedAt
+
+  // Relations
+  event Event @relation(fields: [eventId], references: [id], onDelete: Cascade)
+
+  @@map("event_community_progress")
 }
