@@ -21,6 +21,8 @@ interface Card {
   };
   imageUrl: string | null;
   imageStatus: string;
+  /** จำนวนใบที่ถือครอง — ค้นพบซ้ำจะได้อีกใบ */
+  quantity: number;
   obtainedAt: string;
   obtainedMethod: string;
   isFavorite?: boolean;
@@ -171,8 +173,17 @@ export default function CardsPage() {
                       alt={userCard.nameTh || userCard.name}
                       className="absolute inset-0 w-full h-full object-cover"
                     />
+                    {/* จำนวนใบที่ถือครอง — ค้นพบซ้ำจะได้อีกใบ */}
+                    {userCard.quantity > 1 && (
+                      <span className="absolute top-1 left-1 px-2 py-0.5 rounded-full bg-black/70 text-amber-300 text-xs font-bold">
+                        ×{userCard.quantity}
+                      </span>
+                    )}
+                    {userCard.isFavorite && (
+                      <span className="absolute top-1 right-1 text-sm">⭐</span>
+                    )}
                   </div>
-                  
+
                   {/* Card Info */}
                   <div className="p-3">
                     <h3 className="font-bold text-sm truncate">{userCard.nameTh}</h3>

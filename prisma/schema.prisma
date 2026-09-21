@@ -196,6 +196,8 @@ model UserCard {
   cardId         String   @map("card_id")
   isFavorite     Boolean  @default(false) @map("is_favorite")
   obtainedMethod String   @map("obtained_method")
+  // จำนวนใบที่ถือครอง — ค้นพบใบซ้ำจะได้อีกใบ (x2, x3, ...)
+  quantity       Int      @default(1) @map("quantity")
   obtainedAt     DateTime @default(now()) @map("obtained_at")
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt

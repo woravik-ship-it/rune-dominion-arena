@@ -6,6 +6,11 @@ interface RuneCanvasProps {
   onSelectionChange: (selectedRunes: number[]) => void;
   minRunes?: number;
   maxRunes?: number;
+  /**
+   * เปลี่ยนค่านี้เมื่อไร = ล้างรูนที่เลือกไว้ทันที
+   * (ใช้หลังถอดรหัสสำเร็จ เพื่อไม่ให้รูนชุดเดิมค้างอยู่บนกระดาน)
+   */
+  resetSignal?: number;
 }
 
 const GRID_SIZE = 100;
@@ -38,7 +43,8 @@ interface PanState {
 export default function RuneCanvas({
   onSelectionChange,
   minRunes = 8,
-  maxRunes = 16
+  maxRunes = 16,
+  resetSignal
 }: RuneCanvasProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const panRef = useRef<PanState | null>(null);
@@ -46,6 +52,15 @@ export default function RuneCanvas({
   const [viewX, setViewX] = useState((GRID_SIZE - VIEW) / 2);
   const [viewY, setViewY] = useState((GRID_SIZE - VIEW) / 2);
   const sizePx = VIEW * CELL_PX;
+
+  // ล้างรูนที่เลือกเมื่อ parent สั่ง (หลังถอดรหัส) — ข้ามรอบแรกตอน mount
+  const lastResetRef = useRef(resetSignal);
+  useEffect(() => {
+    if (resetSignal === undefined || lastResetRef.current === resetSignal) return;
+    lastResetRef.current = resetSignal;
+    setSelectedRunes([]);
+    onSelectionChange([]);
+  }, [resetSignal, onSelectionChange]);
 
   const drawGrid = useCallback((ctx: CanvasRenderingContext2D) => {
     ctx.fillStyle = '#1a1a2e';

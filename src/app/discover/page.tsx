@@ -1,7 +1,8 @@
 'use client';
 
 import { apiFetch } from '@/lib/api-client';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
+import { useRouter } from 'next/navigation';
 import RuneCanvas from '@/components/rune/RuneCanvas';
 import CardRevealModal from '@/components/cards/CardRevealModal';
 import { CardDefinition } from '@/types';
@@ -9,13 +10,20 @@ import { useAudio } from '@/components/providers/AudioProvider';
 import { revealSfxFor } from '@/lib/sfx';
 
 export default function DiscoverPage() {
+  const router = useRouter();
   const [selectedRunes, setSelectedRunes] = useState<number[]>([]);
   const [isDiscovering, setIsDiscovering] = useState(false);
   const [revealedCard, setRevealedCard] = useState<CardDefinition | null>(null);
   const [isFirstDiscovery, setIsFirstDiscovery] = useState(false);
+  const [isDuplicate, setIsDuplicate] = useState(false);
+  const [ownedQuantity, setOwnedQuantity] = useState(1);
+  const [resetSignal, setResetSignal] = useState(0);
   const [error, setError] = useState<string | null>(null);
   const [energy, setEnergy] = useState<number>(5);
   const [isLoadingEnergy, setIsLoadingEnergy] = useState(true);
+  const [isAddingToDeck, setIsAddingToDeck] = useState(false);
+  const [deckMessage, setDeckMessage] = useState<string | null>(null);
+  const [deckError, setDeckError] = useState<string | null>(null);
   const { play } = useAudio();
 
   // Load energy on mount
@@ -39,11 +47,11 @@ export default function DiscoverPage() {
     }
   };
 
-  const handleSelectionChange = (runes: number[]) => {
+  const handleSelectionChange = useCallback((runes: number[]) => {
     setSelectedRunes(runes);
     setError(null);
     if (runes.length > 0) play('rune_select');
-  };
+  }, [play]);
 
   const handleDiscover = async () => {
     if (selectedRunes.length < 8) {
@@ -79,9 +87,16 @@ export default function DiscoverPage() {
 
       setRevealedCard(data.card);
       setIsFirstDiscovery(data.discovery.isFirstDiscovery);
+      // ใบซ้ำ: นับเป็นอีกใบ (x2, x3, ...)
+      setIsDuplicate(Boolean(data.discovery.isDuplicate));
+      setOwnedQuantity(data.owned?.quantity ?? 1);
       // เสียงเปิดการ์ดตาม rarity (GDD §17)
       play(revealSfxFor(data.card?.rarity ?? 'COMMON'));
-      
+
+      // ล้างรูนที่เลือกไว้หลังถอดรหัสสำเร็จ (ไม่ให้ชุดเดิมค้างบนกระดาน)
+      setSelectedRunes([]);
+      setResetSignal((n) => n + 1);
+
       // Update energy from response
       if (data.energy) {
         setEnergy(data.energy.remaining);
@@ -97,12 +112,36 @@ export default function DiscoverPage() {
   const handleCloseReveal = () => {
     setRevealedCard(null);
     setSelectedRunes([]);
+    setDeckMessage(null);
+    setDeckError(null);
   };
 
-  const handleAddToDeck = () => {
-    // TODO: Implement add to deck
-    alert('เพิ่มลงทีม (Phase 3 จะทำ)');
-    handleCloseReveal();
+  /** "เพิ่มลงทีม" — ทำงานจริง: เติมเข้าทีมเดิม หรือสร้างทีมใหม่ให้ แล้วพาไปหน้าจัดทีม */
+  const handleAddToDeck = async () => {
+    if (!revealedCard) return;
+    setIsAddingToDeck(true);
+    setDeckError(null);
+    setDeckMessage(null);
+    try {
+      const res = await apiFetch('/api/decks/quick-add', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ cardId: revealedCard.id }),
+      });
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        setDeckError(data.error || 'เพิ่มลงทีมไม่สำเร็จ');
+        play('ui_error');
+        return;
+      }
+      setDeckMessage(data.data.message ?? 'เพิ่มลงทีมแล้ว');
+      router.push(`/decks/${data.data.deckId}`);
+    } catch (err) {
+      setDeckError(err instanceof Error ? err.message : 'เพิ่มลงทีมไม่สำเร็จ');
+      play('ui_error');
+    } finally {
+      setIsAddingToDeck(false);
+    }
   };
 
   const handleDiscoverAgain = () => {
@@ -137,6 +176,7 @@ export default function DiscoverPage() {
             onSelectionChange={handleSelectionChange}
             minRunes={8}
             maxRunes={16}
+            resetSignal={resetSignal}
           />
         </div>
 
@@ -176,6 +216,11 @@ export default function DiscoverPage() {
         <CardRevealModal
           card={revealedCard}
           isFirstDiscovery={isFirstDiscovery}
+          isDuplicate={isDuplicate}
+          ownedQuantity={ownedQuantity}
+          addPending={isAddingToDeck}
+          addMessage={deckMessage}
+          addError={deckError}
           onClose={handleCloseReveal}
           onAddToDeck={handleAddToDeck}
           onDiscoverAgain={handleDiscoverAgain}

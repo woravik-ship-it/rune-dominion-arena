@@ -75,6 +75,9 @@ export async function GET(request: NextRequest) {
         },
         imageUrl: uc.card.imageUrl,
         imageStatus: uc.card.imageStatus,
+        /** จำนวนใบที่ถือครอง — ค้นพบซ้ำจะได้อีกใบ (x2, x3, ...) */
+        quantity: uc.quantity ?? 1,
+        isFavorite: uc.isFavorite,
         obtainedAt: uc.obtainedAt,
         obtainedMethod: uc.obtainedMethod,
       })),

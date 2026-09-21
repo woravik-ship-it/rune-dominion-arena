@@ -9,14 +9,14 @@ export async function GET(_request: NextRequest, { params }: { params: { id: str
     where: { id: params.id },
     select: {
       id: true, name: true, nameTh: true, element: true,
-      rarity: true, canonicalSeedHash: true, imageUrl: true,
+      rarity: true, role: true, canonicalSeedHash: true, imageUrl: true,
     },
   });
 
   if (!card) {
     const svg = generatePlaceholderSvg({
       cardId: 'unknown', name: '???', element: 'VEILMARKED',
-      rarity: 'COMMON', canonicalSeedHash: '00',
+      rarity: 'COMMON', role: 'SUPPORT', canonicalSeedHash: '00',
     });
     return new NextResponse(svg, {
       status: 404,
@@ -35,6 +35,7 @@ export async function GET(_request: NextRequest, { params }: { params: { id: str
     nameTh: card.nameTh,
     element: card.element,
     rarity: card.rarity,
+    role: card.role,
     canonicalSeedHash: card.canonicalSeedHash,
   });
   return new NextResponse(svg, {

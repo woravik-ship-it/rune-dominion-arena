@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
+import { resolveRequestUserId } from '@/lib/current-user';
 
 export async function GET(
   request: NextRequest,
@@ -18,6 +19,17 @@ export async function GET(
     if (!card) {
       return NextResponse.json({ error: 'Card not found' }, { status: 404 });
     }
+
+    // จำนวนใบที่ผู้เล่นคนนี้ถือครอง (ค้นพบซ้ำ = อีกใบ)
+    const userId = await resolveRequestUserId(request);
+    const ownership = userId
+      ? await prisma.userCard.findUnique({
+          where: { userId_cardId: { userId, cardId: card.id } },
+          select: { quantity: true, isFavorite: true },
+        })
+      : null;
+
+    const ownerCount = await prisma.userCard.count({ where: { cardId: card.id } });
 
     return NextResponse.json({
       success: true,
@@ -54,6 +66,11 @@ export async function GET(
         imageUrl: card.imageUrl,
         imageStatus: card.imageStatus,
         discoveryCount: card.discoveryCount,
+        /** จำนวนใบที่ผู้เล่นคนนี้ถือครอง (0 = ยังไม่มี) */
+        quantity: ownership?.quantity ?? 0,
+        isFavorite: ownership?.isFavorite ?? false,
+        /** จำนวนผู้เล่นที่ถือการ์ดใบนี้ */
+        ownerCount,
         firstDiscoverer: card.firstDiscoverer,
         firstDiscoveredAt: card.firstDiscoveredAt,
         createdAt: card.createdAt,

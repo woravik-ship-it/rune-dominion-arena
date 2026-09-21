@@ -27,8 +27,14 @@ export interface DiscoveryResult {
   };
   discovery: {
     isFirstDiscovery: boolean;
+    /** ค้นพบใบที่ตัวเองมีอยู่แล้ว → ได้เพิ่มอีกใบ (quantity +1) */
+    isDuplicate: boolean;
     seedHash: string;
     canonicalString: string;
+  };
+  /** จำนวนใบที่ผู้เล่นถือครองการ์ดใบนี้หลังการค้นหาครั้งนี้ */
+  owned: {
+    quantity: number;
   };
   energy: {
     remaining: number;
@@ -131,13 +137,20 @@ export class DiscoveryService {
           where: { id: existingDiscovery.cardId },
         });
         if (card) {
+          // idempotent: คืนผลเดิมโดยไม่หักพลังงานและไม่เพิ่มจำนวนใบซ้ำ
+          const owned = await prisma.userCard.findUnique({
+            where: { userId_cardId: { userId, cardId: card.id } },
+            select: { quantity: true },
+          });
           return {
             card: this.mapCardToResponse(card),
             discovery: {
               isFirstDiscovery: false,
+              isDuplicate: false,
               seedHash,
               canonicalString,
             },
+            owned: { quantity: owned?.quantity ?? 0 },
             energy: await this.getEnergy(userId),
           };
         }
@@ -211,15 +224,24 @@ export class DiscoveryService {
       },
     });
 
-    // 9. เพิ่มการ์ดเข้า Collection ของผู้เล่น (ค้นพบซ้ำจะไม่เพิ่มซ้ำ — ใช้ upsert กัน unique violation)
+    // 9. เพิ่มการ์ดเข้า Collection ของผู้เล่น
+    //    - ยังไม่มีใบนี้ → สร้างใหม่ (quantity = 1)
+    //    - มีอยู่แล้ว (ค้นพบซ้ำ) → ได้อีกใบ: quantity +1 (ไม่ทิ้งใบซ้ำ)
+    const existingOwnership = await prisma.userCard.findUnique({
+      where: { userId_cardId: { userId, cardId: card.id } },
+      select: { quantity: true },
+    });
+    const isDuplicate = Boolean(existingOwnership);
+
     await prisma.userCard.upsert({
       where: { userId_cardId: { userId, cardId: card.id } },
       create: {
         userId,
         cardId: card.id,
         obtainedMethod: 'DISCOVERY',
+        quantity: 1,
       },
-      update: {},
+      update: { quantity: { increment: 1 } },
     });
 
     const energy = await this.getEnergy(userId);
@@ -228,9 +250,11 @@ export class DiscoveryService {
       card: this.mapCardToResponse(card),
       discovery: {
         isFirstDiscovery,
+        isDuplicate,
         seedHash,
         canonicalString,
       },
+      owned: { quantity: (existingOwnership?.quantity ?? 0) + 1 },
       energy,
     };
   }

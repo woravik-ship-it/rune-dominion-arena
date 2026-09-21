@@ -3,6 +3,7 @@ import { prisma } from '@/lib/prisma';
 import { hashPassword } from '@/lib/password';
 import { SESSION_COOKIE, SESSION_TTL_SECONDS, sessionCookieOptions, signSession } from '@/lib/session';
 import { WalletService } from '@/services/wallet';
+import { StarterService } from '@/services/starter';
 import { parseJsonBody, registerSchema } from '@/lib/validation';
 import { enforceRateLimit } from '@/lib/api-guard';
 import { logSecurityEvent } from '@/lib/security-log';
@@ -89,12 +90,24 @@ export async function POST(request: NextRequest) {
     // สร้างกระเป๋าเริ่มต้น (โบนัสสมัคร)
     await WalletService.getWallet(user.id);
 
+    // Phase 13: มอบการ์ดเริ่มต้น 5 ใบ → ผู้เล่นใหม่จัดทีมได้ทันทีโดยไม่ต้องรอค้นรูนครบ
+    // (ถ้าพลาดให้สมัครสำเร็จไว้ก่อน แล้วค่อยเติมย้อนหลังด้วย npm run db:grant-starter)
+    let starterCards: Awaited<ReturnType<typeof StarterService.grantStarterCards>> = [];
+    try {
+      starterCards = await StarterService.grantStarterCards(user.id);
+    } catch (starterError) {
+      console.error('Starter cards error:', starterError);
+    }
+
     const token = signSession({
       sub: user.id,
       username: user.username,
       role: user.role,
     });
-    const res = NextResponse.json({ success: true, data: { user: toSafeUser(user) } }, { status: 201 });
+    const res = NextResponse.json(
+      { success: true, data: { user: toSafeUser(user), starterCards } },
+      { status: 201 }
+    );
     res.cookies.set(SESSION_COOKIE, token, sessionCookieOptions(SESSION_TTL_SECONDS));
     return res;
   } catch (error) {

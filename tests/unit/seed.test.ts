@@ -140,4 +140,37 @@ describe('Seed Service', () => {
       expect(result.valid).toBe(false);
     });
   });
+
+  // Phase 13: ชื่อการ์ดต้องหลากหลาย ไม่ใช่รูปแบบเดิมซ้ำๆ
+  describe('ชื่อการ์ด (ความหลากหลาย)', () => {
+    const makeCard = (seed: number) =>
+      createCardFromSeed(`hash-${seed}`.padEnd(64, '0').slice(0, 64));
+
+    it('40 ใบที่ hash ต่างกัน → ชื่อไทย/อังกฤษหลากหลาย', () => {
+      const cards = Array.from({ length: 40 }, (_, i) => makeCard(i));
+      const thNames = new Set(cards.map((c) => c.nameTh));
+      const enNames = new Set(cards.map((c) => c.name));
+      expect(thNames.size).toBeGreaterThanOrEqual(30);
+      expect(enNames.size).toBeGreaterThanOrEqual(30);
+    });
+
+    it('ชื่อมีการแยกส่วน "ชื่อเฉพาะ + ฉายา" และไม่ว่าง', () => {
+      const card = makeCard(7);
+      expect(card.nameTh).toMatch(/\S+\s\S+/);
+      expect(card.name).toMatch(/,/);
+      expect(card.loreTh.length).toBeGreaterThan(20);
+      expect(card.lore.length).toBeGreaterThan(20);
+    });
+
+    it('สกิลไม่ซ้ำกันในใบเดียว และมาจากคลังของธาตุนั้น', () => {
+      for (let i = 0; i < 25; i += 1) {
+        const card = makeCard(i);
+        expect(card.skills.length).toBeGreaterThanOrEqual(1);
+        expect(card.skills.length).toBeLessThanOrEqual(2);
+        if (card.skills.length === 2) {
+          expect(card.skills[0].name).not.toBe(card.skills[1].name);
+        }
+      }
+    });
+  });
 });

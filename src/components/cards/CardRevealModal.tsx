@@ -5,6 +5,14 @@ import { CardDefinition } from '@/types';
 interface CardRevealModalProps {
   card: CardDefinition;
   isFirstDiscovery: boolean;
+  /** ได้การ์ดใบที่ตัวเองมีอยู่แล้ว → มีเพิ่มอีกใบ */
+  isDuplicate?: boolean;
+  /** จำนวนใบที่ถือครองหลังการค้นหาครั้งนี้ */
+  ownedQuantity?: number;
+  /** กำลังเพิ่มลงทีมอยู่ */
+  addPending?: boolean;
+  addMessage?: string | null;
+  addError?: string | null;
   onClose: () => void;
   onAddToDeck: () => void;
   onDiscoverAgain: () => void;
@@ -31,6 +39,11 @@ const rarityGlow: Record<string, string> = {
 export default function CardRevealModal({
   card,
   isFirstDiscovery,
+  isDuplicate = false,
+  ownedQuantity = 1,
+  addPending = false,
+  addMessage = null,
+  addError = null,
   onClose,
   onAddToDeck,
   onDiscoverAgain,
@@ -39,8 +52,12 @@ export default function CardRevealModal({
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
       <div className="bg-gray-900 rounded-2xl p-6 max-w-md w-full shadow-2xl">
         {/* Header */}
-        <div className="text-center mb-4">
-          {isFirstDiscovery ? (
+        <div className="text-center mb-4 space-y-2">
+          {isDuplicate ? (
+            <span className="inline-block px-3 py-1 bg-purple-500/20 text-purple-300 rounded-full text-sm font-medium">
+              ได้ใบซ้ำ! ตอนนี้มี ×{ownedQuantity} ใบ
+            </span>
+          ) : isFirstDiscovery ? (
             <span className="inline-block px-3 py-1 bg-amber-500/20 text-amber-400 rounded-full text-sm font-medium animate-pulse">
               ผู้ค้นพบคนแรก!
             </span>
@@ -48,6 +65,9 @@ export default function CardRevealModal({
             <span className="inline-block px-3 py-1 bg-blue-500/20 text-blue-400 rounded-full text-sm font-medium">
               การ์ดที่ถูกค้นพบแล้ว
             </span>
+          )}
+          {!isDuplicate && ownedQuantity > 0 && (
+            <p className="text-xs text-gray-400">มีการ์ดในคลัง ×{ownedQuantity}</p>
           )}
         </div>
 
@@ -111,11 +131,17 @@ export default function CardRevealModal({
 
         {/* Actions */}
         <div className="flex flex-col gap-2">
+          {(addMessage || addError) && (
+            <p className={`text-center text-sm ${addError ? 'text-red-400' : 'text-emerald-400'}`}>
+              {addError || addMessage}
+            </p>
+          )}
           <button
             onClick={onAddToDeck}
-            className="btn-primary w-full"
+            disabled={addPending}
+            className="btn-primary w-full disabled:opacity-60"
           >
-            เพิ่มลงทีม
+            {addPending ? 'กำลังเพิ่มลงทีม...' : 'เพิ่มลงทีม'}
           </button>
           <button
             onClick={onDiscoverAgain}

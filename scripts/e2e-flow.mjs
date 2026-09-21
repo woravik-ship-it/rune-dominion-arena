@@ -92,7 +92,7 @@ function cookieFrom(setCookies) {
   return (session ?? pairs[0]) ?? '';
 }
 
-/** สมัครผู้เล่นใหม่ → คืน { cookie, userId, username } */
+/** สมัครผู้เล่นใหม่ → คืน { cookie, userId, username, starterCards } */
 async function registerPlayer(label) {
   const username = `e2e_${label}_${STAMP}`.slice(0, 20);
   const res = await api('POST', '/api/auth/register', {
@@ -101,7 +101,28 @@ async function registerPlayer(label) {
   if (res.status !== 201) throw new Error(`สมัคร ${username} ไม่ผ่าน (HTTP ${res.status}) ${JSON.stringify(res.json)}`);
   const cookie = cookieFrom(res.setCookies);
   if (!cookie) throw new Error(`สมัคร ${username} สำเร็จแต่ไม่ได้รับ session cookie`);
-  return { cookie, userId: res.json?.data?.user?.id ?? null, username };
+  return {
+    cookie,
+    userId: res.json?.data?.user?.id ?? null,
+    username,
+    starterCards: res.json?.data?.starterCards ?? [],
+  };
+}
+
+/** ดึงการ์ดในคลังทั้งหมด (พร้อมธาตุและจำนวนใบ) */
+async function fetchCollection(cookie) {
+  const res = await api('GET', '/api/cards?limit=100', { cookie });
+  return res.json?.data ?? [];
+}
+
+/** ดึงข้อความดิบ (ใช้กับ endpoint ที่คืน SVG/HTML ไม่ใช่ JSON) */
+async function fetchText(path) {
+  const res = await fetch(`${BASE}${path}`);
+  return {
+    status: res.status,
+    text: await res.text(),
+    contentType: res.headers.get('content-type') ?? '',
+  };
 }
 
 /** ถอดรหัสรูน 1 ครั้ง — คืน cardId */
@@ -113,20 +134,6 @@ async function discover(cookie, seedIdx) {
     cookie,
   });
   return { res, runes };
-}
-
-/** ถอดรหัส 5 ครั้ง (พลังงานเริ่มต้น 5/วัน) → คืนการ์ดที่ได้พร้อมธาตุ */
-async function discoverFive(cookie, tag) {
-  const cards = [];
-  for (let i = 0; i < 5; i += 1) {
-    if (i > 0) await humanPause();
-    const { res } = await discover(cookie, i + 1);
-    if (res.status !== 200 || !res.json?.card?.id) {
-      throw new Error(`discover ครั้งที่ ${i + 1} ของ ${tag} ไม่ผ่าน (HTTP ${res.status}) ${JSON.stringify(res.json)}`);
-    }
-    cards.push({ cardId: res.json.card.id, element: res.json.card.element ?? null });
-  }
-  return cards;
 }
 
 /** เลือก 5 ใบที่ผ่านกติกาทีม (สูงสุด 3 ใบต่อธาตุ) แล้วสร้างเด็คผ่าน API */
@@ -143,21 +150,6 @@ async function createDeck(cookie, cards, name) {
   return res.json.data.id;
 }
 
-/** เรียงการ์ดให้ผ่านกติกา "ธาตุเดียวกันไม่เกิน 3 ใบ" (ถ้าทำไม่ได้จะคืน null) */
-function pickLegalFive(cards) {
-  const sorted = [...cards].sort((a, b) => String(a.element).localeCompare(String(b.element)));
-  const counts = new Map();
-  const chosen = [];
-  for (const card of sorted) {
-    const used = counts.get(card.element) ?? 0;
-    if (used >= 3) continue;
-    counts.set(card.element, used + 1);
-    chosen.push(card);
-    if (chosen.length === 5) return chosen;
-  }
-  return null;
-}
-
 // ===== เริ่มการทดสอบ =====
 console.log('🧪 Rune Dominion Arena — E2E Critical Flow');
 console.log(`   base: ${BASE}`);
@@ -165,8 +157,8 @@ console.log(`   stamp: ${STAMP}`);
 console.log('='.repeat(60));
 
 let userA;
-let cardsA = [];
 let deckA = null;
+let firstCardId = null;
 try {
   // ---- 1) Health ----
   const health = await api('GET', '/api/health');
@@ -182,47 +174,111 @@ try {
   userA = await registerPlayer('a');
   ok('สมัครผู้เล่นใหม่ (POST /api/auth/register)', `${userA.username} · userId ${userA.userId}`);
 
+  if (userA.starterCards.length === 5) {
+    ok('ได้การ์ดเริ่มต้น 5 ใบตอนสมัคร (ลงทีมได้ทันที)', userA.starterCards.map((c) => c.nameTh).join(' · '));
+  } else {
+    bad('ได้การ์ดเริ่มต้น 5 ใบตอนสมัคร', `ได้ ${userA.starterCards.length} ใบ`);
+  }
+
   const me = await api('GET', '/api/auth/me', { cookie: userA.cookie });
   if (me.status === 200 && me.json?.data?.user?.id === userA.userId) ok('session cookie ใช้ได้ (GET /api/auth/me)');
   else bad('session cookie ใช้ได้ (GET /api/auth/me)', `HTTP ${me.status} ${JSON.stringify(me.json)}`);
 
-  // ---- 3) Discovery 5 ครั้ง (ใช้พลังงานครบวัน) ----
-  cardsA = await discoverFive(userA.cookie, 'userA');
-  const uniqueA = new Set(cardsA.map((c) => c.cardId));
-  ok('Discovery 5 ครั้งสำเร็จ (POST /api/discover)', `${uniqueA.size} ใบไม่ซ้ำ`);
+  // ---- 3) Discovery + ใบซ้ำนับเป็นอีกใบ (Phase 13) ----
+  const first = await discover(userA.cookie, 1);
+  firstCardId = first.res.json?.card?.id ?? null;
+  if (first.res.status === 200 && firstCardId) {
+    ok('ถอดรหัสรูนสำเร็จ (POST /api/discover)', `ได้ ${first.res.json.card.nameTh}`);
+  } else {
+    bad('ถอดรหัสรูนสำเร็จ (POST /api/discover)', `HTTP ${first.res.status} ${JSON.stringify(first.res.json)}`);
+  }
 
+  await humanPause();
+  const dup = await discover(userA.cookie, 1); // รูนชุดเดิม → ต้องได้การ์ดใบเดิม
+  if (
+    dup.res.status === 200 &&
+    dup.res.json?.card?.id === firstCardId &&
+    dup.res.json?.discovery?.isDuplicate === true
+  ) {
+    ok('ถอดรหัสซ้ำได้ใบเดิม + นับเป็นอีกใบ', `ตอนนี้มี ×${dup.res.json.owned?.quantity} ใบ`);
+  } else {
+    bad('ถอดรหัสซ้ำได้ใบเดิม + นับเป็นอีกใบ', `HTTP ${dup.res.status} ${JSON.stringify(dup.res.json)}`);
+  }
+
+  for (const idx of [2, 3, 4]) {
+    await humanPause();
+    await discover(userA.cookie, idx); // ใช้พลังงานให้ครบ 5/วัน
+  }
   const sixth = await discover(userA.cookie, 99);
   if (sixth.res.status === 400) ok('พลังงานหมดแล้วถูกปฏิเสธจริง', `HTTP 400 · ${sixth.res.json?.error ?? ''}`);
   else bad('พลังงานหมดแล้วถูกปฏิเสธจริง', `คาด 400 แต่ได้ HTTP ${sixth.res.status} ${JSON.stringify(sixth.res.json)}`);
 
-  // ---- 4) การ์ดในคอลเลกชัน ----
-  const collection = await api('GET', '/api/cards?limit=50', { cookie: userA.cookie });
-  const owned = collection.json?.data ?? [];
-  if (collection.status === 200 && owned.length >= 5) ok('คอลเลกชันมีการ์ดครบ (GET /api/cards)', `${owned.length} ใบ`);
-  else bad('คอลเลกชันมีการ์ดครบ (GET /api/cards)', `HTTP ${collection.status} · ได้ ${owned.length} ใบ`);
+  // ---- 4) การ์ดในคอลเลกชัน (starter 5 ใบ + ที่ค้นพบ) ----
+  const owned = await fetchCollection(userA.cookie);
+  const totalCopies = owned.reduce((sum, c) => sum + (c.quantity ?? 1), 0);
+  // 5 starter + 4 ใบใหม่ (อีก 1 ครั้งเป็นใบซ้ำ) → 9 ใบไม่ซ้ำ รวม 10 ใบ
+  if (owned.length >= 9 && totalCopies >= 10) {
+    ok('คอลเลกชันมีการ์ดครบ + นับใบซ้ำ (GET /api/cards)', `${owned.length} ใบไม่ซ้ำ · รวม ${totalCopies} ใบ`);
+  } else {
+    bad('คอลเลกชันมีการ์ดครบ (GET /api/cards)', `ได้ ${owned.length} ใบไม่ซ้ำ · รวม ${totalCopies}`);
+  }
 
-  const detail = owned.length ? await api('GET', `/api/cards/${owned[0].cardId}`, { cookie: userA.cookie }) : null;
-  if (detail?.status === 200) ok('ดูรายละเอียดการ์ดได้ (GET /api/cards/[id])');
-  else bad('ดูรายละเอียดการ์ดได้ (GET /api/cards/[id])', `HTTP ${detail?.status}`);
+  const dupEntry = owned.find((c) => c.cardId === firstCardId);
+  if (dupEntry && dupEntry.quantity === 2) {
+    ok('คอลเลกชันแสดงจำนวนใบซ้ำ ×2', `${dupEntry.nameTh} ×${dupEntry.quantity}`);
+  } else {
+    bad('คอลเลกชันแสดงจำนวนใบซ้ำ ×2', `quantity=${dupEntry?.quantity}`);
+  }
+
+  const detail = await api('GET', `/api/cards/${firstCardId}`, { cookie: userA.cookie });
+  if (detail.status === 200 && detail.json?.data?.quantity === 2) {
+    ok('ดูรายละเอียดการ์ดได้ + บอกจำนวนในคลัง (GET /api/cards/[id])', `×${detail.json.data.quantity}`);
+  } else {
+    bad('ดูรายละเอียดการ์ดได้ (GET /api/cards/[id])', `HTTP ${detail.status} ${JSON.stringify(detail.json?.data?.quantity)}`);
+  }
+
+  // ---- 4.1) ภาพการ์ด: SVG หลายชั้นตามธีม (Phase 13) ----
+  const image = await fetchText(`/api/cards/${firstCardId}/image`);
+  if (image.status === 200 && image.text.length > 5000 && image.text.includes('ฉาก') && image.text.includes('<svg')) {
+    ok('ภาพการ์ดเป็น SVG หลายชั้น (ฉาก/ลายธาตุ/วงรูน/กรอบ)', `${image.text.length} bytes`);
+  } else {
+    bad('ภาพการ์ดเป็น SVG หลายชั้น', `HTTP ${image.status} · ${image.text.length} bytes`);
+  }
 } catch (error) {
   bad('ขั้นตอน Discovery ของผู้เล่น A', error instanceof Error ? error.message : String(error));
 }
 
-// ---- 5) Deck Builder ----
+// ---- 5) Deck Builder — ลงทีมได้ตั้งแต่การ์ดเริ่มต้น ----
 try {
-  if (cardsA.length < 5) throw new Error('มีการ์ดไม่ครบ 5 ใบ — ข้ามการสร้างเด็ค');
+  if (!userA || userA.starterCards.length < 5) throw new Error('การ์ดเริ่มต้นไม่ครบ 5 ใบ — ข้ามการสร้างเด็ค');
 
   const tooFew = await api('POST', '/api/decks', {
-    body: { name: 'ทีมไม่ครบ', slots: cardsA.slice(0, 4).map((c, i) => ({ cardId: c.cardId, position: i })) },
+    body: {
+      name: 'ทีมไม่ครบ',
+      slots: userA.starterCards.slice(0, 4).map((c, i) => ({ cardId: c.cardId, position: i })),
+    },
     cookie: userA.cookie,
   });
   if (tooFew.status === 400) ok('เด็คที่ไม่ครบ 5 ใบถูกปฏิเสธ (Zod)');
   else bad('เด็คที่ไม่ครบ 5 ใบถูกปฏิเสธ (Zod)', `คาด 400 แต่ได้ HTTP ${tooFew.status}`);
 
-  const legal = pickLegalFive(cardsA);
-  if (!legal) throw new Error('การ์ดที่ได้ไม่สามารถจัดทีมตามกติกาธาตุได้ (สุ่มได้ธาตุเดียวเกิน 3 ใบ)');
-  deckA = await createDeck(userA.cookie, legal, `E2E Team A ${STAMP}`);
-  ok('สร้างเด็ค 5 ใบสำเร็จ (POST /api/decks)', `deckId ${deckA}`);
+  deckA = await createDeck(userA.cookie, userA.starterCards, `E2E Team A ${STAMP}`);
+  ok('สร้างทีม 5 ใบจากการ์ดที่ได้ตอนสมัคร (POST /api/decks)', `deckId ${deckA}`);
+
+  // ---- 5.1) ปุ่ม "เพิ่มลงทีม" (เดิมขึ้นว่า "จะทำใน Phase 3") ต้องทำงานจริง ----
+  const quick = await api('POST', '/api/decks/quick-add', { body: { cardId: firstCardId }, cookie: userA.cookie });
+  if ((quick.status === 201 || quick.status === 200) && quick.json?.success) {
+    ok('ปุ่ม "เพิ่มลงทีม" ทำงานจริง (POST /api/decks/quick-add)', quick.json.data?.message ?? '');
+  } else {
+    bad('ปุ่ม "เพิ่มลงทีม" ทำงานจริง', `HTTP ${quick.status} ${JSON.stringify(quick.json)}`);
+  }
+
+  const quickAgain = await api('POST', '/api/decks/quick-add', { body: { cardId: firstCardId }, cookie: userA.cookie });
+  if (quickAgain.status === 200 && quickAgain.json?.data?.reason === 'alreadyInDeck') {
+    ok('กด "เพิ่มลงทีม" ซ้ำ → ไม่สร้างซ้ำ (บอกว่าอยู่ในทีมแล้ว)');
+  } else {
+    bad('กด "เพิ่มลงทีม" ซ้ำ → ไม่สร้างซ้ำ', `HTTP ${quickAgain.status} ${JSON.stringify(quickAgain.json)}`);
+  }
 } catch (error) {
   bad('ขั้นตอน Deck Builder', error instanceof Error ? error.message : String(error));
 }
@@ -312,11 +368,9 @@ try {
   }
 
   userB = await registerPlayer('b');
-  const cardsB = await discoverFive(userB.cookie, 'userB');
-  const legalB = pickLegalFive(cardsB);
-  if (!legalB) throw new Error('การ์ดของผู้เล่น B จัดทีมตามกติกาไม่ได้');
-  const deckB = await createDeck(userB.cookie, legalB, `E2E Team B ${STAMP}`);
-  ok('ผู้เล่นที่สองสร้างเด็คได้', `deckId ${deckB}`);
+  if (userB.starterCards.length !== 5) throw new Error('การ์ดเริ่มต้นของผู้เล่นใหม่ไม่ครบ 5 ใบ');
+  const deckB = await createDeck(userB.cookie, userB.starterCards, `E2E Team B ${STAMP}`);
+  ok('ผู้เล่นที่สองสร้างทีมจากการ์ดเริ่มต้นได้', `deckId ${deckB}`);
 
   const join = await api('POST', `/api/arena/${roomId}/join`, {
     body: { deckId: deckB, idempotencyKey: `e2e-join-${STAMP}` },

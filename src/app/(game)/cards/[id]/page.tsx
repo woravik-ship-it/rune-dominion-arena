@@ -2,7 +2,7 @@
 
 import { apiFetch } from '@/lib/api-client';
 import { useState, useEffect } from 'react';
-import { useParams } from 'next/navigation';
+import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 
 interface CardDetail {
@@ -27,6 +27,10 @@ interface CardDetail {
   imageUrl: string | null;
   imageStatus: string;
   discoveryCount: number;
+  /** จำนวนใบที่เราถือครอง (0 = ยังไม่มีในคลัง) */
+  quantity: number;
+  ownerCount: number;
+  isFavorite: boolean;
   firstDiscoverer: { username: string; displayName: string } | null;
   firstDiscoveredAt: string | null;
 }
@@ -51,9 +55,39 @@ const RARITY_NAMES: Record<string, { th: string; border: string }> = {
 
 export default function CardDetailPage() {
   const params = useParams();
+  const router = useRouter();
   const [card, setCard] = useState<CardDetail | null>(null);
   const [loading, setLoading] = useState(true);
   const [isFavorite, setIsFavorite] = useState(false);
+  const [deckMsg, setDeckMsg] = useState<string | null>(null);
+  const [deckErr, setDeckErr] = useState<string | null>(null);
+  const [addingToDeck, setAddingToDeck] = useState(false);
+
+  /** "เพิ่มลงทีม" — เติมเข้าทีมเดิม/สร้างทีมใหม่ให้ แล้วพาไปหน้าจัดทีม */
+  const handleAddToDeck = async () => {
+    if (!card) return;
+    setAddingToDeck(true);
+    setDeckMsg(null);
+    setDeckErr(null);
+    try {
+      const res = await apiFetch('/api/decks/quick-add', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ cardId: card.id }),
+      });
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        setDeckErr(data.error || 'เพิ่มลงทีมไม่สำเร็จ');
+        return;
+      }
+      setDeckMsg(data.data.message ?? 'เพิ่มลงทีมแล้ว');
+      router.push(`/decks/${data.data.deckId}`);
+    } catch (e) {
+      setDeckErr(e instanceof Error ? e.message : 'เพิ่มลงทีมไม่สำเร็จ');
+    } finally {
+      setAddingToDeck(false);
+    }
+  };
 
   useEffect(() => {
     loadCard();
@@ -67,6 +101,8 @@ export default function CardDetailPage() {
 
       if (data.success) {
         setCard(data.data);
+        // สถานะปักหมุดมาจาก server (session ของผู้เล่นคนนี้)
+        setIsFavorite(Boolean(data.data?.isFavorite));
       }
     } catch (error) {
       console.error('Failed to load card:', error);
@@ -169,6 +205,27 @@ export default function CardDetailPage() {
               <span className="bg-gray-700 px-3 py-1 rounded-full text-sm">
                 {card.role}
               </span>
+              {card.quantity > 0 && (
+                <span className="bg-amber-900/60 px-3 py-1 rounded-full text-sm text-amber-200">
+                  ในคลัง ×{card.quantity}
+                </span>
+              )}
+            </div>
+
+            {/* เพิ่มลงทีม — ใช้ API quick-add จริง */}
+            <div className="mb-4">
+              <button
+                onClick={handleAddToDeck}
+                disabled={addingToDeck}
+                className="btn-primary w-full disabled:opacity-60"
+              >
+                {addingToDeck ? 'กำลังเพิ่มลงทีม...' : '➕ เพิ่มลงทีม'}
+              </button>
+              {(deckMsg || deckErr) && (
+                <p className={`text-sm mt-2 ${deckErr ? 'text-red-400' : 'text-emerald-400'}`}>
+                  {deckErr || deckMsg}
+                </p>
+              )}
             </div>
 
             {/* Stats */}
@@ -232,6 +289,8 @@ export default function CardDetailPage() {
               <h3 className="text-sm font-semibold text-gray-400 mb-2">ข้อมูลการค้นพบ</h3>
               <div className="text-sm text-gray-400 space-y-1">
                 <p>จำนวนครั้งที่ถูกค้นพบ: {card.discoveryCount}</p>
+                <p>ผู้เล่นที่ถือการ์ดใบนี้: {card.ownerCount} คน</p>
+                {card.quantity > 0 && <p>ในคลังของคุณ: ×{card.quantity} ใบ</p>}
                 {card.firstDiscoverer && (
                   <p>
                     ผู้ค้นพบคนแรก: {card.firstDiscoverer.displayName || card.firstDiscoverer.username}

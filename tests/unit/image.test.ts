@@ -89,6 +89,62 @@ describe('generatePlaceholderSvg (deterministic placeholder)', () => {
   });
 });
 
+// Phase 13: งานศิลป์ต้องหลากหลายจริง ไม่ใช่รูปเดิมเปลี่ยนแต่ชื่อ
+describe('generatePlaceholderSvg (ความหลากหลายของงานศิลป์)', () => {
+  const hashOf = (seed: string) => require('crypto').createHash('sha256').update(seed).digest('hex');
+
+  test('การ์ด 20 ใบ (hash ต่างกัน) → ภาพไม่ซ้ำกันเลย', () => {
+    const svgs = new Set(
+      Array.from({ length: 20 }, (_, i) =>
+        generatePlaceholderSvg({ ...CARD_BASE, canonicalSeedHash: hashOf(`variety-${i}`) })
+      )
+    );
+    expect(svgs.size).toBe(20);
+  });
+
+  test('มีฉากหลายแบบ (style archetype) อย่างน้อย 4 แบบใน 20 ใบ', () => {
+    const styles = new Set<string>();
+    for (let i = 0; i < 20; i += 1) {
+      const svg = generatePlaceholderSvg({ ...CARD_BASE, canonicalSeedHash: hashOf(`style-${i}`) });
+      const match = svg.match(/ฉาก(วงแหวนออร่า|ฟ้าดารา|ภูมิทัศน์|พายุคลั่ง|มันดาลารูน|สุริยุปราคา)/);
+      if (match) styles.add(match[1]);
+    }
+    expect(styles.size).toBeGreaterThanOrEqual(4);
+  });
+
+  test('ธาตุต่างกัน → ใช้สีคนละชุด', () => {
+    const ember = generatePlaceholderSvg({ ...CARD_BASE, element: 'EMBERBOUND', canonicalSeedHash: hashOf('e') });
+    const tide = generatePlaceholderSvg({ ...CARD_BASE, element: 'TIDEBORN', canonicalSeedHash: hashOf('e') });
+    expect(ember).toContain('#c2410c');
+    expect(tide).toContain('#0369a1');
+    expect(ember).not.toBe(tide);
+  });
+
+  test('ส่ง role มา → ใช้ตราประจำบทบาทนั้น', () => {
+    const tank = generatePlaceholderSvg({ ...CARD_BASE, role: 'TANK', canonicalSeedHash: hashOf('role-tank') });
+    const assassin = generatePlaceholderSvg({ ...CARD_BASE, role: 'ASSASSIN', canonicalSeedHash: hashOf('role-tank') });
+    expect(tank).toContain('M0,-30 L24,-20 L24,4'); // shield (TANK)
+    expect(assassin).toContain('M0,-32 L5,-6 L3,26'); // dagger (ASSASSIN)
+  });
+
+  test('ไม่ส่ง role → ยังเจนได้ (เลือกตราจาก hash)', () => {
+    const svg = generatePlaceholderSvg({ ...CARD_BASE, canonicalSeedHash: hashOf('no-role') });
+    expect(svg.startsWith('<svg')).toBe(true);
+    expect(svg).toMatch(/<path d="M/);
+  });
+
+  test('ภาพมีองค์ประกอบครบ (gradient/ฉาก/วงรูน/กรอบ/ชื่อไทย)', () => {
+    const svg = generatePlaceholderSvg({ ...CARD_BASE, role: 'MAGE', canonicalSeedHash: hashOf('rich') });
+    expect(svg).toContain('url(#bg)');
+    expect(svg).toContain('url(#motifGrad)');
+    expect(svg).toContain('clip-path="url(#frameClip)"');
+    expect(svg).toContain('url(#plate)');
+    expect(svg).toContain('นักรบเพลิง');
+    // รายละเอียดมากพอที่จะดู "อลังการ" (เดิม ~1.5KB)
+    expect(svg.length).toBeGreaterThan(6000);
+  });
+});
+
 describe('isPromptSafe (content moderation)', () => {
   test('prompt ปกติ → ผ่าน', () => {
     expect(isPromptSafe('fantasy warrior with flaming sword')).toBe(true);
