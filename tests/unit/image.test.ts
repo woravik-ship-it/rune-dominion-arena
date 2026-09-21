@@ -215,6 +215,25 @@ describe('generatePlaceholderSvg (ความหลากหลายของ�
     expect(overlay.length).toBeLessThan(full.length);
   });
 
+  // Regression: เดิม overlay วาด <rect> กรอบแบบ "ทึบเต็มใบ" ทับภาพ AI → รูปการ์ดไม่แสดงเลย
+  test('โหมด overlay: กรอบเป็นวงแหวนโปร่งกลาง (ห้ามมี rect ทึบเต็มใบ)', () => {
+    const card = {
+      ...CARD_BASE,
+      role: 'TANK' as const,
+      canonicalSeedHash: hashOf('ring'),
+    };
+    const overlay = generatePlaceholderSvg(card, { mode: 'overlay' });
+    const full = generatePlaceholderSvg(card, { mode: 'full' });
+
+    // ต้องมีกรอบวงแหวน (path + evenodd) ไม่ใช่ rect ทึบ
+    expect(overlay).toContain('fill-rule="evenodd"');
+    expect(overlay).not.toMatch(/<rect[^>]*x="8"[^>]*y="8"[^>]*width="404"[^>]*height="584"[^>]*fill="#03040a"/);
+    expect(overlay).not.toMatch(/<rect[^>]*width="404"[^>]*height="584"[^>]*fill="url\(#cardFrame\)"/);
+
+    // โหมด full ยังคงมีพื้นหลังการ์ดทึบ (ไม่ต้องโปร่ง)
+    expect(full).toMatch(/<rect[^>]*width="404"[^>]*height="584"[^>]*fill="#03040a"/);
+  });
+
   test('พิมพ์คำบรรยายคุณสมบัติลงในกรอบการ์ด (สกิล + คำอธิบาย + lore)', () => {
     const svg = generatePlaceholderSvg({
       ...CARD_BASE,
