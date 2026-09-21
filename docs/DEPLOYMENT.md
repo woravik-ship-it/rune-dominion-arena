@@ -165,6 +165,7 @@ cat ~/.rune-dominion-tunnel/url.txt   # URL ปัจจุบัน
 
 ### ข้อจำกัดที่ควรรู้ก่อนเปิดสาธารณะ
 
+- **บัญชีผู้ดูแลระบบ:** ผู้สมัครทุกคนได้ role `PLAYER` — ตั้งสิทธิ์จาก server ด้วย `npm run admin:grant -- <username>` (ดู `docs/API.md` §11) แล้วล็อกอินใหม่ 1 ครั้ง
 - Rate limit และ anti-cheat เก็บในหน่วยความจำของโปรเซส (single instance) — ขยายหลายอินสแตนซ์ต้องย้ายไป Redis
 - ยังไม่มี Sentry — ได้แค่ structured log + `x-request-id` + digest บนหน้า error
 - `/api/arena/settle` เปิดให้เรียกได้โดยไม่มี auth (ออกแบบให้ scheduler เรียก) — ถ้าเปิดสาธารณะควรจำกัดที่ network/secret

@@ -107,6 +107,8 @@ prisma/                    schema.prisma · migrations/0_init · seed.ts
 | `npm run tunnel` | เปิด Cloudflare quick tunnel + แจ้งลิงก์เข้า Telegram |
 | `npm run db:seed` / `db:studio` | seed การ์ด+เควสต์ / เปิด Prisma Studio |
 | `npm run db:refresh-meta` | รีเฟรชชื่อ/คำอธิบาย/lore ของการ์ดเดิมตามคลังคำใหม่ (ไม่แตะค่า gameplay) · `-- --dry` เพื่อดูก่อน |
+| `npm run admin:grant -- --list` | ดูว่าใครเป็น ADMIN/MODERATOR (ค่าเริ่มต้นของทุกคนคือ PLAYER) |
+| `npm run admin:grant -- <username> [ADMIN\|MODERATOR\|PLAYER]` | ตั้ง/ถอดสิทธิ์ผู้ดูแลระบบ (ตั้งจาก server เท่านั้น — สมัครเองไม่ได้) |
 | `npm run db:grant-starter` | เติมการ์ดเริ่มต้นให้บัญชีที่มีในคลังไม่ครบ 5 ใบ · `-- --dry` เพื่อดูก่อน |
 
 ## Environment Variables

@@ -348,6 +348,17 @@ Query: `page`, `limit`, `filter=ALL|IN|OUT`
 > ทุก endpoint ในกลุ่มนี้ใช้ `isPrivileged(request)` → session role ADMIN/MODERATOR หรือ header `x-worker-token` ตรงกับ `WORKER_TOKEN`
 > ทุก action ที่แก้ข้อมูลบันทึกลง `admin_action_logs` (before/after)
 
+**การสร้างผู้ดูแลระบบ:** ค่าเริ่มต้นของผู้สมัครทุกคนคือ `PLAYER` — สมัครเป็นแอดมินเองไม่ได้ (ตั้งใจออกแบบให้ตั้งจากฝั่ง server เท่านั้น)
+
+```bash
+npm run admin:grant -- --list                  # ดูว่าใครเป็นอะไรอยู่
+npm run admin:grant -- woravik                 # ตั้งเป็น ADMIN
+npm run admin:grant -- somchai MODERATOR       # ตั้งเป็น MODERATOR
+npm run admin:grant -- woravik PLAYER          # ถอดสิทธิ์
+```
+- role ถูกฝังใน session JWT ตอนล็อกอิน → **ต้องล็อกอินใหม่** หลังเปลี่ยนสิทธิ์จึงจะมีผล
+- หน้าเว็บแผงแอดมินอยู่ที่ `/admin` (layout guard: ถ้าไม่ใช่ ADMIN/MODERATOR จะ redirect กลับหน้าแรก)
+
 | Endpoint | หน้าที่ |
 |---|---|
 | `GET /api/admin/analytics` | สถิติรวม (ผู้ใช้/การ์ด/การต่อสู้/งานภาพ/ความปลอดภัย) |

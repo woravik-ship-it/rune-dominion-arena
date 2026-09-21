@@ -19,6 +19,7 @@
     "db:seed": "tsx prisma/seed.ts",
     "db:refresh-meta": "tsx scripts/refresh-card-meta.ts",
     "db:grant-starter": "tsx scripts/grant-starter-cards.ts",
+    "admin:grant": "tsx scripts/grant-admin.ts",
     "db:studio": "prisma studio",
     "load-test": "node scripts/load-test.mjs",
     "backup": "bash scripts/backup-db.sh",
