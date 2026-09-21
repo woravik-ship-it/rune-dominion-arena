@@ -211,13 +211,15 @@ export class DiscoveryService {
       },
     });
 
-    // 9. เพิ่มการ์ดเข้า Collection ของผู้เล่น
-    await prisma.userCard.create({
-      data: {
+    // 9. เพิ่มการ์ดเข้า Collection ของผู้เล่น (ค้นพบซ้ำจะไม่เพิ่มซ้ำ — ใช้ upsert กัน unique violation)
+    await prisma.userCard.upsert({
+      where: { userId_cardId: { userId, cardId: card.id } },
+      create: {
         userId,
         cardId: card.id,
         obtainedMethod: 'DISCOVERY',
       },
+      update: {},
     });
 
     const energy = await this.getEnergy(userId);

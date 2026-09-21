@@ -20,6 +20,7 @@ jest.mock('@/lib/prisma', () => ({
     },
     userCard: {
       create: jest.fn(),
+      upsert: jest.fn(),
     },
   },
 }));
@@ -99,7 +100,7 @@ describe('DiscoveryService', () => {
       (prisma.cardDefinition.create as jest.Mock).mockResolvedValue(mockCard);
       (prisma.user.update as jest.Mock).mockResolvedValue({ discoveryEnergy: 4 });
       (prisma.discoveryLog.create as jest.Mock).mockResolvedValue({});
-      (prisma.userCard.create as jest.Mock).mockResolvedValue({});
+      (prisma.userCard.upsert as jest.Mock).mockResolvedValue({});
 
       const result = await DiscoveryService.discover('user-1', [1, 2, 3, 4, 5, 6, 7, 8]);
 
@@ -115,13 +116,37 @@ describe('DiscoveryService', () => {
       (prisma.cardDefinition.update as jest.Mock).mockResolvedValue({});
       (prisma.user.update as jest.Mock).mockResolvedValue({ discoveryEnergy: 4 });
       (prisma.discoveryLog.create as jest.Mock).mockResolvedValue({});
-      (prisma.userCard.create as jest.Mock).mockResolvedValue({});
+      (prisma.userCard.upsert as jest.Mock).mockResolvedValue({});
 
       const result = await DiscoveryService.discover('user-1', [1, 2, 3, 4, 5, 6, 7, 8]);
 
       expect(result.discovery.isFirstDiscovery).toBe(false);
       expect(prisma.cardDefinition.create).not.toHaveBeenCalled();
       expect(prisma.cardDefinition.update).toHaveBeenCalled();
+    });
+
+    // Regression: เคยเกิด 500 (Unique constraint user_id+card_id) เมื่อค้นพบการ์ดซ้ำ
+    // ที่ผู้เล่นมีการ์ดใบนั้นอยู่แล้ว — ต้อง idempotent ไม่ throw
+    it('ค้นพบการ์ดซ้ำที่ผู้เล่นมีอยู่แล้ว → ไม่ throw และใช้ upsert', async () => {
+      (prisma.user.findUnique as jest.Mock).mockResolvedValue(mockUser);
+      (prisma.discoveryLog.findUnique as jest.Mock).mockResolvedValue(null);
+      (prisma.cardDefinition.findUnique as jest.Mock).mockResolvedValue(mockCard);
+      (prisma.cardDefinition.update as jest.Mock).mockResolvedValue({});
+      (prisma.user.update as jest.Mock).mockResolvedValue({ discoveryEnergy: 4 });
+      (prisma.discoveryLog.create as jest.Mock).mockResolvedValue({});
+      (prisma.userCard.upsert as jest.Mock).mockResolvedValue({});
+
+      await expect(
+        DiscoveryService.discover('user-1', [1, 2, 3, 4, 5, 6, 7, 8])
+      ).resolves.toBeDefined();
+
+      expect(prisma.userCard.upsert).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { userId_cardId: { userId: 'user-1', cardId: 'card-1' } },
+          update: {},
+        })
+      );
+      expect(prisma.userCard.create).not.toHaveBeenCalled();
     });
 
     it('should throw error if energy is 0', async () => {
