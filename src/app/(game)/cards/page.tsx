@@ -3,6 +3,7 @@
 import { apiFetch } from '@/lib/api-client';
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
+import CardFace from '@/components/cards/CardFace';
 
 interface Card {
   id: string;
@@ -166,12 +167,13 @@ export default function CardsPage() {
                   href={`/cards/${userCard.cardId}`}
                   className={`bg-gray-800 rounded-lg overflow-hidden border-2 ${getRarityBorder(userCard.rarity)} hover:scale-105 transition-transform`}
                 >
-                  {/* Card Image — การ์ดเต็มใบจาก /api/cards/[id]/image */}
+                  {/* การ์ด: ภาพ AI (ถ้ามี) + กรอบ/ข้อความ */}
                   <div className={`relative aspect-[7/10] bg-gradient-to-br ${getElementColor(userCard.element)}`}>
-                    <img
-                      src={`/api/cards/${userCard.cardId}/image?v=2`}
+                    <CardFace
+                      cardId={userCard.cardId}
+                      imageUrl={userCard.imageUrl}
                       alt={userCard.nameTh || userCard.name}
-                      className="absolute inset-0 w-full h-full object-contain"
+                      className="absolute inset-0"
                     />
                     {/* จำนวนใบที่ถือครอง — ค้นพบซ้ำจะได้อีกใบ */}
                     {userCard.quantity > 1 && (

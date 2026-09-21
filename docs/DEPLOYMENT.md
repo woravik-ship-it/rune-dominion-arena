@@ -163,6 +163,21 @@ cat ~/.rune-dominion-tunnel/url.txt   # URL ปัจจุบัน
 | `npm run load-test -- --users 120 --duration 10` | 197.9 req/s ที่ให้บริการ · success 100% · p95 795ms (429 = rate limit ต่อ IP) |
 | `/api/health` ผ่าน tunnel | `{"status":"ok", database ok}` |
 
+### การสร้างภาพการ์ดด้วย AI (Phase 14)
+
+```bash
+npm run images:generate                 # เฉพาะการ์ดที่ยังไม่มีภาพ
+npm run images:generate -- --all        # สร้างใหม่ทุกใบ
+bash scripts/run-image-generation.sh    # วนต่อเนื่องจนครบ (แนะนำสำหรับผู้ให้บริการฟรี)
+```
+
+- ค่าเริ่มต้นใช้ **pollinations** (`AI_IMAGE_PROVIDER=pollinations`) — ฟรี ไม่ต้องมี key, โมเดล `sana` (~1–3 วิ/ใบ) หรือ `flux` (สวยกว่า แต่ ~30 วิ/ใบ)
+- ⚠️ ผู้ให้บริการฟรีกักคิว **1 งาน/IP** → ตั้ง `--delay` ให้พอเหมาะ (ค่าเริ่มต้น 1.2–4 วิ) และรันเป็นงานเบื้องหลัง
+  - ถ้าเจอ `429 Queue full` ให้รอ (สคริปต์ retry ให้เอง) — และตรวจว่าไม่ได้รันหลายโปรเซสพร้อมกัน (จะแย่งคิวกันเอง)
+  - เครื่องที่ต่อ dual-stack แล้วค้างที่ IPv6: โค้ดตั้ง `dns.setDefaultResultOrder('ipv4first')` ให้แล้ว
+- สลับไปผู้ให้บริการที่มี key (คุณภาพ/ความเร็วสูงกว่า): `AI_IMAGE_PROVIDER=generic`, `AI_IMAGE_API_URL=<endpoint>`, `AI_IMAGE_API_KEY=<key>`
+- ไฟล์ภาพเก็บที่ `var/card-art/` (gitignored) และเสิร์ฟผ่าน `/api/cards/[id]/art` · การ์ดที่ยังไม่มีภาพจะแสดงการ์ดวาดเอง (SVG) แทนโดยอัตโนมัติ
+
 ### ข้อจำกัดที่ควรรู้ก่อนเปิดสาธารณะ
 
 - **บัญชีผู้ดูแลระบบ:** ผู้สมัครทุกคนได้ role `PLAYER` — ตั้งสิทธิ์จาก server ด้วย `npm run admin:grant -- <username>` (ดู `docs/API.md` §11) แล้วล็อกอินใหม่ 1 ครั้ง

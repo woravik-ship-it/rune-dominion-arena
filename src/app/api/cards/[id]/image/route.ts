@@ -2,9 +2,11 @@ import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { generatePlaceholderSvg } from '@/lib/image-placeholder';
 
-// GET /api/cards/[id]/image — ภาพการ์ดแบบ deterministic SVG (placeholder art)
-// ถ้าการ์ดมี imageUrl จากภายนอกแล้ว → redirect ไปใช้ของจริง
-export async function GET(_request: NextRequest, { params }: { params: { id: string } }) {
+// GET /api/cards/[id]/image — การ์ดทั้งใบ (กรอบ/ชื่อ/ดาว/กล่องคำบรรยาย/สเตตัส)
+// - ค่าเริ่มต้น: วาดฉากเองทั้งใบ (deterministic SVG)
+// - ?mode=overlay: วาดเฉพาะกรอบ/ข้อความ เว้นช่องภาพโปร่งใส → ใช้ซ้อนทับภาพ AI ของการ์ด
+export async function GET(request: NextRequest, { params }: { params: { id: string } }) {
+  const mode = request.nextUrl.searchParams.get('mode') === 'overlay' ? 'overlay' : 'full';
   const card = await prisma.cardDefinition.findUnique({
     where: { id: params.id },
     select: {
@@ -28,10 +30,8 @@ export async function GET(_request: NextRequest, { params }: { params: { id: str
     });
   }
 
-  // มีภาพจริงจาก AI/external แล้ว (ไม่ใช่ route ของเราเอง) → ส่งต่อ
-  if (card.imageUrl && !card.imageUrl.startsWith('/api/cards/')) {
-    return NextResponse.redirect(card.imageUrl, 302);
-  }
+  // หมายเหตุ: ไม่ redirect ไปภาพจริงอีกแล้ว — ภาพ AI ถูกใช้เป็นเลเยอร์ล่างใน UI
+  // ส่วน endpoint นี้ให้ "การ์ด" (กรอบ/ข้อความ) เสมอ เพื่อให้ ?mode=overlay ทำงานได้
 
   const svg = generatePlaceholderSvg({
     cardId: card.id,
@@ -55,7 +55,7 @@ export async function GET(_request: NextRequest, { params }: { params: { id: str
     ].filter(Boolean) as Array<{ name: string; description: string | null; manaCost: number | null }>,
     descriptionTh: card.descriptionTh,
     loreTh: card.loreTh,
-  });
+  }, { mode });
   return new NextResponse(svg, {
     status: 200,
     headers: {

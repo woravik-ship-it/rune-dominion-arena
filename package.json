@@ -20,6 +20,7 @@
     "db:refresh-meta": "tsx scripts/refresh-card-meta.ts",
     "db:grant-starter": "tsx scripts/grant-starter-cards.ts",
     "admin:grant": "tsx scripts/grant-admin.ts",
+    "images:generate": "tsx scripts/generate-card-images.ts",
     "db:studio": "prisma studio",
     "load-test": "node scripts/load-test.mjs",
     "backup": "bash scripts/backup-db.sh",

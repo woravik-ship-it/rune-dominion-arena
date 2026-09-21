@@ -39,3 +39,6 @@ next-env.d.ts
 # Database
 *.db
 *.sqlite
+
+# Generated card art (สร้างใหม่ได้ด้วย npm run images:generate)
+var/

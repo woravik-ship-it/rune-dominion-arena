@@ -9,7 +9,7 @@ Fantasy Trading Card Game / Auto Battle / Competitive Arena — เกมแน�
 
 | การตรวจ | คำสั่ง | ผล |
 |---|---|---|
-| Unit/Integration tests | `npm test` | **263 passed / 21 suites** |
+| Unit/Integration tests | `npm test` | **267 passed / 21 suites** |
 | Type check | `npx tsc --noEmit` | ผ่าน (exit 0) |
 | Production build | `npm run build` | ผ่าน — 26 หน้า · shared JS 87.3 kB · middleware 28.1 kB |
 | E2E critical flow (local) | `npm run e2e:flow` | **31/31 ผ่าน** |
@@ -25,7 +25,7 @@ Fantasy Trading Card Game / Auto Battle / Competitive Arena — เกมแน�
 | ใบซ้ำ = อีกใบ | ค้นพบการ์ดใบเดิม → ได้อีกใบ นับเป็น ×2, ×3 (คอลัมน์ `user_cards.quantity`) แสดงในหน้าการ์ด/คอลเลกชัน/modal |
 | เพิ่มลงทีมได้จริง | ปุ่ม "เพิ่มลงทีม" (หน้าเปิดการ์ด + หน้ารายละเอียด) เติมเข้าทีมเดิมหรือสร้างทีมใหม่ให้แล้วพาไปหน้าจัดทีม (`POST /api/decks/quick-add`) |
 | ล้างรูนอัตโนมัติ | ถอดรหัสสำเร็จ → กระดานรูนว่างทันที พร้อมค้นรอบใหม่ |
-| งานศิลป์หลากหลาย | ภาพการ์ดเป็น **การ์ดเต็มใบสไตล์ TCG (420×600)**: กรอบโลหะบอกความหายาก (เทา→ทองแดง→เงิน→ม่วง→ทองคำขาว→**ทองคำ**), แถบชื่อ, ตราธาตุ, ดาวระดับ, ช่องภาพ (6 ฉาก × 6 ลายธาตุ × 6 ตัวแบบ), กล่องคำบรรยายคุณสมบัติ/สกิล/lore ในตัวการ์ด, แถบ ATK/DEF/HP/SPD/MP และโฮโลแกรมสำหรับใบ RARE ขึ้นไป |
+| งานศิลป์ = ภาพ AI จริง | การ์ดใช้ **ภาพวาดจาก AI** (ค่าเริ่มต้น pollinations/Flux-sana ใช้ฟรี ไม่ต้องมี key) เก็บไฟล์ในเครื่องและเสิร์ฟผ่าน `/api/cards/[id]/art` · ตัวการ์ด (กรอบ/ชื่อ/ดาว/กล่องคำบรรยาย/สเตตัส) เป็นเลเยอร์ SVG ซ้อนทับ → ได้การ์ดที่มีรูปจริง + ข้อความครบ · การ์ดที่ยังไม่มีภาพจะแสดงการ์ดวาดเองไปก่อน · สร้าง/สร้างใหม่ได้ด้วย `npm run images:generate` |
 | ชื่อการ์ดหลากหลาย | ชื่อไทย "ชื่อเฉพาะ + ฉายาบทบาท/ธาตุ" และชื่ออังกฤษ `Name, Epithet Title` + คำนำหน้าตามระดับ rarity (มหา/ราชัน/เทวะ) · การ์ดเดิมรีเฟรชชื่อได้ด้วย `npm run db:refresh-meta` |
 
 ## Getting Started
@@ -106,6 +106,8 @@ prisma/                    schema.prisma · migrations/0_init · seed.ts
 | `npm run migrate:check` / `migrate:test` | ตรวจ drift ของ migration / ทดสอบ `migrate deploy` บน DB เปล่า |
 | `npm run tunnel` | เปิด Cloudflare quick tunnel + แจ้งลิงก์เข้า Telegram |
 | `npm run db:seed` / `db:studio` | seed การ์ด+เควสต์ / เปิด Prisma Studio |
+| `npm run images:generate` | สร้างภาพการ์ดด้วย AI (ค่าเริ่มต้น pollinations/sana) เก็บไฟล์ในเครื่อง · `-- --all` ทำใหม่ทั้งหมด · `-- --limit 5` · `-- --dry` |
+| `bash scripts/run-image-generation.sh` | วนสร้างภาพต่อเนื่องจนครบทุกใบ (ผู้ให้บริการฟรีจำกัดคิว 1 งาน/IP) |
 | `npm run db:refresh-meta` | รีเฟรชชื่อ/คำอธิบาย/lore ของการ์ดเดิมตามคลังคำใหม่ (ไม่แตะค่า gameplay) · `-- --dry` เพื่อดูก่อน |
 | `npm run admin:grant -- --list` | ดูว่าใครเป็น ADMIN/MODERATOR (ค่าเริ่มต้นของทุกคนคือ PLAYER) |
 | `npm run admin:grant -- <username> [ADMIN\|MODERATOR\|PLAYER]` | ตั้ง/ถอดสิทธิ์ผู้ดูแลระบบ (ตั้งจาก server เท่านั้น — สมัครเองไม่ได้) |
@@ -121,7 +123,11 @@ prisma/                    schema.prisma · migrations/0_init · seed.ts
 | `NEXT_PUBLIC_APP_URL` | — | URL ที่ใช้แสดง/แชร์ (ค่าเริ่มต้น `http://localhost:3000`) |
 | `CORS_ALLOWED_ORIGINS` | — | origin เพิ่มเติม (คั่นด้วย comma) — ไม่ตั้ง = same-origin เท่านั้น |
 | `LOG_LEVEL`, `SLOW_REQUEST_MS` | — | ระดับ log / เกณฑ์เตือน slow request |
-| `AI_IMAGE_API_KEY`, `AI_IMAGE_API_URL` | — | ต่อผู้ให้บริการสร้างภาพ (ไม่ตั้ง = ใช้ SVG placeholder) |
+| `AI_IMAGE_PROVIDER` | — | `pollinations` (ค่าเริ่มต้น ใช้ฟรี) หรือ `generic` (POST JSON + Bearer key) |
+| `AI_IMAGE_API_URL` | — | URL ผู้ให้บริการ (pollinations: `https://image.pollinations.ai/prompt`) |
+| `AI_IMAGE_MODEL` | — | โมเดลที่ใช้ (ค่าเริ่มต้น `sana` — เร็ว; `flux` สวยกว่าแต่ช้ากว่ามาก) |
+| `AI_IMAGE_API_KEY` | — | key ของผู้ให้บริการ (pollinations ไม่ต้องใช้) |
+| `AI_IMAGE_DISABLED` | — | ตั้ง `1` เพื่อปิด AI แล้วกลับไปใช้การ์ดวาดเอง |
 | `WORKER_TOKEN` | — | token สำหรับ cron เรียก `/api/admin/images/*` |
 | `REDIS_URL` | — | เลิกใช้โดยเจตนา (คงไว้ใน `.env.example` เพื่อความเข้ากันได้) |
 

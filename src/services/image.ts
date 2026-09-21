@@ -1,9 +1,14 @@
-// Image Generation Service — Phase 8
+// Image Generation Service — Phase 8 / Phase 14
 // Queue แบบ DB-backed (ตาราง ImageJob) แทน BullMQ (ยังไม่ติดตั้ง Redis)
 // Rules: deterministic placeholder / idempotent enqueue / retry + exponential backoff
+//
+// Phase 14: ต่อผู้ให้บริการ AI จริง (ค่าเริ่มต้น: pollinations ที่ใช้ฟรี) → สร้างภาพจริง
+// แล้วเก็บไฟล์ไว้ในเครื่อง (var/card-art) เสิร์ฟผ่าน /api/cards/[id]/art
 import { prisma } from '@/lib/prisma';
 import { isPromptSafe } from '@/lib/image-placeholder';
 import { sendImageWebhook } from '@/lib/image-webhook';
+import { buildCardImagePrompt, generateCardImageBytes, aiImageEnabled } from '@/lib/ai-image';
+import { saveCardArt } from '@/lib/card-art-store';
 
 const BACKOFF_BASE_MS = 30_000; // 30 วิ
 const BACKOFF_MAX_MS = 10 * 60_000; // 10 นาที
@@ -14,17 +19,20 @@ export function backoffDelayMs(retryCount: number): number {
   return Math.min(BACKOFF_BASE_MS * 2 ** clamped, BACKOFF_MAX_MS);
 }
 
-/** สร้าง prompt จากข้อมูลการ์ด — deterministic และ safe โดยการสร้าง */
+/** สร้าง prompt จากข้อมูลการ์ด — ใช้ตัวสร้างกลางใน lib/ai-image (ธีม Aetherra + ปลอดภัย) */
 function buildImagePrompt(card: {
   name: string; element: string; rarity: string; role: string; loreTh?: string | null;
+  nameTh?: string | null; canonicalSeedHash?: string;
 }): string {
-  const lore = (card.loreTh || '').slice(0, 80).replace(/\s+/g, ' ').trim();
-  return [
-    'fantasy trading card game art,',
-    `${card.element.toLowerCase()} ${card.role.toLowerCase()} creature,`,
-    `${card.rarity.toLowerCase()} quality, mystical rune background, digital painting`,
-    lore ? `— ${lore}` : '',
-  ].join(' ');
+  return buildCardImagePrompt({
+    name: card.name,
+    nameTh: card.nameTh ?? null,
+    element: card.element,
+    rarity: card.rarity,
+    role: card.role,
+    loreTh: card.loreTh ?? null,
+    canonicalSeedHash: card.canonicalSeedHash ?? '00000000',
+  });
 }
 
 export interface ProcessResult {
@@ -46,7 +54,7 @@ export class ImageService {
 
     const card = await prisma.cardDefinition.findUnique({
       where: { id: cardId },
-      select: { id: true, name: true, element: true, rarity: true, role: true, loreTh: true, imageUrl: true },
+      select: { id: true, name: true, nameTh: true, element: true, rarity: true, role: true, loreTh: true, imageUrl: true, canonicalSeedHash: true },
     });
     if (!card) return { enqueued: false };
 
@@ -138,10 +146,23 @@ export class ImageService {
       const prompt = eligible.imagePrompt ?? buildImagePrompt(card);
       if (!isPromptSafe(prompt)) throw new Error('prompt ไม่ผ่านการตรวจเนื้อหา');
 
-      const hasProvider = Boolean(process.env.AI_IMAGE_API_URL && process.env.AI_IMAGE_API_KEY);
-      const resultUrl = hasProvider
-        ? await this.callExternalProvider(prompt)
-        : `/api/cards/${card.id}/image`;
+      // Phase 14: มีผู้ให้บริการ AI → สร้างภาพจริงและเก็บไฟล์ในเครื่อง
+      // (ไม่มี → ใช้ deterministic placeholder ผ่าน /api/cards/[id]/image)
+      let resultUrl: string;
+      if (aiImageEnabled()) {
+        const generated = await generateCardImageBytes({
+          name: card.name,
+          nameTh: card.nameTh,
+          element: card.element,
+          rarity: card.rarity,
+          role: card.role,
+          loreTh: card.loreTh,
+          canonicalSeedHash: card.canonicalSeedHash,
+        });
+        resultUrl = await saveCardArt(card.id, generated.bytes, generated.contentType);
+      } else {
+        resultUrl = `/api/cards/${card.id}/image`;
+      }
 
       await prisma.imageJob.update({
         where: { id: eligible.id },

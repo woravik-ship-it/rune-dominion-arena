@@ -4,6 +4,7 @@ import { apiFetch } from '@/lib/api-client';
 import { useState, useEffect } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
+import CardFace from '@/components/cards/CardFace';
 
 interface CardDetail {
   id: string;
@@ -165,12 +166,13 @@ export default function CardDetailPage() {
 
         {/* Card Header */}
         <div className={`bg-gray-800 rounded-xl overflow-hidden border-2 ${rarityInfo?.border || 'border-gray-600'}`}>
-          {/* Card Image — การ์ดเต็มใบ (ใช้รูปจริง ถ้าไม่มี fallback เป็นการ์ดที่เจนเอง) */}
-          <div className={`h-80 relative flex items-center justify-center bg-black/70 ${elementInfo?.color ? 'bg-gradient-to-br ' + elementInfo.color : 'bg-gradient-to-br from-gray-600 to-gray-700'}`}>
-            <img
-              src={card.imageUrl || `/api/cards/${card.id}/image?v=2`}
+          {/* การ์ด: ภาพ AI (ถ้ามี) + กรอบ/ข้อความ */}
+          <div className="relative mx-auto w-full max-w-[330px] aspect-[7/10]">
+            <CardFace
+              cardId={card.id}
+              imageUrl={card.imageUrl}
               alt={card.nameTh || card.name}
-              className="absolute inset-0 w-full h-full object-contain"
+              className="absolute inset-0"
             />
             {card.imageStatus === 'PENDING' && (
               <span className="absolute top-2 right-2 bg-yellow-600 text-xs px-2 py-1 rounded">

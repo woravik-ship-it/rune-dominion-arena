@@ -626,8 +626,17 @@ function statsBar(card: PlaceholderCardInput, frame: RarityFrame): string {
     ${stats ? cell(STATS_BAR.x + 308, 'MP', stats.manaCost, '#d8b4fe', 16) : ''}`;
 }
 
+export interface CardArtOptions {
+  /**
+   * 'full' (ค่าเริ่มต้น) = วาดฉาก/ตัวแบบเองทั้งใบ
+   * 'overlay' = วาดเฉพาะกรอบ/แถบชื่อ/กล่องคำบรรยาย/สเตตัส โดยเว้นช่องภาพโปร่งใส
+   *             (ใช้ซ้อนทับ "ภาพ AI" ของการ์ด → ได้การ์ดที่มีรูปจริง + ข้อความครบ)
+   */
+  mode?: 'full' | 'overlay';
+}
+
 /** สร้างการ์ดทั้งใบ (420×600) — deterministic จาก canonicalSeedHash */
-export function generatePlaceholderSvg(card: PlaceholderCardInput): string {
+export function generatePlaceholderSvg(card: PlaceholderCardInput, options: CardArtOptions = {}): string {
   const art = ELEMENT_ART[card.element] ?? ELEMENT_ART.VEILMARKED;
   const frame = RARITY_FRAME[card.rarity] ?? RARITY_FRAME.COMMON;
   const rarityColor = frame.mid;
@@ -641,23 +650,29 @@ export function generatePlaceholderSvg(card: PlaceholderCardInput): string {
   const styleLabel = STYLE_LABEL_TH[style];
 
   const displayName = escapeXml((card.nameTh ?? '').trim() || card.name || 'การ์ดลึกลับ');
+  const overlayOnly = options.mode === 'overlay';
 
-  return `<svg xmlns="http://www.w3.org/2000/svg" width="${CARD_SIZE.width}" height="${CARD_SIZE.height}" viewBox="0 0 ${CARD_SIZE.width} ${CARD_SIZE.height}" role="img" aria-label="${displayName}">
-  <title>${displayName}</title>
-  ${buildDefs(art, frame, rarityColor, gradAngle, grainRot)}
-  <g clip-path="url(#cardFrameClip)">
-    <rect x="${FRAME.x}" y="${FRAME.y}" width="${FRAME.w}" height="${FRAME.h}" rx="${FRAME.r}" fill="#03040a"/>
-    ${frameLayer(frame)}
-
-    <g clip-path="url(#cardArtClip)">
-      <rect x="${ART.x}" y="${ART.y}" width="${ART.w}" height="${ART.h}" fill="url(#cardArt)"/>
+  // เลเยอร์ในช่องภาพ: โหมด full วาดฉากเอง / โหมด overlay เว้นว่างให้ภาพ AI เป็นเลเยอร์ล่าง
+  const artLayers = overlayOnly
+    ? `<rect x="${ART.x}" y="${ART.y}" width="${ART.w}" height="${ART.h}" fill="#05060d" fill-opacity="0.08"/>`
+    : `<rect x="${ART.x}" y="${ART.y}" width="${ART.w}" height="${ART.h}" fill="url(#cardArt)"/>
       <rect x="${ART.x}" y="${ART.y}" width="${ART.w}" height="${ART.h}" fill="url(#cardGrain)"/>
       ${sceneBackground(style, art, pool, rarityColor)}
       <g filter="url(#cardGlow)" opacity="0.5">
         ${elementMotif(art.motif, art, pool)}
       </g>
       ${subjectSilhouette(subject, art, pool, rarityColor)}
-      ${artParticles(pool, art, rarityColor, frame.foil)}
+      ${artParticles(pool, art, rarityColor, frame.foil)}`;
+
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="${CARD_SIZE.width}" height="${CARD_SIZE.height}" viewBox="0 0 ${CARD_SIZE.width} ${CARD_SIZE.height}" role="img" aria-label="${displayName}">
+  <title>${displayName}</title>
+  ${buildDefs(art, frame, rarityColor, gradAngle, grainRot)}
+  <g clip-path="url(#cardFrameClip)">
+    ${overlayOnly ? '' : `<rect x="${FRAME.x}" y="${FRAME.y}" width="${FRAME.w}" height="${FRAME.h}" rx="${FRAME.r}" fill="#03040a"/>`}
+    ${frameLayer(frame)}
+
+    <g clip-path="url(#cardArtClip)">
+      ${artLayers}
       <rect x="${ART.x}" y="${ART.y}" width="${ART.w}" height="${ART.h}" fill="url(#cardVig)"/>
     </g>
     ${emblemWatermark(role, art)}

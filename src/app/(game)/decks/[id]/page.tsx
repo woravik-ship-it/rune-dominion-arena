@@ -3,6 +3,7 @@
 import { apiFetch } from '@/lib/api-client';
 import { useState, useEffect } from 'react';
 import { useParams, useRouter } from 'next/navigation';
+import CardFace from '@/components/cards/CardFace';
 
 interface PoolCard {
   id: string;
@@ -11,6 +12,7 @@ interface PoolCard {
   nameTh: string | null;
   element: string;
   rarity: string;
+  imageUrl?: string | null;
   stats: { atk: number; def: number; hp: number; spd: number; manaCost: number };
 }
 
@@ -172,11 +174,14 @@ export default function DeckBuilderPage() {
                 <div className="text-gray-500">ช่อง {pos} • {LINEUP_LABEL[pos]}</div>
                 {c ? (
                   <div>
-                    <img
-                      src={`/api/cards/${c.cardId}/image?v=2`}
-                      alt={c.nameTh || c.name}
-                      className="w-full h-20 object-contain rounded-lg mb-1 bg-black/40"
-                    />
+                    <div className="relative w-full aspect-[7/10] mb-1 bg-black/40 rounded-lg overflow-hidden">
+                      <CardFace
+                        cardId={c.cardId}
+                        imageUrl={c.imageUrl}
+                        alt={c.nameTh || c.name}
+                        className="absolute inset-0"
+                      />
+                    </div>
                     <div className="font-bold truncate">{c.nameTh || c.name}</div>
                     <div className="text-amber-400">⚡{c.stats.atk + c.stats.def + c.stats.hp + c.stats.spd}</div>
                   </div>
@@ -209,11 +214,14 @@ export default function DeckBuilderPage() {
                   : 'border-gray-700 bg-gray-800'
                 }`}
               >
-                <img
-                  src={`/api/cards/${c.cardId}/image?v=2`}
-                  alt={c.nameTh || c.name}
-                  className="w-full h-24 object-contain rounded-lg mb-1 bg-black/40"
-                />
+                <div className="relative w-full aspect-[7/10] mb-1 bg-black/40 rounded-lg overflow-hidden">
+                  <CardFace
+                    cardId={c.cardId}
+                    imageUrl={c.imageUrl}
+                    alt={c.nameTh || c.name}
+                    className="absolute inset-0"
+                  />
+                </div>
                 <div className="font-bold truncate">{c.nameTh || c.name}</div>
                 <div className="text-gray-400 truncate">{c.name}</div>
                 <div className="flex justify-between mt-1">

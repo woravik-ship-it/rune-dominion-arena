@@ -1,6 +1,15 @@
 import { generatePlaceholderSvg, isPromptSafe } from '@/lib/image-placeholder';
+import { aiImageEnabled } from '@/lib/ai-image';
+import { saveCardArt } from '@/lib/card-art-store';
 import { backoffDelayMs, ImageService } from '@/services/image';
 import { prisma } from '@/lib/prisma';
+
+jest.mock('@/lib/card-art-store', () => ({
+  saveCardArt: jest.fn(async (cardId: string) => `/api/cards/${cardId}/art`),
+  cardArtUrl: (cardId: string) => `/api/cards/${cardId}/art`,
+  readCardArt: jest.fn(async () => null),
+  hasCardArt: jest.fn(async () => false),
+}));
 
 jest.mock('@/lib/prisma', () => ({
   prisma: {
@@ -52,6 +61,9 @@ beforeEach(() => {
   jest.resetAllMocks();
   delete process.env.AI_IMAGE_API_URL;
   delete process.env.AI_IMAGE_API_KEY;
+  delete process.env.AI_IMAGE_PROVIDER;
+  // เทสต์ต้องไม่ยิงไปผู้ให้บริการจริง → ปิด AI เป็นค่าเริ่มต้น
+  process.env.AI_IMAGE_DISABLED = '1';
 });
 
 describe('generatePlaceholderSvg (deterministic placeholder)', () => {
@@ -175,6 +187,34 @@ describe('generatePlaceholderSvg (ความหลากหลายของ�
     expect(epic).toContain('url(#cardHolo)');
   });
 
+  test('โหมด overlay: เว้นช่องภาพโปร่งใส + ยังมีกรอบ/ข้อความครบ', () => {
+    const card = {
+      ...CARD_BASE,
+      role: 'WARRIOR' as const,
+      canonicalSeedHash: hashOf('overlay'),
+      stats: { atk: 100, def: 70, hp: 220, spd: 20, manaCost: 3 },
+      skills: [{ name: 'คมดาบเถ้าร้อน', description: 'ฟันกว้างและติด Burn', manaCost: 3 }],
+      descriptionTh: 'นักรบจากดินแดนเถ้าถ่าน',
+      loreTh: 'อักษรแรกเริ่มถูกเผาไว้บนเถ้าถ่าน',
+    };
+    const overlay = generatePlaceholderSvg(card, { mode: 'overlay' });
+    const full = generatePlaceholderSvg(card, { mode: 'full' });
+
+    // โหมด overlay ต้องไม่มีฉาก/ตัวแบบที่วาดเอง (ให้ภาพ AI เป็นเลเยอร์ล่าง)
+    expect(overlay).not.toContain('url(#cardArt)');
+    expect(overlay).toContain('url(#cardVig)');
+
+    // ทั้งสองโหมดต้องมีส่วนประกอบการ์ดครบเหมือนกัน
+    for (const svg of [overlay, full]) {
+      expect(svg).toContain('url(#cardFrame)');
+      expect(svg).toContain('คุณสมบัติ / EFFECT');
+      expect(svg).toContain('คมดาบเถ้าร้อน');
+      expect(svg).toContain('ATK');
+      expect(svg).toContain('★');
+    }
+    expect(overlay.length).toBeLessThan(full.length);
+  });
+
   test('พิมพ์คำบรรยายคุณสมบัติลงในกรอบการ์ด (สกิล + คำอธิบาย + lore)', () => {
     const svg = generatePlaceholderSvg({
       ...CARD_BASE,
@@ -229,7 +269,8 @@ describe('ImageService.enqueue (idempotent)', () => {
     expect(mocked.imageJob.create).toHaveBeenCalledWith({
       data: {
         cardId: 'card-1',
-        imagePrompt: expect.stringContaining('emberbound warrior'),
+        // prompt ต้องบอกธาตุ/บทบาทของการ์ด (ธีม Aetherra)
+        imagePrompt: expect.stringContaining('warrior'),
       },
     });
   });
@@ -384,5 +425,84 @@ describe('ImageService.requeueFailed', () => {
       data: { imageStatus: 'PENDING' },
     });
   });
+});
+
+
+// Phase 14: เส้นทาง AI จริง (mock ผู้ให้บริการ + ที่เก็บไฟล์ → ไม่แตะเครือข่าย/ดิสก์จริง)
+describe('ImageService + AI provider (Phase 14)', () => {
+  const jpegHeader = Buffer.from([0xff, 0xd8, 0xff, 0xe0, 0x00, 0x10, 0x4a, 0x46, 0x49, 0x46, 0x00, 0x01]);
+  const CARD_WITH_HASH = { ...CARD_BASE, canonicalSeedHash: 'a3f19c8e77b2d4001122334455667788' };
+
+  test('aiImageEnabled: ค่าเริ่มต้น (pollinations) เปิด แต่ปิดได้ด้วย AI_IMAGE_DISABLED=1', () => {
+    delete process.env.AI_IMAGE_DISABLED;
+    delete process.env.AI_IMAGE_PROVIDER;
+    expect(aiImageEnabled()).toBe(true);
+
+    process.env.AI_IMAGE_DISABLED = '1';
+    expect(aiImageEnabled()).toBe(false);
+  });
+
+  test('มี AI → สร้างภาพจริง เก็บไฟล์ และตั้ง imageUrl เป็น /api/cards/<id>/art', async () => {
+    delete process.env.AI_IMAGE_DISABLED;
+    process.env.AI_IMAGE_PROVIDER = 'pollinations';
+    // resetAllMocks() ล้าง implementation ของ mock → ต้องตั้งใหม่ต่อเทสต์
+    (saveCardArt as unknown as jest.Mock).mockResolvedValue('/api/cards/card-1/art');
+
+    const fetchMock = jest.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      headers: new Headers({ 'content-type': 'image/jpeg' }),
+      arrayBuffer: async () => jpegHeader.buffer.slice(0),
+    });
+    (global as unknown as { fetch: jest.Mock }).fetch = fetchMock;
+
+    mocked.imageJob.findMany.mockResolvedValueOnce([{
+      id: 'job-ai', cardId: 'card-1', status: 'PENDING', priority: 0,
+      retryCount: 0, maxRetries: 3, imagePrompt: 'safe prompt',
+      createdAt: new Date(), updatedAt: new Date(),
+    }]);
+    mocked.imageJob.updateMany.mockResolvedValueOnce({ count: 1 });
+    mocked.cardDefinition.findUnique.mockResolvedValueOnce(CARD_WITH_HASH);
+    mocked.imageJob.update.mockResolvedValueOnce({});
+    mocked.cardDefinition.update.mockResolvedValueOnce({});
+
+    const result = await ImageService.processNext();
+
+    expect(result?.status).toBe('COMPLETED');
+    expect(result?.resultUrl).toBe('/api/cards/card-1/art');
+    expect(fetchMock).toHaveBeenCalled();
+    expect(mocked.cardDefinition.update).toHaveBeenCalledWith({
+      where: { id: 'card-1' },
+      data: { imageUrl: '/api/cards/card-1/art', imageStatus: 'READY' },
+    });
+  });
+
+  test('ผู้ให้บริการตอบไม่ใช่ภาพ (เช่น HTML error) → RETRY ไม่บันทึกเป็นภาพ', async () => {
+    delete process.env.AI_IMAGE_DISABLED;
+    process.env.AI_IMAGE_PROVIDER = 'pollinations';
+    process.env.AI_IMAGE_RETRY_BASE_MS = '1';
+
+    const fetchMock = jest.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      headers: new Headers({ 'content-type': 'text/html' }),
+      arrayBuffer: async () => Buffer.from('<html>error</html>').buffer.slice(0),
+    });
+    (global as unknown as { fetch: jest.Mock }).fetch = fetchMock;
+
+    mocked.imageJob.findMany.mockResolvedValueOnce([{
+      id: 'job-bad', cardId: 'card-1', status: 'PENDING', priority: 0,
+      retryCount: 0, maxRetries: 3, imagePrompt: 'safe prompt',
+      createdAt: new Date(), updatedAt: new Date(),
+    }]);
+    mocked.imageJob.updateMany.mockResolvedValueOnce({ count: 1 });
+    mocked.cardDefinition.findUnique.mockResolvedValueOnce(CARD_WITH_HASH);
+    mocked.imageJob.update.mockResolvedValue({});
+
+    const result = await ImageService.processNext();
+
+    expect(result?.status).toBe('RETRY');
+    expect(mocked.cardDefinition.update).not.toHaveBeenCalled();
+  }, 30_000);
 });
 

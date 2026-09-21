@@ -1,6 +1,7 @@
 'use client';
 
 import { CardDefinition } from '@/types';
+import CardFace from '@/components/cards/CardFace';
 
 interface CardRevealModalProps {
   card: CardDefinition;
@@ -71,20 +72,14 @@ export default function CardRevealModal({
           )}
         </div>
 
-        {/* Card Display — การ์ดเต็มใบ (กรอบ/คำบรรยาย/สเตตัสอยู่ในภาพ) */}
+        {/* Card Display — การ์ดเต็มใบ: ภาพ AI (ถ้ามี) + กรอบ/คำบรรยาย/สเตตัส */}
         <div className={`relative w-60 h-[343px] mx-auto rounded-xl bg-gradient-to-b ${elementColors[card.element]} shadow-lg ${rarityGlow[card.rarity]} mb-6 overflow-hidden`}>
-          {/* Card Image or Placeholder */}
-          <div className="absolute inset-0 flex items-center justify-center">
-            {card.imageUrl ? (
-              <img src={card.imageUrl} alt={card.name} className="w-full h-full object-contain" />
-            ) : (
-              <img
-                src={`/api/cards/${card.id}/image?v=2`}
-                alt={card.nameTh || card.name}
-                className="w-full h-full object-contain"
-              />
-            )}
-          </div>
+          <CardFace
+            cardId={card.id}
+            imageUrl={card.imageUrl}
+            alt={card.nameTh || card.name}
+            className="absolute inset-0"
+          />
           
           {/* Rarity Badge */}
           <div className="absolute top-2 right-2">
