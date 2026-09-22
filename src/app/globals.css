@@ -147,7 +147,8 @@ body {
     display: block;
   }
 
-  /* 1) เฉดสีตามระดับความหายาก — ครอบทั้งใบ */
+  /* 1) เฉดสีตามระดับความหายาก — ครอบเฉพาะ "ขอบการ์ด" เท่านั้น
+     (carve รูของช่องภาพ 3.96–96.04% x 16.78–54.79% ออก เพื่อไม่ปกคลูนภาพ → ภาพคมชัด ไม่มีฝ้า) */
   .card-foil > .card-foil__tint {
     background: linear-gradient(
       var(--foil-angle, 105deg),
@@ -156,10 +157,19 @@ body {
       rgba(255, 255, 255, 0) 58%,
       var(--foil-tint-b, #ffffff) 100%
     );
+    clip-path: polygon(
+      0% 0%,
+      100% 0%,
+      100% 16.78%,
+      96.04% 16.78%,
+      96.04% 54.79%,
+      3.96% 54.79%,
+      3.96% 16.78%,
+      0% 16.78%,
+      0% 100%
+    );
     mix-blend-mode: soft-light;
-    opacity: calc(var(--foil-intensity, 0) * 0.9);
-    animation: cardFoilDrift calc(var(--foil-dur, 6s) * 1.8) ease-in-out infinite;
-    animation-delay: var(--foil-delay, 0s);
+    opacity: calc(var(--foil-intensity, 0) * 0.38);
   }
 
   /* 2) วงรุ้งหมุนในช่องภาพ — ทำให้ "ตัวภาพ" เลื่อม */
@@ -182,8 +192,8 @@ body {
       #ff2d95
     );
     mix-blend-mode: color-dodge;
-    opacity: calc(var(--foil-intensity, 0) * 0.32);
-    filter: hue-rotate(var(--foil-hue, 0deg)) saturate(1.2);
+    opacity: calc(var(--foil-intensity, 0) * 0.14);
+    filter: hue-rotate(var(--foil-hue, 0deg)) saturate(1.15);
     animation: cardFoilSpin var(--foil-prism-dur, 14s) linear infinite;
     animation-delay: var(--foil-delay, 0s);
     will-change: transform;
@@ -191,19 +201,21 @@ body {
 
   /* 3) แถบแสงกวาดผ่านการ์ด */
   .card-foil > .card-foil__sweep {
-    left: -125%;
+    left: -120%;
     right: auto;
-    width: 350%;
+    width: 240%;
     background: linear-gradient(
       var(--foil-angle, 105deg),
-      rgba(255, 255, 255, 0) 44%,
-      rgba(255, 255, 255, 0.06) 47.5%,
-      rgba(255, 255, 255, 0.95) 50%,
-      rgba(255, 255, 255, 0.06) 52.5%,
-      rgba(255, 255, 255, 0) 56%
+      rgba(255, 255, 255, 0) 42%,
+      rgba(255, 255, 255, 0.05) 46.5%,
+      rgba(255, 255, 255, 0.72) 49.4%,
+      rgba(255, 255, 255, 0.85) 50%,
+      rgba(255, 255, 255, 0.72) 50.6%,
+      rgba(255, 255, 255, 0.05) 53.5%,
+      rgba(255, 255, 255, 0) 58%
     );
     mix-blend-mode: screen;
-    opacity: calc(var(--foil-intensity, 0) * 0.85);
+    opacity: calc(var(--foil-intensity, 0) * 0.55);
     animation: cardFoilSweep var(--foil-dur, 6s) cubic-bezier(0.45, 0, 0.55, 1) infinite;
     animation-delay: var(--foil-delay, 0s);
     will-change: transform;
