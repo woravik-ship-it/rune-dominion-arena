@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import CardFoil from '@/components/cards/CardFoil';
 import { cardArtSrc, isRegenerating, cardFrameUrl } from '@/lib/card-image';
 
 interface CardFaceProps {
@@ -9,11 +10,13 @@ interface CardFaceProps {
   imageUrl?: string | null;
   /** สถานะภาพจาก API: PENDING | PROCESSING | READY | FAILED */
   imageStatus?: string | null;
+  /** ระดับความหายาก — ใช้กำหนดชั้นแสงเลื่อม (foil) ที่ครอบบนการ์ด */
+  rarity?: string | null;
   alt: string;
 }
 
 /**
- * การ์ดสำหรับแสดงผล: ภาพ AI + กรอบ/ข้อความจาก /api/cards/[id]/image?mode=overlay
+ * การ์ดสำหรับแสดงผล: ภาพ AI + กรอบ/ข้อความจาก /api/cards/[id]/image?mode=overlay + ชั้นแสงเลื่อม (foil)
  *
  * กติกา UX (ผู้ใช้กำหนด): **ห้ามแสดงการ์ดวาดเอง (สคริปต์) เด็ดขาด**
  *  - PENDING/PROCESSING (รวมถึงตอนสร้างใหม่) → แสดง "กำลังสร้างภาพด้วย AI…" แล้ว poll จนภาพพร้อม
@@ -23,7 +26,8 @@ interface CardFaceProps {
  * ⚠️ ต้องวางในกล่องที่ `position: relative` + มีสัดส่วนการ์ด (`aspect-[7/10]`) หรือความสูงชัดเจน
  *    ไม่งั้นเลเยอร์ `absolute` จะสูง 0 และรูปมองไม่เห็น (เคยพลาดมาแล้ว — ตรวจด้วย `npm run inspect:cards`)
  */
-export default function CardFace({ cardId, imageUrl, imageStatus, alt }: CardFaceProps) {
+export default function CardFace({ cardId, imageUrl, imageStatus, rarity, alt }: CardFaceProps) {
+
   // ระหว่างสร้างใหม่ถือว่า "ยังไม่พร้อม" → ซ่อนภาพเดิมไว้ก่อน (ผู้ใช้กำหนด)
   const [artSrc, setArtSrc] = useState<string | null>(
     isRegenerating(imageStatus) ? null : cardArtSrc(imageUrl)
@@ -95,6 +99,9 @@ export default function CardFace({ cardId, imageUrl, imageStatus, alt }: CardFac
         alt={alt}
         className="absolute inset-0 w-full h-full object-contain"
       />
+
+      {/* ชั้นแสงเลื่อม (foil) ครอบบนการ์ด — CSS ล้วน ไม่เกี่ยวกับการเจนภาพ · ความเข้มตามระดับความหายาก */}
+      <CardFoil rarity={rarity} seed={cardId} />
     </>
   );
 }

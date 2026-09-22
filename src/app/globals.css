@@ -84,3 +84,160 @@ body {
     display: none;
   }
 }
+
+/* ============================================================================
+   ชั้น "แสงเลื่อม" บนการ์ด (foil / holo overlay) — CSS ล้วน ไม่เกี่ยวกับการเจนภาพ
+   ผู้ใช้กำหนด (2026-09-22): ต้องการแสงเลื่อมครอบบนการ์ด ตามระดับความหายาก
+   ค่าความเข้ม/สี/คาบเวลาทั้งหมดมาจาก src/lib/card-foil.ts (คอมโพเนนต์ CardFoil)
+   ============================================================================ */
+
+/* กวาดแถบแสง (composited: transform เท่านั้น → ราคาถูก แม้มีหลายใบในจอเดียว) */
+@keyframes cardFoilSweep {
+  0% {
+    transform: translate3d(-125%, 0, 0);
+  }
+  100% {
+    transform: translate3d(125%, 0, 0);
+  }
+}
+
+/* หมุนวงรุ้งในช่องภาพ (composited เช่นกัน) */
+@keyframes cardFoilSpin {
+  0% {
+    transform: rotate(0deg);
+  }
+  100% {
+    transform: rotate(360deg);
+  }
+}
+
+/* ประกายดาวกะพริบ */
+@keyframes cardFoilTwinkle {
+  0%,
+  100% {
+    opacity: calc(var(--foil-intensity, 0) * 0.16);
+  }
+  50% {
+    opacity: calc(var(--foil-intensity, 0) * 0.6);
+  }
+}
+
+@keyframes cardFoilDrift {
+  0%,
+  100% {
+    transform: translate3d(0, 0, 0) scale(1.02);
+  }
+  50% {
+    transform: translate3d(0, -2%, 0) scale(1.06);
+  }
+}
+
+@layer components {
+  /* กล่องชั้นแสง — ตำแหน่ง/ขนาดมาจากคอมโพเนนต์ (CARD_FRAME) */
+  .card-foil {
+    position: absolute;
+    overflow: hidden;
+    pointer-events: none;
+    z-index: 20;
+  }
+
+  .card-foil > span {
+    position: absolute;
+    inset: 0;
+    display: block;
+  }
+
+  /* 1) เฉดสีตามระดับความหายาก — ครอบทั้งใบ */
+  .card-foil > .card-foil__tint {
+    background: linear-gradient(
+      var(--foil-angle, 105deg),
+      var(--foil-tint-a, #ffffff) 0%,
+      rgba(255, 255, 255, 0) 42%,
+      rgba(255, 255, 255, 0) 58%,
+      var(--foil-tint-b, #ffffff) 100%
+    );
+    mix-blend-mode: soft-light;
+    opacity: calc(var(--foil-intensity, 0) * 0.9);
+    animation: cardFoilDrift calc(var(--foil-dur, 6s) * 1.8) ease-in-out infinite;
+    animation-delay: var(--foil-delay, 0s);
+  }
+
+  /* 2) วงรุ้งหมุนในช่องภาพ — ทำให้ "ตัวภาพ" เลื่อม */
+  .card-foil > .card-foil__art {
+    overflow: hidden;
+  }
+
+  .card-foil > .card-foil__art > .card-foil__prism {
+    position: absolute;
+    inset: -85% -35%;
+    border-radius: 50%;
+    background: conic-gradient(
+      from 0deg,
+      #ff2d95,
+      #ffd166,
+      #4ade80,
+      #22d3ee,
+      #6366f1,
+      #e879f9,
+      #ff2d95
+    );
+    mix-blend-mode: color-dodge;
+    opacity: calc(var(--foil-intensity, 0) * 0.32);
+    filter: hue-rotate(var(--foil-hue, 0deg)) saturate(1.2);
+    animation: cardFoilSpin var(--foil-prism-dur, 14s) linear infinite;
+    animation-delay: var(--foil-delay, 0s);
+    will-change: transform;
+  }
+
+  /* 3) แถบแสงกวาดผ่านการ์ด */
+  .card-foil > .card-foil__sweep {
+    left: -125%;
+    right: auto;
+    width: 350%;
+    background: linear-gradient(
+      var(--foil-angle, 105deg),
+      rgba(255, 255, 255, 0) 44%,
+      rgba(255, 255, 255, 0.06) 47.5%,
+      rgba(255, 255, 255, 0.95) 50%,
+      rgba(255, 255, 255, 0.06) 52.5%,
+      rgba(255, 255, 255, 0) 56%
+    );
+    mix-blend-mode: screen;
+    opacity: calc(var(--foil-intensity, 0) * 0.85);
+    animation: cardFoilSweep var(--foil-dur, 6s) cubic-bezier(0.45, 0, 0.55, 1) infinite;
+    animation-delay: var(--foil-delay, 0s);
+    will-change: transform;
+  }
+
+  /* 4) ประกายดาว (เฉพาะระดับสูงสุด) */
+  .card-foil > .card-foil__sparkle {
+    background-image:
+      radial-gradient(circle at 18% 26%, rgba(255, 255, 255, 0.95) 0 1px, transparent 1.7px),
+      radial-gradient(circle at 71% 18%, rgba(255, 255, 255, 0.85) 0 1.2px, transparent 1.9px),
+      radial-gradient(circle at 44% 62%, rgba(255, 255, 255, 0.8) 0 1px, transparent 1.6px),
+      radial-gradient(circle at 86% 72%, rgba(255, 255, 255, 0.75) 0 1.1px, transparent 1.8px),
+      radial-gradient(circle at 12% 84%, rgba(255, 255, 255, 0.75) 0 0.9px, transparent 1.5px),
+      radial-gradient(circle at 60% 90%, rgba(255, 255, 255, 0.7) 0 1px, transparent 1.6px);
+    mix-blend-mode: screen;
+    animation: cardFoilTwinkle calc(var(--foil-dur, 6s) * 0.8) ease-in-out infinite;
+    animation-delay: var(--foil-delay, 0s);
+  }
+}
+
+/* ผู้ใช้ที่ปิดอนิเมชัน (Prefers Reduced Motion) → เก็บ "แสงนิ่ง" ไว้ แต่ไม่ขยับ */
+@media (prefers-reduced-motion: reduce) {
+  .card-foil > .card-foil__sweep {
+    display: none;
+  }
+
+  .card-foil > .card-foil__tint,
+  .card-foil > .card-foil__art > .card-foil__prism,
+  .card-foil > .card-foil__sparkle {
+    animation: none;
+  }
+
+  .card-foil > .card-foil__sparkle {
+    opacity: calc(var(--foil-intensity, 0) * 0.22);
+  }
+}
+

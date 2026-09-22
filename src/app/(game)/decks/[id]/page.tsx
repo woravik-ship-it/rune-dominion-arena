@@ -180,6 +180,7 @@ export default function DeckBuilderPage() {
                         cardId={c.cardId}
                         imageUrl={c.imageUrl}
                         imageStatus={c.imageStatus}
+                        rarity={c.rarity}
                         alt={c.nameTh || c.name}
                       />
                     </div>
@@ -220,6 +221,7 @@ export default function DeckBuilderPage() {
                     cardId={c.cardId}
                     imageUrl={c.imageUrl}
                     imageStatus={c.imageStatus}
+                    rarity={c.rarity}
                     alt={c.nameTh || c.name}
                   />
                 </div>

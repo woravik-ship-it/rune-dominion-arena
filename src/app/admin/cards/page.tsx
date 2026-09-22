@@ -157,6 +157,7 @@ export default function AdminCardsPage() {
                         cardId={c.id}
                         imageUrl={c.imageUrl}
                         imageStatus={c.imageStatus}
+                        rarity={c.rarity}
                         alt={c.nameTh || c.name}
                       />
                     </button>
@@ -243,6 +244,7 @@ export default function AdminCardsPage() {
                 cardId={viewing.id}
                 imageUrl={viewing.imageUrl}
                 imageStatus={viewing.imageStatus}
+                rarity={viewing.rarity}
                 alt={viewing.nameTh || viewing.name}
               />
             </div>

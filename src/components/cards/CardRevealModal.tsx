@@ -78,6 +78,7 @@ export default function CardRevealModal({
             cardId={card.id}
             imageUrl={card.imageUrl}
             imageStatus={card.imageStatus}
+            rarity={card.rarity}
             alt={card.nameTh || card.name}
           />
           

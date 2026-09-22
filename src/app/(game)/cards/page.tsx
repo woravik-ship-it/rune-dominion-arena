@@ -173,6 +173,7 @@ export default function CardsPage() {
                       cardId={userCard.cardId}
                       imageUrl={userCard.imageUrl}
                       imageStatus={userCard.imageStatus}
+                      rarity={userCard.rarity}
                       alt={userCard.nameTh || userCard.name}
                     />
                     {/* จำนวนใบที่ถือครอง — ค้นพบซ้ำจะได้อีกใบ */}
