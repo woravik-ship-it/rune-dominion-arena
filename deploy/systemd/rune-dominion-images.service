@@ -14,7 +14,7 @@ Environment=DELAY=500
 # ทำรอบเดียวแล้วจบ (ให้ timer เป็นตัวเรียกซ้ำ) — ALL=1 เมื่อต้องการสร้างใหม่ทั้งคลัง
 Environment=RUN_ONCE=1
 Environment=ALL=0
-ExecStart=/usr/bin/bash /home/woravik/E2_Lab/Game_Card/rune-dominion-arena/scripts/run-image-generation.sh
+ExecStart=/usr/bin/npx tsx scripts/image-worker-tick.mts --batch 8
 TimeoutStartSec=1800
 
 [Install]
