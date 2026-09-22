@@ -286,11 +286,61 @@ export function buildPollinationsUrl(card: AiImageCardInput, options: AiImageOpt
   return `${base.replace(/\/$/, '')}/${encodeURIComponent(buildCardImagePrompt(card))}?${params.toString()}`;
 }
 
+/** ค่าใช้จ่ายที่ตั้งไว้ต่อระดับความหายาก (ผู้ใช้กำหนด: การ์ดทั่วไปประหยัดสุด · EPIC ขึ้นไปสูงกว่านิดหน่อย) */
+export interface ImagePreset {
+  label: 'standard' | 'premium';
+  model?: string;
+  quality?: string;
+  size: string;
+  outputFormat?: string;
+  compression?: number;
+}
+
+/** ระดับความหายากที่ถือว่า "ใช้ preset สูงขึ้น" (ปรับได้ผ่าน AI_IMAGE_PREMIUM_RARITIES) */
+export function premiumRarities(): string[] {
+  return (process.env.AI_IMAGE_PREMIUM_RARITIES ?? 'EPIC,LEGENDARY,MYTHIC')
+    .split(',')
+    .map((item) => item.trim().toUpperCase())
+    .filter(Boolean);
+}
+
+/** เลือก preset ของการ์ดตามระดับความหายาก (deterministic — เทสต์ได้) */
+export function resolveImagePreset(rarity: string): ImagePreset {
+  const isPremium = premiumRarities().includes((rarity ?? '').toUpperCase());
+
+  const shared = {
+    outputFormat: process.env.AI_IMAGE_OUTPUT_FORMAT,
+    compression: process.env.AI_IMAGE_COMPRESSION ? Number(process.env.AI_IMAGE_COMPRESSION) : undefined,
+  };
+
+  if (isPremium) {
+    return {
+      label: 'premium',
+      model: process.env.AI_IMAGE_PREMIUM_MODEL ?? process.env.AI_IMAGE_MODEL,
+      quality: process.env.AI_IMAGE_PREMIUM_QUALITY ?? 'medium',
+      size: process.env.AI_IMAGE_PREMIUM_SIZE ?? process.env.AI_IMAGE_SIZE ?? '1536x1024',
+      ...shared,
+    };
+  }
+
+  return {
+    label: 'standard',
+    model: process.env.AI_IMAGE_MODEL,
+    quality: process.env.AI_IMAGE_QUALITY ?? 'low',
+    size: process.env.AI_IMAGE_SIZE ?? '1536x1024',
+    ...shared,
+  };
+}
+
 export interface GeneratedImage {
   bytes: Buffer;
   contentType: string;
   provider: 'pollinations' | 'generic';
   prompt: string;
+  /** preset ที่ใช้จริง (standard = ประหยัดสุด, premium = EPIC ขึ้นไป) */
+  preset?: ImagePreset;
+  /** token ที่ผู้ให้บริการรายงาน (ใช้ประเมินค่าใช้จ่าย) */
+  usage?: { inputTokens?: number; outputTokens?: number; imageTokens?: number };
 }
 
 /** ตรวจว่าไบต์ที่ได้เป็นภาพจริง (กันหน้า HTML error ถูกบันทึกเป็นรูป) */
@@ -348,18 +398,16 @@ export async function generateCardImageBytes(
       if (!apiUrl || !apiKey) throw new Error('ไม่ได้ตั้งค่า AI provider (AI_IMAGE_API_URL / AI_IMAGE_API_KEY)');
 
       const isOpenAi = /openai\.com/.test(apiUrl);
-      const model = process.env.AI_IMAGE_MODEL || (isOpenAi ? 'gpt-image-1' : undefined);
-      const size = process.env.AI_IMAGE_SIZE || `${options.width ?? 896}x${options.height ?? 512}`;
-      const quality = process.env.AI_IMAGE_QUALITY;
-      const outputFormat = process.env.AI_IMAGE_OUTPUT_FORMAT;
-      const compression = process.env.AI_IMAGE_COMPRESSION;
+      const preset = resolveImagePreset(card.rarity);
+      const model = preset.model || (isOpenAi ? 'gpt-image-1' : undefined);
+      const size = preset.size || `${options.width ?? 896}x${options.height ?? 512}`;
 
       const requestBody: Record<string, unknown> = { prompt, n: 1, size };
       if (model) requestBody.model = model;
-      if (quality) requestBody.quality = quality;
-      if (outputFormat) requestBody.output_format = outputFormat;
-      if (compression && outputFormat && outputFormat !== 'png') {
-        requestBody.output_compression = Number(compression);
+      if (preset.quality) requestBody.quality = preset.quality;
+      if (preset.outputFormat) requestBody.output_format = preset.outputFormat;
+      if (preset.compression && preset.outputFormat && preset.outputFormat !== 'png') {
+        requestBody.output_compression = preset.compression;
       }
       // OpenAI ไม่รับ seed (การสุ่มเกิดที่ฝั่งผู้ให้บริการ) — ส่งเฉพาะ provider ที่รองรับ
       if (!isOpenAi) requestBody.seed = seedFromHash(card.canonicalSeedHash);
@@ -374,18 +422,34 @@ export async function generateCardImageBytes(
         const detail = await res.text().catch(() => '');
         throw new Error(`AI provider ตอบ ${res.status}${detail ? ` — ${detail.slice(0, 160)}` : ''}`);
       }
-      const json = (await res.json()) as { url?: string; data?: Array<{ url?: string; b64_json?: string }> };
+      const json = (await res.json()) as {
+        url?: string;
+        data?: Array<{ url?: string; b64_json?: string }>;
+        usage?: {
+          input_tokens?: number;
+          output_tokens?: number;
+          output_tokens_details?: { image_tokens?: number };
+        };
+      };
+      const usage = json.usage
+        ? {
+            inputTokens: json.usage.input_tokens,
+            outputTokens: json.usage.output_tokens,
+            imageTokens: json.usage.output_tokens_details?.image_tokens,
+          }
+        : undefined;
+
       const direct = json.url ?? json.data?.[0]?.url;
       if (direct) {
         const { bytes, contentType } = await downloadImage(direct, timeoutMs);
-        return { bytes, contentType, provider, prompt };
+        return { bytes, contentType, provider, prompt, preset, usage };
       }
       const b64 = json.data?.[0]?.b64_json;
       if (b64) {
         const bytes = Buffer.from(b64, 'base64');
         const detected = detectImageType(bytes);
         if (!detected) throw new Error('ผู้ให้บริการส่ง base64 ที่ไม่ใช่ภาพ');
-        return { bytes, contentType: detected, provider, prompt };
+        return { bytes, contentType: detected, provider, prompt, preset, usage };
       }
       throw new Error('AI provider ไม่ส่ง URL/base64 ภาพกลับมา');
     } catch (error) {

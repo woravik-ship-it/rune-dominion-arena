@@ -126,7 +126,10 @@ async function main(): Promise<void> {
 
       done += 1;
       const seconds = ((Date.now() - started) / 1000).toFixed(1);
-      console.log(`   ✅ [${done + skipped + failed}/${targets.length}] ${label} → ${Math.round(generated.bytes.length / 1024)}KB ใน ${seconds}s`);
+      const tier = generated.preset?.label === 'premium' ? 'premium' : 'standard';
+      const modelInfo = generated.preset ? `${generated.preset.model ?? '-'}/${generated.preset.quality ?? '-'}` : '-';
+      const tokenInfo = generated.usage?.imageTokens ? ` · ${generated.usage.imageTokens} image tokens` : '';
+      console.log(`   ✅ [${done + skipped + failed}/${targets.length}] ${label} → ${Math.round(generated.bytes.length / 1024)}KB ใน ${seconds}s · ${tier} (${modelInfo})${tokenInfo}`);
     } catch (error) {
       failed += 1;
       console.error(`   ❌ ${label}: ${error instanceof Error ? error.message : error}`);
