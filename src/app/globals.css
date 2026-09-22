@@ -122,16 +122,14 @@ body {
   }
 }
 
-/* ออร่า "ตีบวก" เต้นตามจังหวะ — ตีบวกสูงสุด = สว่างขึ้นถึง 1 และเงากว้างขึ้น (ทำผ่าน opacity + drop-shadow filter) */
+/* ออร่า "ตีบวก" — เรืองตามขอบเนียนๆ แล้วกะพริบเบาๆ เป็นจังหวะ (opacity เท่านั้น ไม่ยัด filter เรืองและเงาซ่านให้ปัญหาเรืองปน) */
 @keyframes cardFoilAuraPulse {
   0%,
   100% {
-    opacity: calc(var(--foil-intensity, 0) * 0.38);
-    filter: drop-shadow(0 0 2px color-mix(in srgb, var(--foil-glow, #93c5fd) 55%, transparent));
+    opacity: calc(var(--foil-intensity, 0) * 0.35);
   }
   50% {
-    opacity: var(--foil-intensity, 0);
-    filter: drop-shadow(0 0 10px var(--foil-glow, #93c5fd));
+    opacity: calc(var(--foil-intensity, 0) * 0.85);
   }
 }
 
@@ -160,18 +158,26 @@ body {
     display: block;
   }
 
-  /* 0) ออร่าเรืองรอบขอบ (สไตล์ "item ตีบวก" MU Online) — เรืองออกนอกขอบ + รามขอบใน แล้วเต้นเป็นจังหวะ
-     เพราะ .card-foil มี overflow:hidden จึงต้องกะพริบด้วย opacity/ขนาดเงา ไม่ใช่ยืดกล่องออกนอกเฟรม */
+  /* 0) ออร่า "ตีบวก" — เรืองนุ่มๆ ติดขอบการ์ด 3 ชั้น: ขอบแคบสว่าง / ฟุ้งกว้างโปร่ง / เงานอกบางๆ นึง
+     สีสด (alpha คงที่) มาจาก TS (--foil-glow-a/-b = hex+alpha ไว้ก่อน) ทำให้เงานิ่งสวย แล้วนิ่วๆ กะพริบไปมา */
   .card-foil > .card-foil__aura {
-    border-radius: 6%;
+    border-radius: 5.3%;
     box-shadow:
-      inset 0 0 10px var(--foil-glow, #93c5fd),
-      inset 0 0 26px color-mix(in srgb, var(--foil-glow, #93c5fd) 60%, transparent),
-      0 0 6px 1px color-mix(in srgb, var(--foil-glow, #93c5fd) 70%, transparent),
-      0 0 18px 4px color-mix(in srgb, var(--foil-glow, #93c5fd) 45%, transparent);
-    opacity: calc(var(--foil-intensity, 0) * 0.55);
-    animation: cardFoilAuraPulse calc(var(--foil-dur, 6s) * 1.2) ease-in-out infinite;
+      inset 0 0 7px var(--foil-glow-a, rgba(147, 197, 253, 0.6)),
+      inset 0 0 22px var(--foil-glow-b, rgba(147, 197, 253, 0.32)),
+      0 0 12px var(--foil-glow-b, rgba(147, 197, 253, 0.32)),
+      0 0 26px var(--foil-glow-c, rgba(147, 197, 253, 0.16));
+    background: linear-gradient(
+      180deg,
+      rgba(255, 255, 255, 0.13) 0%,
+      rgba(255, 255, 255, 0.05) 12%,
+      rgba(255, 255, 255, 0) 25%
+    );
+    mix-blend-mode: screen;
+    opacity: calc(var(--foil-intensity, 0) * 0.5);
+    animation: cardFoilAuraPulse calc(var(--foil-dur, 6s) * 1.3) ease-in-out infinite;
     animation-delay: var(--foil-delay, 0s);
+    will-change: opacity;
   }
 
   /* 1) เฉดสีตามระดับความหายาก — ครอบเฉพาะ "ขอบการ์ด" เท่านั้น
