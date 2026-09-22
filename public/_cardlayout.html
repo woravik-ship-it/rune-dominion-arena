@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<!-- หน้าตรวจ layout การ์ด (dev diagnostic): วัดว่าข้อความบนการ์ดทับกันไหม
+     ใช้คู่กับ scripts/inspect-card-layout.mjs (อ่านผลจาก #out) -->
+<html lang="th">
+<head><meta charset="utf-8"><title>card layout check</title></head>
+<body style="margin:0;background:#111;color:#eee;font-family:monospace">
+<div id="host" style="width:420px;height:600px"></div>
+<pre id="out">loading…</pre>
+<script>
+const params = new URLSearchParams(location.search);
+const card = params.get('card');
+const mode = params.get('mode') === 'overlay' ? '&mode=overlay' : '';
+
+function measure() {
+  const svg = document.querySelector('#host svg');
+  if (!svg) return { error: 'svg not loaded' };
+
+  const texts = [...svg.querySelectorAll('text')].map((node) => {
+    const box = node.getBBox();
+    return {
+      text: (node.textContent || '').slice(0, 30),
+      x: +box.x.toFixed(1), y: +box.y.toFixed(1),
+      w: +box.width.toFixed(1), h: +box.height.toFixed(1),
+    };
+  });
+
+  const overlaps = [];
+  for (let i = 0; i < texts.length; i += 1) {
+    for (let j = i + 1; j < texts.length; j += 1) {
+      const a = texts[i];
+      const b = texts[j];
+      const ix = Math.max(0, Math.min(a.x + a.w, b.x + b.w) - Math.max(a.x, b.x));
+      const iy = Math.max(0, Math.min(a.y + a.h, b.y + b.h) - Math.max(a.y, b.y));
+      const inter = ix * iy;
+      if (inter <= 0) continue;
+      const smaller = Math.min(a.w * a.h, b.w * b.h) || 1;
+      const ratio = inter / smaller;
+      if (ratio > 0.15) overlaps.push({ a: a.text, b: b.text, ratio: +ratio.toFixed(2) });
+    }
+  }
+
+  return { textCount: texts.length, overlapCount: overlaps.length, overlaps, boxes: texts };
+}
+
+fetch(`/api/cards/${card}/image?v=7${mode}`)
+  .then((res) => res.text())
+  .then((svgText) => {
+    document.getElementById('host').innerHTML = svgText;
+    document.getElementById('out').textContent = JSON.stringify(measure());
+    document.title = 'done';
+  })
+  .catch((error) => {
+    document.getElementById('out').textContent = JSON.stringify({ error: String(error) });
+    document.title = 'done';
+  });
+</script>
+</body>
+</html>

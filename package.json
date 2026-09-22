@@ -28,7 +28,8 @@
     "migrate:check": "bash scripts/check-migration.sh",
     "migrate:test": "bash scripts/test-migrate-deploy.sh",
     "health": "curl -s http://localhost:3000/api/health",
-    "inspect:cards": "node scripts/inspect-cards-page.mjs"
+    "inspect:cards": "node scripts/inspect-cards-page.mjs",
+    "inspect:layout": "node scripts/inspect-card-layout.mjs"
   },
   "dependencies": {
     "next": "^14.2.0",

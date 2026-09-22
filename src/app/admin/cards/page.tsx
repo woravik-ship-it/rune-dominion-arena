@@ -37,6 +37,7 @@ export default function AdminCardsPage() {
   const [msg, setMsg] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [regeneratingId, setRegeneratingId] = useState<string | null>(null);
+  const [viewing, setViewing] = useState<AdminCard | null>(null);
 
   /** สั่งสร้างภาพการ์ดใบนี้ใหม่ → สถานะเป็น "กำลังสร้าง" จนภาพใหม่พร้อม (CardFace poll เอง) */
   const regenerate = async (card: AdminCard) => {
@@ -145,17 +146,23 @@ export default function AdminCardsPage() {
               {cards.map((c) => (
                 <tr key={c.id} className="border-t border-gray-700 text-gray-200">
                   <td className="p-2">
-                    {/* การ์ดย่อ: ภาพ AI + กรอบ (ระหว่างสร้างจะขึ้น "กำลังสร้างภาพด้วย AI…") */}
-                    <div className="relative w-20 aspect-[7/10] rounded bg-black/40 overflow-hidden">
+                    {/* การ์ดย่อ: กดเพื่อดูรูปใหญ่ (เหมือนหน้าดูการ์ดปกติ) */}
+                    <button
+                      type="button"
+                      onClick={() => setViewing(c)}
+                      title="กดเพื่อดูรูปใหญ่"
+                      className="relative block w-20 aspect-[7/10] rounded bg-black/40 overflow-hidden ring-1 ring-transparent hover:ring-amber-400 transition"
+                    >
                       <CardFace
                         cardId={c.id}
                         imageUrl={c.imageUrl}
                         imageStatus={c.imageStatus}
                         alt={c.nameTh || c.name}
                       />
-                    </div>
+                    </button>
                     <div className="mt-1 text-[10px]">
                       <ImageStatusBadge status={c.imageStatus} />
+                      <span className="text-gray-500"> · 🔍 ดูรูปใหญ่</span>
                     </div>
                   </td>
                   <td className="p-2">
@@ -209,6 +216,57 @@ export default function AdminCardsPage() {
             <div className="flex gap-2">
               <button onClick={handleSave} className="btn-primary flex-1 text-sm">บันทึก</button>
               <button onClick={() => setEditing(null)} className="btn-secondary text-sm px-4">ยกเลิก</button>
+            </div>
+          </div>
+        </div>
+      )}
+      {/* Large card view — ดูรูปใหญ่เหมือนหน้าดูการ์ดปกติ */}
+      {viewing && (
+        <div
+          className="fixed inset-0 bg-black/80 flex items-center justify-center p-4 z-50"
+          onClick={() => setViewing(null)}
+        >
+          <div
+            className="bg-gray-800 rounded-2xl p-4 max-w-md w-full border border-gray-600"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <div className="flex justify-between items-center mb-3">
+              <h3 className="font-bold">
+                {viewing.nameTh || viewing.name}
+                <span className="text-xs text-gray-400 ml-2">{viewing.rarity} · {viewing.element} · {viewing.role}</span>
+              </h3>
+              <button onClick={() => setViewing(null)} className="text-gray-400 hover:text-white text-xl">✕</button>
+            </div>
+
+            <div className="relative mx-auto w-full max-w-[330px] aspect-[7/10]">
+              <CardFace
+                cardId={viewing.id}
+                imageUrl={viewing.imageUrl}
+                imageStatus={viewing.imageStatus}
+                alt={viewing.nameTh || viewing.name}
+              />
+            </div>
+
+            <div className="mt-3 text-xs text-gray-400 text-center space-y-1">
+              <div>{viewing.name}</div>
+              <div>
+                <ImageStatusBadge status={viewing.imageStatus} />
+                {' · '}เจ้าของ {viewing.ownerCount} คน · ถูกค้นพบ {viewing.discoveryCount} ครั้ง
+              </div>
+            </div>
+
+            <div className="mt-4 flex gap-2">
+              <button
+                onClick={async () => {
+                  await regenerate(viewing);
+                  setViewing({ ...viewing, imageStatus: 'PROCESSING' });
+                }}
+                disabled={regeneratingId === viewing.id}
+                className="btn-primary flex-1 text-sm disabled:opacity-50"
+              >
+                {regeneratingId === viewing.id ? 'กำลังสั่ง…' : '🔄 สร้างรูปใหม่'}
+              </button>
+              <button onClick={() => setViewing(null)} className="btn-secondary text-sm px-4">ปิด</button>
             </div>
           </div>
         </div>

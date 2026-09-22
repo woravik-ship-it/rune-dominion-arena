@@ -42,9 +42,9 @@ export interface PlaceholderCardInput {
 export const CARD_SIZE = { width: 420, height: 600 } as const;
 const FRAME = { x: 8, y: 8, w: 404, h: 584, r: 22 };
 const INNER = { x: 20, y: 20, w: 380, h: 560, r: 14 };
-const NAME_BAR = { x: 24, y: 24, w: 328, h: 54, r: 10 };
+const NAME_BAR = { x: 24, y: 24, w: 328, h: 62, r: 10 };
 const ATTR = { cx: 384, cy: 51, r: 25 };
-const STARS = { x: 30, y: 97 };
+const STARS = { x: 30, y: 100 };
 const ART = { x: 24, y: 106, w: 372, h: 222, r: 10 };
 const TYPE_BAR = { x: 24, y: 336, w: 372, h: 26, r: 6 };
 const TEXT_BOX = { x: 24, y: 370, w: 372, h: 146, r: 10 };
@@ -247,14 +247,14 @@ export function truncateText(text: string, maxUnits: number): string {
   return lines[0] ?? '';
 }
 
-/** เลือกขนาดฟอนต์ของชื่อไทยตามความยาว (ให้ชื่อยาวยังอ่านออก) */
+/** เลือกขนาดฟอนต์ของชื่อไทยตามความยาว (ให้ชื่อยาวยังอ่านออก และไม่ทับบรรทัดชื่ออังกฤษ) */
 function nameFontSize(nameTh: string): number {
   const units = textUnits(nameTh);
-  if (units <= 15) return 22;
-  if (units <= 19) return 19;
-  if (units <= 24) return 16.5;
-  if (units <= 30) return 14.5;
-  return 13;
+  if (units <= 15) return 20;
+  if (units <= 19) return 17.5;
+  if (units <= 24) return 15.5;
+  if (units <= 30) return 13.5;
+  return 12;
 }
 
 
@@ -570,11 +570,14 @@ function nameBar(card: PlaceholderCardInput, frame: RarityFrame, art: ElementArt
   const nameTh = (card.nameTh ?? '').trim() || card.name;
   const nameEn = (card.nameTh ?? '').trim() ? card.name : '';
   const size = nameFontSize(nameTh);
-  const baseY = NAME_BAR.y + (nameEn ? 30 : 35);
+  // ระยะบรรทัด: ชื่อไทยอยู่บน · ชื่ออังกฤษอยู่ล่าง (เว้นพอไม่ให้ทับกัน)
+  const thBaseline = NAME_BAR.y + 27;
+  const enBaseline = NAME_BAR.y + 50;
+
   return `<rect x="${NAME_BAR.x}" y="${NAME_BAR.y}" width="${NAME_BAR.w}" height="${NAME_BAR.h}" rx="${NAME_BAR.r}" fill="url(#cardPlate)" stroke="${frame.mid}" stroke-opacity="0.9" stroke-width="1.6"/>
     <rect x="${NAME_BAR.x + 4}" y="${NAME_BAR.y + 4}" width="${NAME_BAR.w - 8}" height="${NAME_BAR.h - 8}" rx="${NAME_BAR.r - 4}" fill="none" stroke="${art.accent}" stroke-opacity="0.3" stroke-width="1"/>
-    <text x="${NAME_BAR.x + 14}" y="${baseY}" font-size="${size}" font-weight="700" fill="#ffffff" font-family="${THAI_FONT}">${escapeXml(truncateText(nameTh, 32))}</text>
-    ${nameEn ? `<text x="${NAME_BAR.x + 14}" y="${NAME_BAR.y + 47}" font-size="11" fill="${art.accent}" fill-opacity="0.95" font-family="${SANS_FONT}">${escapeXml(truncateText(nameEn, 54))}</text>` : ''}`;
+    <text x="${NAME_BAR.x + 14}" y="${thBaseline}" font-size="${size}" font-weight="700" fill="#ffffff" font-family="${THAI_FONT}">${escapeXml(truncateText(nameTh, 32))}</text>
+    ${nameEn ? `<text x="${NAME_BAR.x + 14}" y="${enBaseline}" font-size="10.5" fill="${art.accent}" fill-opacity="0.95" font-family="${SANS_FONT}">${escapeXml(truncateText(nameEn, 56))}</text>` : ''}`;
 }
 
 /** ตราธาตุมุมขวาบน (แบบ Attribute ของการ์ดจริง) */
@@ -607,21 +610,22 @@ function effectBox(card: PlaceholderCardInput, art: ElementArt, styleLabel: stri
 
   for (const [index, skill] of skills.slice(0, 2).entries()) {
     const mana = skill.manaCost ? ` (มานา ${skill.manaCost})` : '';
-    lines.push({ text: `${index + 1}. ${skill.name}${mana}`, size: 12.5, fill: '#ffffff', weight: 700 });
+    lines.push({ text: `${index + 1}. ${skill.name}${mana}`, size: 12, fill: '#ffffff', weight: 700 });
     const desc = wrapText(skill.description ?? '', 46, 2);
-    for (const line of desc) lines.push({ text: line, size: 11.5, fill: '#d1d5db', weight: 400 });
+    for (const line of desc) lines.push({ text: line, size: 11, fill: '#d1d5db', weight: 400 });
   }
 
   const description = wrapText(card.descriptionTh ?? '', 46, 2);
-  for (const line of description) lines.push({ text: line, size: 11.5, fill: '#d1d5db', weight: 400 });
+  for (const line of description) lines.push({ text: line, size: 11, fill: '#d1d5db', weight: 400 });
 
   const lore = wrapText(card.loreTh ?? '', 52, 2);
   for (const line of lore) lines.push({ text: line, size: 10.5, fill: '#9ca3af', weight: 400, italic: true });
 
-  const maxLines = 8;
+  const maxLines = 6;
   const shown = lines.slice(0, maxLines);
-  const startY = TEXT_BOX.y + 20;
-  const lineH = 16.5;
+  const headerBaseline = TEXT_BOX.y + 13;
+  const startY = TEXT_BOX.y + 32;   // เว้นจากหัวข้อ "คุณสมบัติ / EFFECT" พอไม่ให้ทับ
+  const lineH = 18;
 
   const body = shown
     .map((line, index) => `<text x="${TEXT_BOX.x + 12}" y="${(startY + index * lineH).toFixed(1)}" font-size="${line.size}" font-weight="${line.weight}" ${line.italic ? 'font-style="italic"' : ''} fill="${line.fill}" font-family="${THAI_FONT}">${escapeXml(line.text)}</text>`)
@@ -629,7 +633,8 @@ function effectBox(card: PlaceholderCardInput, art: ElementArt, styleLabel: stri
 
   return `<rect x="${TEXT_BOX.x}" y="${TEXT_BOX.y}" width="${TEXT_BOX.w}" height="${TEXT_BOX.h}" rx="${TEXT_BOX.r}" fill="url(#cardText)" stroke="${art.accent}" stroke-opacity="0.35" stroke-width="1.2"/>
     <rect x="${TEXT_BOX.x + 3}" y="${TEXT_BOX.y + 3}" width="${TEXT_BOX.w - 6}" height="${TEXT_BOX.h - 6}" rx="${TEXT_BOX.r - 3}" fill="none" stroke="#ffffff" stroke-opacity="0.08" stroke-width="1"/>
-    <text x="${TEXT_BOX.x + 12}" y="${TEXT_BOX.y + 13.5}" font-size="9.5" fill="${art.accent}" fill-opacity="0.9" font-family="${THAI_FONT}">คุณสมบัติ / EFFECT</text>
+    <text x="${TEXT_BOX.x + 12}" y="${headerBaseline}" font-size="9.5" fill="${art.accent}" fill-opacity="0.9" font-family="${THAI_FONT}">คุณสมบัติ / EFFECT</text>
+    <line x1="${TEXT_BOX.x + 12}" y1="${TEXT_BOX.y + 18.5}" x2="${TEXT_BOX.x + TEXT_BOX.w - 12}" y2="${TEXT_BOX.y + 18.5}" stroke="${art.accent}" stroke-opacity="0.25" stroke-width="1"/>
     ${body}`;
 }
 

@@ -176,7 +176,7 @@ export default function CardDetailPage() {
             />
             {card.imageStatus === 'PENDING' && (
               <span className="absolute top-2 right-2 bg-yellow-600 text-xs px-2 py-1 rounded">
-                รอสร้างภาพ
+                กำลังวาดภาพ
               </span>
             )}
           </div>

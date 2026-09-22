@@ -75,16 +75,16 @@ export default function CardFace({ cardId, imageUrl, imageStatus, alt }: CardFac
           style={artWindow}
         >
           <span className="text-lg">⚠️</span>
-          <span className="text-[10px] leading-tight text-red-300">สร้างภาพไม่สำเร็จ</span>
+          <span className="text-[10px] leading-tight text-red-300">ยังวาดภาพไม่สำเร็จ</span>
         </div>
       ) : (
-        // กำลังสร้างภาพ — ห้ามแสดงการ์ดวาดเอง (พื้นทึบ ทับช่องภาพเดิม)
+        // กำลังวาดภาพ — ห้ามแสดงการ์ดวาดเอง (พื้นทึบ ทับช่องภาพเดิม)
         <div
           className="absolute flex flex-col items-center justify-center gap-1 bg-slate-900 text-center"
           style={artWindow}
         >
           <span className="animate-spin text-lg">⏳</span>
-          <span className="text-[10px] leading-tight text-amber-300">กำลังสร้างภาพด้วย AI…</span>
+          <span className="text-[10px] leading-tight text-amber-300">กำลังวาดภาพ…</span>
           {waited >= 8 && <span className="text-[9px] text-gray-400">ใช้เวลานานกว่าปกติ — รอสักครู่</span>}
         </div>
       )}
