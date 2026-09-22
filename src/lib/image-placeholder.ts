@@ -693,8 +693,12 @@ export function generatePlaceholderSvg(card: PlaceholderCardInput, options: Card
       ${subjectSilhouette(subject, art, pool, rarityColor)}
       ${artParticles(pool, art, rarityColor, frame.foil)}`;
 
-  return `<svg xmlns="http://www.w3.org/2000/svg" width="${CARD_SIZE.width}" height="${CARD_SIZE.height}" viewBox="0 0 ${CARD_SIZE.width} ${CARD_SIZE.height}" role="img" aria-label="${displayName}">
+  // หมายเหตุ: ไม่พิมพ์บรรทัด "ฉาก…/ความหายาก…" ด้านล่างการ์ดแล้ว (ผู้ใช้สั่งเอาออก —
+  // เป็นข้อมูลเบื้องหลังที่ไม่จำเป็นกับผู้เล่น และไปทับเส้นกรอบ)
+  // ข้อมูลนี้ยังตรวจสอบได้จาก metadata ที่มองไม่เห็น (data-art-style / data-rarity + <desc>)
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="${CARD_SIZE.width}" height="${CARD_SIZE.height}" viewBox="0 0 ${CARD_SIZE.width} ${CARD_SIZE.height}" role="img" aria-label="${displayName}" data-art-style="${style}" data-rarity="${escapeXml(card.rarity)}">
   <title>${displayName}</title>
+  <desc>ฉาก${styleLabel} · ความหายาก ${frame.labelTh} (${escapeXml(card.rarity)}) · Rune Dominion Arena</desc>
   ${buildDefs(art, frame, rarityColor, gradAngle, grainRot)}
   <g clip-path="url(#cardFrameClip)">
     ${overlayOnly ? '' : `<rect x="${FRAME.x}" y="${FRAME.y}" width="${FRAME.w}" height="${FRAME.h}" rx="${FRAME.r}" fill="#03040a"/>`}
@@ -713,7 +717,6 @@ export function generatePlaceholderSvg(card: PlaceholderCardInput, options: Card
     ${effectBox(card, art, styleLabel)}
     ${statsBar(card, frame)}
 
-    <text x="${CARD_SIZE.width / 2}" y="${CARD_SIZE.height - 23}" font-size="9.5" text-anchor="middle" fill="#e5e7eb" fill-opacity="0.75" font-family="${THAI_FONT}">ฉาก${styleLabel} · ความหายาก ${frame.labelTh} (${escapeXml(card.rarity)}) · Rune Dominion Arena</text>
     ${frame.foil ? holoSheen(frame) : ''}
   </g>
   <rect x="${FRAME.x}" y="${FRAME.y}" width="${FRAME.w}" height="${FRAME.h}" rx="${FRAME.r}" fill="none" stroke="#000000" stroke-opacity="0.55" stroke-width="3"/>

@@ -118,10 +118,22 @@ describe('generatePlaceholderSvg (ความหลากหลายของ�
     const styles = new Set<string>();
     for (let i = 0; i < 20; i += 1) {
       const svg = generatePlaceholderSvg({ ...CARD_BASE, canonicalSeedHash: hashOf(`style-${i}`) });
-      const match = svg.match(/ฉาก(วงแหวนออร่า|ฟ้าดารา|ภูมิทัศน์|พายุคลั่ง|มันดาลารูน|สุริยุปราคา)/);
+      // ข้อมูลฉากอยู่ใน metadata (มองไม่เห็น) ไม่ใช่ข้อความบนการ์ด
+      const match = svg.match(/data-art-style="([a-z]+)"/);
       if (match) styles.add(match[1]);
     }
     expect(styles.size).toBeGreaterThanOrEqual(4);
+  });
+
+  // Regression: ผู้ใช้สั่งเอาข้อความ "ฉาก…/ความหายาก…" ด้านล่างการ์ดออก
+  // (เป็นข้อมูลเบื้องหลัง ไม่จำเป็นกับผู้เล่น และทับเส้นกรอบ)
+  test('ไม่พิมพ์ข้อความเบื้องหลังด้านล่างการ์ด — เก็บเป็น metadata แทน', () => {
+    const svg = generatePlaceholderSvg({ ...CARD_BASE, role: 'TANK', canonicalSeedHash: hashOf('nofooter') });
+    expect(svg).not.toMatch(/<text[^>]*>ฉาก/);
+    expect(svg).not.toMatch(/<text[^>]*>ความหายาก/);
+    expect(svg).toContain('data-art-style="');
+    expect(svg).toMatch(/data-rarity="[A-Z]+"/);
+    expect(svg).toContain('<desc>ฉาก');
   });
 
   test('ธาตุต่างกัน → ใช้สีคนละชุด', () => {
