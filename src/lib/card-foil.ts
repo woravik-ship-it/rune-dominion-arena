@@ -45,7 +45,7 @@ export const FOIL_SPECS: Record<string, FoilSpec> = {
   UNCOMMON: { ...NO_FOIL, tint: ['#86efac', '#15803d'] },
   RARE: {
     tier: 'SHEEN',
-    intensity: 0.34,
+    intensity: 0.48,
     sweepSec: 7.2,
     prismSec: 16,
     tint: ['#dbeafe', '#93c5fd'],
@@ -55,7 +55,7 @@ export const FOIL_SPECS: Record<string, FoilSpec> = {
   },
   EPIC: {
     tier: 'HOLO',
-    intensity: 0.52,
+    intensity: 0.66,
     sweepSec: 6,
     prismSec: 13,
     tint: ['#f3e8ff', '#a855f7'],
@@ -65,7 +65,7 @@ export const FOIL_SPECS: Record<string, FoilSpec> = {
   },
   LEGENDARY: {
     tier: 'HOLO',
-    intensity: 0.7,
+    intensity: 0.85,
     sweepSec: 4.8,
     prismSec: 10,
     tint: ['#fff7d6', '#e0b64a'],
@@ -75,7 +75,7 @@ export const FOIL_SPECS: Record<string, FoilSpec> = {
   },
   MYTHIC: {
     tier: 'PRISMATIC',
-    intensity: 0.88,
+    intensity: 1.0,
     sweepSec: 3.8,
     prismSec: 8,
     tint: ['#fff7cc', '#f0abfc'],
@@ -142,5 +142,6 @@ export function foilStyle(rarity?: string | null, seed = ''): Record<string, str
     '--foil-hue': `${variation.hueDeg}deg`,
     '--foil-tint-a': spec.tint[0],
     '--foil-tint-b': spec.tint[1],
+    '--foil-glow': spec.tint[1],
   };
 }

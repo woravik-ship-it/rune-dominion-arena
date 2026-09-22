@@ -55,6 +55,8 @@ export default function CardFoil({ rarity, seed = '' }: CardFoilProps) {
 
   return (
     <div aria-hidden className="card-foil" style={style}>
+      {/* ออร่าเรืองรอบขอบ (สไตล์ item ตีบวก MU Online) — ใต้ชั้นอื่นทุกชั้น */}
+      <span className="card-foil__aura" />
       <span className="card-foil__tint" />
       {spec.prism && (
         <span className="card-foil__art" style={ART_WINDOW}>

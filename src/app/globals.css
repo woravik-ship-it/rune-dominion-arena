@@ -122,6 +122,19 @@ body {
   }
 }
 
+/* ออร่า "ตีบวก" เต้นตามจังหวะ — ตีบวกสูงสุด = สว่างขึ้นถึง 1 และเงากว้างขึ้น (ทำผ่าน opacity + drop-shadow filter) */
+@keyframes cardFoilAuraPulse {
+  0%,
+  100% {
+    opacity: calc(var(--foil-intensity, 0) * 0.38);
+    filter: drop-shadow(0 0 2px color-mix(in srgb, var(--foil-glow, #93c5fd) 55%, transparent));
+  }
+  50% {
+    opacity: var(--foil-intensity, 0);
+    filter: drop-shadow(0 0 10px var(--foil-glow, #93c5fd));
+  }
+}
+
 @keyframes cardFoilDrift {
   0%,
   100% {
@@ -147,6 +160,20 @@ body {
     display: block;
   }
 
+  /* 0) ออร่าเรืองรอบขอบ (สไตล์ "item ตีบวก" MU Online) — เรืองออกนอกขอบ + รามขอบใน แล้วเต้นเป็นจังหวะ
+     เพราะ .card-foil มี overflow:hidden จึงต้องกะพริบด้วย opacity/ขนาดเงา ไม่ใช่ยืดกล่องออกนอกเฟรม */
+  .card-foil > .card-foil__aura {
+    border-radius: 6%;
+    box-shadow:
+      inset 0 0 10px var(--foil-glow, #93c5fd),
+      inset 0 0 26px color-mix(in srgb, var(--foil-glow, #93c5fd) 60%, transparent),
+      0 0 6px 1px color-mix(in srgb, var(--foil-glow, #93c5fd) 70%, transparent),
+      0 0 18px 4px color-mix(in srgb, var(--foil-glow, #93c5fd) 45%, transparent);
+    opacity: calc(var(--foil-intensity, 0) * 0.55);
+    animation: cardFoilAuraPulse calc(var(--foil-dur, 6s) * 1.2) ease-in-out infinite;
+    animation-delay: var(--foil-delay, 0s);
+  }
+
   /* 1) เฉดสีตามระดับความหายาก — ครอบเฉพาะ "ขอบการ์ด" เท่านั้น
      (carve รูของช่องภาพ 3.96–96.04% x 16.78–54.79% ออก เพื่อไม่ปกคลูนภาพ → ภาพคมชัด ไม่มีฝ้า) */
   .card-foil > .card-foil__tint {
@@ -169,7 +196,7 @@ body {
       0% 100%
     );
     mix-blend-mode: soft-light;
-    opacity: calc(var(--foil-intensity, 0) * 0.38);
+    opacity: calc(var(--foil-intensity, 0) * 0.44);
   }
 
   /* 2) วงรุ้งหมุนในช่องภาพ — ทำให้ "ตัวภาพ" เลื่อม */
@@ -192,8 +219,8 @@ body {
       #ff2d95
     );
     mix-blend-mode: color-dodge;
-    opacity: calc(var(--foil-intensity, 0) * 0.14);
-    filter: hue-rotate(var(--foil-hue, 0deg)) saturate(1.15);
+    opacity: calc(var(--foil-intensity, 0) * 0.22);
+    filter: hue-rotate(var(--foil-hue, 0deg)) saturate(1.3);
     animation: cardFoilSpin var(--foil-prism-dur, 14s) linear infinite;
     animation-delay: var(--foil-delay, 0s);
     will-change: transform;
@@ -243,9 +270,14 @@ body {
   }
 
   .card-foil > .card-foil__tint,
+  .card-foil > .card-foil__aura,
   .card-foil > .card-foil__art > .card-foil__prism,
   .card-foil > .card-foil__sparkle {
     animation: none;
+  }
+
+  .card-foil > .card-foil__aura {
+    opacity: calc(var(--foil-intensity, 0) * 0.6);
   }
 
   .card-foil > .card-foil__sparkle {
