@@ -1,36 +1,7 @@
 'use client';
 
 import type { CSSProperties } from 'react';
-import { foilHash, foilSpec, foilStyle } from '@/lib/card-foil';
-
-/** จำนวนเปลวไฟต่อการ์ด — ถูกพอไม่หนักเครื่อง (blur เป็น GPU-composited) */
-const FLAME_COUNT = 9;
-
-interface FlameInstance {
-  x: number;       // % จากขอบซ้าย
-  height: number;  // % ของความสูงการ์ด
-  width: number;   // % ของความกว้างการ์ด
-  dur: number;     // คาบกระพริบ (วินาที)
-  delay: number;   // หน่วง (วินาที — ค่าลบเริ่มกลางคาบ)
-  lean: number;    // องศารีบเทอม (ปลายเปลวเอียง)
-  alt: boolean;    // สลับสี A/B ของระดับ
-}
-
-/** สุ่ม "เปลว" ต่อการ์ดแบบ deterministic (session เดิมได้เปลวเดิมเสมอ) */
-function flameInstances(seed: string): FlameInstance[] {
-  return Array.from({ length: FLAME_COUNT }, (_, i) => {
-    const hash = foilHash(`${seed}:flame:${i}`);
-    return {
-      x: 2 + (hash % 90) - 4,                       // 2–92%
-      height: 8 + ((hash >> 3) % 12),               // 8–20%
-      width: 7 + ((hash >> 6) % 7),                 // 7–14%
-      dur: 0.7 + ((hash >> 9) % 90) / 100,          // 0.7–1.6s
-      delay: -(((hash >> 12) % 160) / 100),         // -1.6–0s
-      lean: ((hash >> 5) % 21) - 10,                // −10–10 องศา
-      alt: ((hash >> 11) & 1) === 1,
-    };
-  });
-}
+import { foilSpec, foilStyle } from '@/lib/card-foil';
 
 interface CardFoilProps {
   /** ระดับความหายากของการ์ด — เป็นตัวกำหนดความเข้มของแสง (ดู src/lib/card-foil.ts) */
@@ -83,37 +54,15 @@ export default function CardFoil({ rarity, seed = '' }: CardFoilProps) {
   const style = { ...CARD_FRAME, ...foilStyle(rarity, seed) } as unknown as CSSProperties;
 
   return (
-    <div aria-hidden className="card-foil-wrap" style={style}>
-      {/* ฐานออร่าเรืองรอบขอบ — อยู่ "นอก" กรอบตัด ฯ มันบึกบือนด้วย */}
-      <span className="card-foil__aura" />
-      {/* ชั้นเปลวไฟ (ไอเทมติดบวกแบบเปลวไฟ) — ทิ้งลอยรอบขอบ: ไฟกระพริบ สูงปลายไปมาแล้วเป็นรรีบเทอมต่อลูก เหมือนมีลม */}
-      <span className="card-foil__flamefield">
-        {flameInstances(seed).map((flame, i) => (
-          <span
-            key={i}
-            className={`card-foil__flame ${flame.alt ? 'is-alt' : ''}`}
-            style={{
-              left: `${flame.x}%`,
-              height: `${flame.height}%`,
-              width: `${flame.width}%`,
-              animationDuration: `${flame.dur}s`,
-              animationDelay: `${flame.delay}s`,
-              ['--flame-lean' as string]: `${flame.lean}deg`,
-            }}
-          />
-        ))}
-      </span>
-      {/* ชั้นแสงด้านใน — ตัดที่ขอบการ์ด (overflow hidden) */}
-      <div className="card-foil">
-        <span className="card-foil__tint" />
-        {spec.prism && (
-          <span className="card-foil__art" style={ART_WINDOW}>
-            <span className="card-foil__prism" />
-          </span>
-        )}
-        {spec.sweep && <span className="card-foil__sweep" />}
-        {spec.sparkle && <span className="card-foil__sparkle" />}
-      </div>
+    <div aria-hidden className="card-foil" style={style}>
+      <span className="card-foil__tint" />
+      {spec.prism && (
+        <span className="card-foil__art" style={ART_WINDOW}>
+          <span className="card-foil__prism" />
+        </span>
+      )}
+      {spec.sweep && <span className="card-foil__sweep" />}
+      {spec.sparkle && <span className="card-foil__sparkle" />}
     </div>
   );
 }

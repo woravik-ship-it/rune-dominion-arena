@@ -142,10 +142,5 @@ export function foilStyle(rarity?: string | null, seed = ''): Record<string, str
     '--foil-hue': `${variation.hueDeg}deg`,
     '--foil-tint-a': spec.tint[0],
     '--foil-tint-b': spec.tint[1],
-    '--foil-glow': spec.tint[1],
-    // เงาออร่าแบบ alpha คงที่ (นิ่งสวย ไม่ต้องคำนวณสีใน CSS) — hex + alpha → #rrggbbaa
-    '--foil-glow-a': `${spec.tint[1]}DB`, // ขอบแคบ ~0.85
-    '--foil-glow-b': `${spec.tint[1]}80`, // ฟุ้งกว้าง ~0.5
-    '--foil-glow-c': `${spec.tint[1]}4D`, // เงานอก ~0.3
   };
 }
