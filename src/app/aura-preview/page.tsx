@@ -62,7 +62,11 @@ export default async function AuraPreviewPage({
   searchParams: { rarity?: string; variant?: string };
 }) {
   const rarityFilter = (searchParams.rarity ?? '').toUpperCase();
-  const variantFilter = (searchParams.variant ?? '').toLowerCase() as AuraVariant | '';
+  // กันพิมพ์ดีไซน์ผิด (?variant=foo) → ถือว่าไม่ได้กรอง (ของเดิม cast ตรงๆ แล้วพังตอนอ่าน VARIANT_INFO[variant])
+  const rawVariant = (searchParams.variant ?? '').toLowerCase();
+  const variantFilter: AuraVariant | '' = (AURA_VARIANTS as string[]).includes(rawVariant)
+    ? (rawVariant as AuraVariant)
+    : '';
 
   const rarities = rarityFilter
     ? [rarityFilter]

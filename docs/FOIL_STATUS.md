@@ -6,7 +6,7 @@
 
 > - ดีไซน์ที่ใช้จริง: `inner` (ตัดแสงในกรอบการ์ด) — ตั้งค่าที่ `DEFAULT_AURA_VARIANT` ใน `src/lib/card-aura.ts`
 > - `CardFace` วาดชั้น aura ให้เอง → ทุกหน้าที่ใช้การ์ดได้แสงนี้อัตโนมัติ (คอลเลกชัน/เด็ค/แอดมิน/โมดัลเปิดการ์ด)
-> - พรีวิวเทียบทุกดีไซน์: `/aura-preview` (บน production แล้ว) · พรีวิวสดชั่วคราว: `http://localhost:3100/aura-preview`
+> - พรีวิวเทียบทุกดีไซน์: `/aura-preview` (บน production แล้ว)
 > - ภาพจริง: `public/_shots/real-cards-inner.png` (หน้าคอลเลกชันจริง) · `real-admin-inner.png` · `aura-MYTHIC-inner.png` · `v-tier-*.png`
 
 

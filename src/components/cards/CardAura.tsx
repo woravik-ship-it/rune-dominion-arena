@@ -4,6 +4,7 @@ import type { CSSProperties } from 'react';
 import {
   AURA_CARD,
   AURA_RADIUS,
+  DEFAULT_AURA_VARIANT,
   auraClipPaths,
   auraGeometry,
   auraLayers,
@@ -21,7 +22,7 @@ interface CardAuraProps {
   rarity?: string | null;
   /** ใช้สร้างความต่างของแสงต่อการ์ดแต่ละใบ (ปกติส่ง cardId) */
   seed?: string;
-  /** ดีไซน์แสง (ค่าตั้งต้น = `tier` บันไดตามระดับ) */
+  /** ดีไซน์แสง (ค่าตั้งต้น = `DEFAULT_AURA_VARIANT` = ดีไซน์ที่ผู้ใช้เลือกไว้ทั้งเกม) */
   variant?: AuraVariant;
 }
 
@@ -49,7 +50,7 @@ const CENTER_Y = art.y + art.h / 2;
  *    ส่วนดีไซน์อื่นต้องมีที่ให้แสงล้น 12% รอบการ์ด (กล่องแม่ห้าม overflow-hidden)
  * ⚠️ ต้องอยู่ในกล่องที่ `position: relative` + มีสัดส่วนการ์ด (เหมือน CardFace)
  */
-export default function CardAura({ rarity, seed = '', variant = 'tier' }: CardAuraProps) {
+export default function CardAura({ rarity, seed = '', variant = DEFAULT_AURA_VARIANT }: CardAuraProps) {
   // ผู้ใช้ที่เปิด "ลดเอฟเฟกต์รุนแรง" ในหน้าตั้งค่า → ลดความเข้มลงครึ่ง
   const { settings } = useAudio();
   const reduceIntense = settings.reduceIntense;
@@ -58,7 +59,9 @@ export default function CardAura({ rarity, seed = '', variant = 'tier' }: CardAu
   const layers = auraLayers(variant, rarity);
   if (!layers.halo && !layers.flare && !layers.pillar && !layers.sparks) return null;
 
-  const uid = auraUid(seed);
+  // รวม variant ใน uid ด้วย — การ์ดใบเดียวกันที่วาดหลายดีไซน์ในหน้าเดียว (/aura-preview)
+  // จะได้ id ของ gradient/filter/clipPath ไม่ชนกัน (id ซ้ำ → url(#...) อ้างถึงตัวแรกในเอกสาร)
+  const uid = auraUid(`${seed}::${variant}`);
   const geo = auraGeometry(layers.clip);
   const clips = auraClipPaths(layers.clip);
   const style = {
