@@ -21,6 +21,8 @@ const PATH = arg('--path', '/cards');
 const OUT = arg('--out', '/tmp/inspect.png');
 const PORT = Number(arg('--port', '9333'));
 const BASE = arg('--base', 'http://localhost:3000');
+/** --aura = วัดชั้น "แสงเรืองแบบไอเทมตีบวก" (CardAura) ที่เรนเดอร์จริงในหน้านี้ */
+const AURA = process.argv.includes('--aura');
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
@@ -158,7 +160,61 @@ try {
   const shot = await send('Page.captureScreenshot', { format: 'png', captureBeyondViewport: true });
   writeFileSync(OUT, Buffer.from(shot.data, 'base64'));
 
-  console.log(JSON.stringify({ ...evaluated.result.value, screenshot: OUT }, null, 2));
+  // วัดชั้นแสงเรือง (aura) ที่เรนเดอร์จริง — ยืนยันว่าแสงครอบ "พอดีกล่องการ์ด" และไม่ถูกตัดทิ้ง
+  let aura = null;
+  if (AURA) {
+    const measured = await send('Runtime.evaluate', {
+      returnByValue: true,
+      expression: `(() => {
+        const layers = [...document.querySelectorAll('.card-aura')];
+        const sample = layers.map((el) => {
+          const box = el.getBoundingClientRect();
+          const host = el.parentElement.getBoundingClientRect();
+          const cs = getComputedStyle(el);
+          const svg = el.querySelector('svg');
+          const halo = el.querySelector('.card-aura__halo-core');
+          const flare = el.querySelector('.card-aura__flare-spin');
+          const spark = el.querySelector('.card-aura__spark');
+          return {
+            cls: el.className,
+            size: Math.round(box.width) + 'x' + Math.round(box.height),
+            hostSize: Math.round(host.width) + 'x' + Math.round(host.height),
+            fitsHost: Math.abs(box.width - host.width) < 1 && Math.abs(box.height - host.height) < 1,
+            inset: cs.inset,
+            overflow: cs.overflow,
+            borderRadius: cs.borderTopLeftRadius,
+            blend: cs.mixBlendMode,
+            pointerEvents: cs.pointerEvents,
+            ariaHidden: el.getAttribute('aria-hidden'),
+            svgViewBox: svg ? svg.getAttribute('viewBox') : null,
+            shapes: el.querySelectorAll('path, rect, circle').length,
+            blurs: el.querySelectorAll('filter > feGaussianBlur').length,
+            clipPaths: el.querySelectorAll('clipPath').length,
+            sparks: el.querySelectorAll('.card-aura__spark').length,
+            haloOpacity: halo ? getComputedStyle(halo).opacity : null,
+            haloAnim: halo ? getComputedStyle(halo).animationName : null,
+            flareAnim: flare ? getComputedStyle(flare).animationName : null,
+            sparkAnim: spark ? getComputedStyle(spark).animationName : null,
+          };
+        });
+        return {
+          count: layers.length,
+          cardBoxes: document.querySelectorAll('.card-aura').length,
+          uniqueSizes: [...new Set(sample.map((s) => s.size))],
+          allFitHost: sample.every((s) => s.fitsHost),
+          allHiddenFromAT: sample.every((s) => s.ariaHidden === 'true'),
+          allClickThrough: sample.every((s) => s.pointerEvents === 'none'),
+          animationRunning: sample.filter((s) => s.haloAnim && s.haloAnim !== 'none').length,
+          sample: sample.slice(0, 3),
+        };
+      })()`,
+    });
+    aura = measured.result.value;
+  }
+
+  console.log(
+    JSON.stringify({ ...evaluated.result.value, ...(aura ? { aura } : {}), screenshot: OUT }, null, 2)
+  );
 } catch (error) {
   console.error('ตรวจหน้าเว็บไม่สำเร็จ:', error instanceof Error ? error.message : error);
   process.exitCode = 1;

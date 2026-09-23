@@ -243,3 +243,191 @@ body {
   }
 }
 
+/* ============================================================================
+   ชั้น "แสงเรืองแบบไอเทมตีบวก" (item upgrade glow — สไตล์ MU Online)
+   ทำไมใช้ SVG ไม่ใช่ box-shadow: ดูเหตุผลใน src/lib/card-aura.ts (ของเดิมที่ลองแล้วไม่ผ่าน)
+   ค่าความเข้ม/สี/จังหวะทั้งหมดมาจาก src/lib/card-aura.ts (คอมโพเนนต์ CardAura)
+   ============================================================================ */
+
+/* แสง "หายใจ" (opacity เท่านั้น → composited ราคาถูก แม้มีหลายใบในจอเดียว) */
+@keyframes cardAuraBreathe {
+  0%,
+  100% {
+    opacity: calc(var(--aura-intensity, 0) * 0.58);
+  }
+  50% {
+    opacity: calc(var(--aura-intensity, 0) * 1);
+  }
+}
+
+/* ประกายดาวหายใจ */
+@keyframes cardAuraFlarePulse {
+  0%,
+  100% {
+    opacity: calc(var(--aura-intensity, 0) * 0.55);
+  }
+  50% {
+    opacity: calc(var(--aura-intensity, 0) * 0.95);
+  }
+}
+
+/* ประกายดาวหมุนช้าๆ (fill-box → หมุนรอบตัวเอง ไม่ลอยออกนอกตำแหน่ง) */
+@keyframes cardAuraFlareSpin {
+  0% {
+    transform: rotate(0deg);
+  }
+  100% {
+    transform: rotate(360deg);
+  }
+}
+
+/* ลำแสงไหลขึ้นผ่านตัวการ์ด (หน่วย px ใน SVG = user unit → สเกลตามการ์ด) */
+@keyframes cardAuraPillarFlow {
+  0% {
+    transform: translateY(0);
+    opacity: 0;
+  }
+  18% {
+    opacity: calc(var(--aura-intensity, 0) * 0.36);
+  }
+  80% {
+    opacity: calc(var(--aura-intensity, 0) * 0.16);
+  }
+  100% {
+    transform: translateY(-430px);
+    opacity: 0;
+  }
+}
+
+/* ประกายลอยขึ้นแล้วจางหาย */
+@keyframes cardAuraSpark {
+  0% {
+    transform: translateY(0) scale(0.7);
+    opacity: 0;
+  }
+  20% {
+    opacity: calc(var(--aura-intensity, 0) * 0.95);
+  }
+  70% {
+    opacity: calc(var(--aura-intensity, 0) * 0.55);
+  }
+  100% {
+    transform: translateY(-470px) scale(1.15);
+    opacity: 0;
+  }
+}
+
+@layer components {
+  /* กล่องชั้นแสง — ตำแหน่ง/ขนาดมาจากคอมโพเนนต์ (auraGeometry ใน src/lib/card-aura.ts) */
+  .card-aura {
+    position: absolute;
+    pointer-events: none;
+    z-index: 24;
+    /* แสงต้อง "เพิ่มความสว่าง" ให้การ์ด ไม่ใช่ทับให้ภาพมืด (ต่างจาก box-shadow ที่ผู้ใช้ไม่ชอบ) */
+    mix-blend-mode: screen;
+    /* เฉดสีต่างกันเล็กน้อยต่อใบ (deterministic จาก cardId) */
+    filter: hue-rotate(var(--aura-hue, 0deg));
+  }
+
+  .card-aura__svg {
+    display: block;
+    width: 100%;
+    height: 100%;
+    /* ให้แสงเรืองล้นออกนอก viewBox ได้ (ขอบเขตจริงคุมด้วย inset ของ host) */
+    overflow: visible;
+  }
+
+  /* โหมดในกรอบ: ตัดแสงที่ขอบการ์ด → ใช้ในกล่องที่มี overflow-hidden ได้โดยไม่ต้องแก้ layout */
+  .card-aura--clip {
+    overflow: hidden;
+  }
+
+  /* 1) แสงเรืองเกาะขอบการ์ด */
+  .card-aura__halo-core {
+    opacity: calc(var(--aura-intensity, 0) * 0.8);
+    animation: cardAuraBreathe var(--aura-breathe, 4s) ease-in-out infinite;
+    animation-delay: var(--aura-delay, 0s);
+  }
+
+  /* ชั้นวงกว้างหายใจสวนทางกับชั้นใน → ดูเป็นแสงมีชีวิต ไม่กระพริบพร้อมกัน */
+  .card-aura__halo-wide {
+    opacity: calc(var(--aura-intensity, 0) * 0.55);
+    animation: cardAuraBreathe calc(var(--aura-breathe, 4s) * 1.25) ease-in-out infinite reverse;
+    animation-delay: var(--aura-delay, 0s);
+  }
+
+  /* เรืองรอบช่องภาพ (ให้ "ตัวไอเทม" เรืองขึ้น โดยไม่ฟุ้งทับตัวภาพ) */
+  .card-aura__art-rim {
+    opacity: calc(var(--aura-intensity, 0) * 0.5);
+    animation: cardAuraBreathe calc(var(--aura-breathe, 4s) * 1.4) ease-in-out infinite;
+    animation-delay: var(--aura-delay, 0s);
+  }
+
+  /* 2) ประกายดาว 4 แฉก — หมุน + หายใจพร้อมกัน (สอง animation คนละ property) */
+  .card-aura__flare-spin {
+    transform-box: fill-box;
+    transform-origin: center;
+    opacity: calc(var(--aura-intensity, 0) * 0.7);
+    animation:
+      cardAuraFlareSpin var(--aura-flare-dur, 20s) linear infinite,
+      cardAuraFlarePulse var(--aura-breathe, 4s) ease-in-out infinite;
+    animation-delay: var(--aura-delay, 0s), var(--aura-delay, 0s);
+  }
+
+  .card-aura__flare-arm {
+    opacity: 0.72;
+  }
+
+  .card-aura__flare-arm--side {
+    opacity: 0.5;
+  }
+
+  .card-aura__flare-core {
+    opacity: 0.85;
+  }
+
+  .card-aura__flare-dot {
+    opacity: 0.95;
+  }
+
+  /* 3) เสาแสงแนวตั้ง + ลำแสงไหลขึ้น */
+  .card-aura__pillar-column {
+    opacity: calc(var(--aura-intensity, 0) * 0.26);
+    animation: cardAuraBreathe calc(var(--aura-breathe, 4s) * 1.6) ease-in-out infinite;
+    animation-delay: var(--aura-delay, 0s);
+  }
+
+  .card-aura__pillar-flow {
+    opacity: 0;
+    animation: cardAuraPillarFlow var(--aura-pillar-dur, 6s) linear infinite;
+    animation-delay: var(--aura-delay, 0s);
+  }
+
+  /* 4) ประกายลอยขึ้น — หน่วงเวลา/คาบมาจากคอมโพเนนต์ (deterministic ต่อใบ) */
+  .card-aura__spark {
+    opacity: 0;
+    animation: cardAuraSpark var(--aura-spark-dur, 4s) ease-out infinite;
+  }
+}
+
+/* ผู้ใช้ที่ปิดอนิเมชัน (Prefers Reduced Motion) → เหลือ "แสงนิ่ง" ที่สวยอยู่ ไม่ขยับ
+   (ชั้นที่ต้องมีการเคลื่อนไหวถึงจะดูดี — ลำแสงไหล/ประกายลอย — ซ่อนไปเลย ดีกว่าแช่ค้าง) */
+@media (prefers-reduced-motion: reduce) {
+  .card-aura__halo-core,
+  .card-aura__halo-wide,
+  .card-aura__art-rim,
+  .card-aura__flare-spin,
+  .card-aura__pillar-column {
+    animation: none;
+  }
+
+  .card-aura__flare-spin {
+    opacity: calc(var(--aura-intensity, 0) * 0.6);
+  }
+
+  .card-aura__pillar-flow,
+  .card-aura__spark {
+    display: none;
+  }
+}
+
