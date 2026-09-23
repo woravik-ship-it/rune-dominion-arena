@@ -180,7 +180,8 @@ export function auraLayers(variant: AuraVariant, rarity?: string | null): AuraLa
       return { halo: true, flare: false, pillar: true, sparks: true, clip: false };
     case 'inner':
       // ตัดแสงให้อยู่ในกรอบการ์ด → ปลอดภัยกับกล่องที่ overflow-hidden (ไม่ต้องแก้ layout หน้าไหน)
-      return { halo: true, flare: true, pillar: false, sparks: true, clip: true };
+      // flare (ประกายดาว) ถูกถอดออก — ผู้ใช้รีวิวบนการ์ดจริง 2026-09-23: "ประกายดาวไม่เหมาะเลย"
+      return { halo: true, flare: false, pillar: false, sparks: true, clip: true };
     default:
       return NO_LAYERS;
   }

@@ -89,3 +89,11 @@
   ต้องสั่ง `NODE_ENV=production npm run build` (systemd ทับค่าให้ตอนรันจริงอยู่แล้ว)
 - ชั้นแสงเป็น `mix-blend-mode: screen` + SVG → วัดด้วย `npm run inspect:cards -- --aura` ได้ทุกครั้ง (ไม่ต้องเดาจากคำบรรยาย)
 
+### รอบ 4.1 (2026-09-23) — ถอด "ประกายดาว" (flare) ออกจาก `inner`
+
+ผู้ใช้รีวิวบนการ์ดจริงหลัง deploy: *"ยังไม่ถูกใจ โดยเฉพาะประกายดาว ไม่เหมาะเลย"*
+
+- `auraLayers('inner')` → `flare: false` → ดีไซน์ที่ใช้จริงเหลือ **ขอบเรือง (halo) + ประกายลอย (sparks)** เท่านั้น
+- องค์ประกอบ/เรขาคณิตอื่นคงเดิม · ดีไซน์ `tier`/`radiant` ในหน้าพรีวิวยังมีประกายดาวไว้เทียบ (ไม่ได้ลบทิ้ง)
+- รีวิวโค้ดรอบเดียวกันแก้เพิ่ม: กัน `/aura-preview?variant=ผิด` พัง (500) · uid ของ SVG รวม variant (กัน id ชน) · `CardAura` default = `DEFAULT_AURA_VARIANT`
+

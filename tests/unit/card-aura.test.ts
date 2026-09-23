@@ -251,11 +251,11 @@ describe('การนำไปใช้จริงบนการ์ด — �
     expect(geo.viewBox).toBe(`0 0 ${AURA_CARD.width} ${AURA_CARD.height}`);
   });
 
-  test('การ์ดทุกระดับที่ควรมีแสง ได้องค์ประกอบครบตามดีไซน์ตั้งต้น (ไม่มีเสาแสงที่ล้นกรอบ)', () => {
+  test('การ์ดทุกระดับที่ควรมีแสง ได้องค์ประกอบครบตามดีไซน์ตั้งต้น (ขอบเรือง + ประกายลอย · ไม่มีประกายดาว/เสาแสง)', () => {
     for (const rarity of ['RARE', 'EPIC', 'LEGENDARY', 'MYTHIC']) {
       const layers = auraLayers(DEFAULT_AURA_VARIANT, rarity);
       expect(layers.halo).toBe(true);
-      expect(layers.flare).toBe(true);
+      expect(layers.flare).toBe(false); // ประกายดาวถูกถอดออก — ผู้ใช้รีวิวบนการ์ดจริง 2026-09-23: "ไม่เหมาะเลย"
       expect(layers.sparks).toBe(true);
       expect(layers.pillar).toBe(false); // เสาแสงล้นออกนอกกรอบ → ไม่ใช้ในโหมด clip
     }
