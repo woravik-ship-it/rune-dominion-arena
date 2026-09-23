@@ -165,7 +165,7 @@ export default function CardsPage() {
                 <Link
                   key={userCard.id}
                   href={`/cards/${userCard.cardId}`}
-                  className={`bg-gray-800 rounded-lg overflow-hidden border-2 ${getRarityBorder(userCard.rarity)} hover:scale-105 transition-transform`}
+                  className={`bg-gray-800 rounded-lg border-2 ${getRarityBorder(userCard.rarity)} hover:scale-105 transition-transform`}
                 >
                   {/* การ์ด: ภาพ AI (ถ้ามี) + กรอบ/ข้อความ */}
                   <div className={`relative aspect-[7/10] bg-gradient-to-br ${getElementColor(userCard.element)}`}>

@@ -54,17 +54,20 @@ export default function CardFoil({ rarity, seed = '' }: CardFoilProps) {
   const style = { ...CARD_FRAME, ...foilStyle(rarity, seed) } as unknown as CSSProperties;
 
   return (
-    <div aria-hidden className="card-foil" style={style}>
-      {/* ออร่าเรืองรอบขอบ (สไตล์ item ตีบวก MU Online) — ใต้ชั้นอื่นทุกชั้น */}
+    <div aria-hidden className="card-foil-wrap" style={style}>
+      {/* ออร่าเรืองรอบขอบ (สไตล์ item ตีบวก MU Online) — อยู่ "นอก" กรอบตัด จึงเรืองออกนอกการ์ดได้จริง */}
       <span className="card-foil__aura" />
-      <span className="card-foil__tint" />
-      {spec.prism && (
-        <span className="card-foil__art" style={ART_WINDOW}>
-          <span className="card-foil__prism" />
-        </span>
-      )}
-      {spec.sweep && <span className="card-foil__sweep" />}
-      {spec.sparkle && <span className="card-foil__sparkle" />}
+      {/* ชั้นแสงด้านใน — ตัดที่ขอบการ์ด (overflow hidden) */}
+      <div className="card-foil">
+        <span className="card-foil__tint" />
+        {spec.prism && (
+          <span className="card-foil__art" style={ART_WINDOW}>
+            <span className="card-foil__prism" />
+          </span>
+        )}
+        {spec.sweep && <span className="card-foil__sweep" />}
+        {spec.sparkle && <span className="card-foil__sparkle" />}
+      </div>
     </div>
   );
 }

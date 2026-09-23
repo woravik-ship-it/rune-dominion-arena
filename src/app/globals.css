@@ -126,10 +126,10 @@ body {
 @keyframes cardFoilAuraPulse {
   0%,
   100% {
-    opacity: calc(var(--foil-intensity, 0) * 0.35);
+    opacity: calc(var(--foil-intensity, 0) * 0.45);
   }
   50% {
-    opacity: calc(var(--foil-intensity, 0) * 0.85);
+    opacity: var(--foil-intensity, 0);
   }
 }
 
@@ -144,37 +144,39 @@ body {
 }
 
 @layer components {
-  /* กล่องชั้นแสง — ตำแหน่ง/ขนาดมาจากคอมโพเนนต์ (CARD_FRAME) */
-  .card-foil {
+  /* กล่องครอบชั้นแสง — ตำแหน่งขอบการ์ดจากคอมโพเนนต์ · ไม่ตัดขอบ เพื่อให้ออร่าเรืองออกนอกได้ */
+  .card-foil-wrap {
     position: absolute;
-    overflow: hidden;
     pointer-events: none;
     z-index: 20;
   }
 
-  .card-foil > span {
+  /* กล่องชั้นแสงด้านใน — ตัดจำกัดที่ขอบการ์ด */
+  .card-foil {
+    position: absolute;
+    inset: 0;
+    overflow: hidden;
+    pointer-events: none;
+  }
+
+  .card-foil > span,
+  .card-foil-wrap > .card-foil__aura {
     position: absolute;
     inset: 0;
     display: block;
   }
 
-  /* 0) ออร่า "ตีบวก" — เรืองนุ่มๆ ติดขอบการ์ด 3 ชั้น: ขอบแคบสว่าง / ฟุ้งกว้างโปร่ง / เงานอกบางๆ นึง
-     สีสด (alpha คงที่) มาจาก TS (--foil-glow-a/-b = hex+alpha ไว้ก่อน) ทำให้เงานิ่งสวย แล้วนิ่วๆ กะพริบไปมา */
-  .card-foil > .card-foil__aura {
-    border-radius: 5.3%;
+  /* 0) ออร่า "ตีบวก" — ฟุ้งออกนอกขอบ (stretch ออก 7% + เงา 5 ชั้น) แล้วกะพริบเป็นจังหวะ */
+  .card-foil-wrap > .card-foil__aura {
+    inset: -7%;
+    border-radius: 7%;
     box-shadow:
-      inset 0 0 7px var(--foil-glow-a, rgba(147, 197, 253, 0.6)),
-      inset 0 0 22px var(--foil-glow-b, rgba(147, 197, 253, 0.32)),
-      0 0 12px var(--foil-glow-b, rgba(147, 197, 253, 0.32)),
-      0 0 26px var(--foil-glow-c, rgba(147, 197, 253, 0.16));
-    background: linear-gradient(
-      180deg,
-      rgba(255, 255, 255, 0.13) 0%,
-      rgba(255, 255, 255, 0.05) 12%,
-      rgba(255, 255, 255, 0) 25%
-    );
-    mix-blend-mode: screen;
-    opacity: calc(var(--foil-intensity, 0) * 0.5);
+      inset 0 0 9px var(--foil-glow-a, rgba(147, 197, 253, 0.65)),
+      inset 0 0 26px var(--foil-glow-b, rgba(147, 197, 253, 0.4)),
+      0 0 10px 1px var(--foil-glow-a, rgba(147, 197, 253, 0.65)),
+      0 0 30px 6px var(--foil-glow-b, rgba(147, 197, 253, 0.4)),
+      0 0 64px 14px var(--foil-glow-c, rgba(147, 197, 253, 0.22));
+    opacity: calc(var(--foil-intensity, 0) * 0.8);
     animation: cardFoilAuraPulse calc(var(--foil-dur, 6s) * 1.3) ease-in-out infinite;
     animation-delay: var(--foil-delay, 0s);
     will-change: opacity;
@@ -276,14 +278,14 @@ body {
   }
 
   .card-foil > .card-foil__tint,
-  .card-foil > .card-foil__aura,
+  .card-foil-wrap > .card-foil__aura,
   .card-foil > .card-foil__art > .card-foil__prism,
   .card-foil > .card-foil__sparkle {
     animation: none;
   }
 
-  .card-foil > .card-foil__aura {
-    opacity: calc(var(--foil-intensity, 0) * 0.6);
+  .card-foil-wrap > .card-foil__aura {
+    opacity: calc(var(--foil-intensity, 0) * 0.55);
   }
 
   .card-foil > .card-foil__sparkle {

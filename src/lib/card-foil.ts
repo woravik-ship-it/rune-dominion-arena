@@ -144,8 +144,8 @@ export function foilStyle(rarity?: string | null, seed = ''): Record<string, str
     '--foil-tint-b': spec.tint[1],
     '--foil-glow': spec.tint[1],
     // เงาออร่าแบบ alpha คงที่ (นิ่งสวย ไม่ต้องคำนวณสีใน CSS) — hex + alpha → #rrggbbaa
-    '--foil-glow-a': `${spec.tint[1]}99`, // ขอบแคบ ~0.6
-    '--foil-glow-b': `${spec.tint[1]}52`, // ฟุ้งกว้าง ~0.32
-    '--foil-glow-c': `${spec.tint[1]}29`, // เงานอก ~0.16
+    '--foil-glow-a': `${spec.tint[1]}DB`, // ขอบแคบ ~0.85
+    '--foil-glow-b': `${spec.tint[1]}80`, // ฟุ้งกว้าง ~0.5
+    '--foil-glow-c': `${spec.tint[1]}4D`, // เงานอก ~0.3
   };
 }

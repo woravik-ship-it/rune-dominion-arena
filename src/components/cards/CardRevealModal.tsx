@@ -73,7 +73,7 @@ export default function CardRevealModal({
         </div>
 
         {/* Card Display — การ์ดเต็มใบ: ภาพ AI (ถ้ามี) + กรอบ/คำบรรยาย/สเตตัส */}
-        <div className={`relative w-60 h-[343px] mx-auto rounded-xl bg-gradient-to-b ${elementColors[card.element]} shadow-lg ${rarityGlow[card.rarity]} mb-6 overflow-hidden`}>
+        <div className={`relative w-60 h-[343px] mx-auto rounded-xl bg-gradient-to-b ${elementColors[card.element]} shadow-lg ${rarityGlow[card.rarity]} mb-6`}>
           <CardFace
             cardId={card.id}
             imageUrl={card.imageUrl}
