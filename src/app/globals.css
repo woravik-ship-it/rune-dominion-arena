@@ -408,6 +408,70 @@ body {
     opacity: 0;
     animation: cardAuraSpark var(--aura-spark-dur, 4s) ease-out infinite;
   }
+
+  /* 5) FLOW (2026-09-24) — "เปลวไฟ + แสงไหลเหมือนน้ำ"
+     แสงไหล: stroke-dasharray 1 ช่วงแสง + animate dashoffset ครบรอบเส้นพอดี (dash+gap = รอบ)
+     ทุกชั้นยังถูก clip (นอกการ์ด/นอกช่องภาพ) → ตัวภาพไม่โดนแสงทับ = การ์ดคม */
+  .card-aura__flow-core,
+  .card-aura__flow-glow,
+  .card-aura__flow-rim {
+    stroke-dasharray: var(--aura-flow-dash, 400) var(--aura-flow-gap, 1600);
+    animation: cardAuraFlow linear infinite;
+    animation-duration: var(--aura-flow-dur, 7s);
+  }
+
+  .card-aura__flow-glow {
+    opacity: calc(var(--aura-intensity, 0) * 0.62);
+  }
+
+  .card-aura__flow-core {
+    opacity: calc(var(--aura-intensity, 0) * 0.95);
+  }
+
+  /* แสงไหลรอบช่องภาพ: เส้นรอบสั้นกว่า → ใช้ชุดค่า/คาบของตัวเอง (ช้ากว่า = เหมือนน้ำ) */
+  .card-aura__flow-rim {
+    stroke-dasharray: var(--aura-rim-dash, 260) var(--aura-rim-gap, 900);
+    animation-duration: var(--aura-rim-dur, 10s);
+    opacity: calc(var(--aura-intensity, 0) * 0.6);
+  }
+
+  /* เปลวไฟ: ลุก-หุบ-เอียง (transform เท่านั้น → composited, ราคาถูกแม้มีหลายใบต่อจอ) */
+  .card-aura__flame {
+    transform-box: fill-box;
+    transform-origin: 50% 100%;
+    animation: cardAuraFlame ease-in-out infinite;
+  }
+}
+
+/* แสงไหลวนครบรอบเส้น (dashoffset วิ่ง 1 รอบความยาวเส้น → ไร้รอยต่อ) */
+@keyframes cardAuraFlow {
+  from {
+    stroke-dashoffset: 0;
+  }
+  to {
+    stroke-dashoffset: calc(var(--aura-flow-len, 1976) * -1);
+  }
+}
+
+/* เปลวไฟ: ลุกขึ้น → สูงสุด → หุบลง (โคนไม่ขยับ ปลายสะบัด) */
+@keyframes cardAuraFlame {
+  0%,
+  100% {
+    transform: translateY(6px) scaleY(0.68) scaleX(1.12) skewX(-4deg);
+    opacity: calc(var(--aura-intensity, 0) * 0.18);
+  }
+  30% {
+    transform: translateY(-10px) scaleY(1.12) scaleX(0.9) skewX(3deg);
+    opacity: calc(var(--aura-intensity, 0) * 0.85);
+  }
+  55% {
+    transform: translateY(-2px) scaleY(0.94) scaleX(1.02) skewX(-2deg);
+    opacity: calc(var(--aura-intensity, 0) * 0.55);
+  }
+  78% {
+    transform: translateY(-18px) scaleY(1.04) scaleX(0.94) skewX(4deg);
+    opacity: calc(var(--aura-intensity, 0) * 0.7);
+  }
 }
 
 /* ผู้ใช้ที่ปิดอนิเมชัน (Prefers Reduced Motion) → เหลือ "แสงนิ่ง" ที่สวยอยู่ ไม่ขยับ
@@ -417,7 +481,10 @@ body {
   .card-aura__halo-wide,
   .card-aura__art-rim,
   .card-aura__flare-spin,
-  .card-aura__pillar-column {
+  .card-aura__pillar-column,
+  .card-aura__flow-core,
+  .card-aura__flow-glow,
+  .card-aura__flow-rim {
     animation: none;
   }
 
@@ -428,6 +495,18 @@ body {
   .card-aura__pillar-flow,
   .card-aura__spark {
     display: none;
+  }
+
+  /* เปลวไฟ: ปิดการขยับ → เหลือนิ่งเป็น "แสงเปลว" (transform-box เต็มรูป + โคนติดขอบล่าง) */
+  .card-aura__flame {
+    animation: none;
+    transform: scaleY(0.94);
+    opacity: calc(var(--aura-intensity, 0) * 0.55);
+  }
+
+  /* แสงไหล: หยุดวิ่งแต่ยังมีช่วงแสงอยู่ → ดูเป็นแสงนิ่งที่ขอบ (ไม่หายไปทั้งชั้น) */
+  .card-aura__flow-core {
+    opacity: calc(var(--aura-intensity, 0) * 0.7);
   }
 }
 

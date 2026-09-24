@@ -6,6 +6,8 @@ import {
   AURA_RADIUS,
   DEFAULT_AURA_VARIANT,
   auraClipPaths,
+  auraFlames,
+  auraFlowDash,
   auraGeometry,
   auraLayers,
   auraSparks,
@@ -16,6 +18,7 @@ import {
   type AuraVariant,
 } from '@/lib/card-aura';
 import { useAudio } from '@/components/providers/AudioProvider';
+import { foilHash } from '@/lib/card-foil';
 
 interface CardAuraProps {
   /** ระดับความหายาก — เป็นตัวกำหนดความเข้ม/สี/จำนวนประกาย (ดู src/lib/card-aura.ts) */
@@ -30,6 +33,13 @@ const { frame, art } = AURA_CARD;
 /** จุดศูนย์กลาง "ไอเทม" = กลางช่องภาพ (24+372/2, 106+222/2) */
 const CENTER_X = art.x + art.w / 2;
 const CENTER_Y = art.y + art.h / 2;
+/**
+ * ระดับฐานของเปลวไฟ/ประกายของดีไซน์ `flow` = ใต้การ์ดเล็กน้อย
+ * ทำไมต้องอยู่ใต้การ์ด: เปลวถูก clip ด้วย `outsideCard` → ส่วนที่อยู่ "ในการ์ด" ถูกตัดทิ้ง
+ * เหลือเฉพาะปลายเปลวที่ลอยขึ้นมาแตะขอบล่างการ์ด = ดูเหมือนกองไฟอยู่ข้างหลังการ์ด
+ * (และรับประกันว่าไม่มีแสงทับตัวการ์ดเลย — ตัวหนังสือ/ตัวภาพคม 100%)
+ */
+const AURA_FLOW_BASE_Y = AURA_CARD.height + (AURA_CARD.height * 12) / 100 - 6;
 
 /**
  * ชั้น "แสงเรืองแบบไอเทมตีบวก" (MU Online style) — SVG glow ล้วน ไม่มีการเจนภาพ
@@ -70,8 +80,16 @@ export default function CardAura({ rarity, seed = '', variant = DEFAULT_AURA_VAR
     ...auraStyle(rarity, seed, { reduceIntense }),
   } as unknown as CSSProperties;
 
-  const sparks = layers.sparks ? auraSparks(seed, spec.sparkCount, spec.sparkSec) : [];
+  const sparks = layers.sparks
+    ? auraSparks(seed, spec.sparkCount, spec.sparkSec, layers.flow ? AURA_FLOW_BASE_Y : 500)
+    : [];
+  const flames = layers.flow ? auraFlames(seed, spec.flameCount, spec.flowSec) : [];
+  const flow = auraFlowDash(spec);
   const { tiltDeg } = auraVariation(seed);
+  // ฐานเปลว: ดีไซน์ flow = ใต้การ์ด (ปลายเปลวลอยขึ้นมาแตะขอบ) · ดีไซน์ในกรอบ = ขอบล่างด้านใน
+  const flameBaseY = layers.flow ? AURA_FLOW_BASE_Y : frame.y + frame.h - 10;
+  // seed ของ feTurbulence: ให้แต่ละใบ "ลายเปลว" ต่างกันแบบ deterministic
+  const warpSeed = Math.abs(foilHash(`${seed}~warp`)) % 100;
 
   return (
     <div
@@ -133,6 +151,31 @@ export default function CardAura({ rarity, seed = '', variant = DEFAULT_AURA_VAR
           <clipPath id={`${uid}-art-outside`} clipPathUnits="userSpaceOnUse">
             <path d={clips.outsideArt} clipRule="evenodd" />
           </clipPath>
+          {/* เปลวไฟ: สว่างที่โคน → จางที่ปลาย */}
+          <linearGradient id={`${uid}-flame`} x1="0" y1="1" x2="0" y2="0">
+            <stop offset="0%" stopColor={spec.core} stopOpacity="0.85" />
+            <stop offset="45%" stopColor={spec.edge} stopOpacity="0.5" />
+            <stop offset="100%" stopColor={spec.edge} stopOpacity="0" />
+          </linearGradient>
+          {/* "เปลวเหลว": turbulence + displacement (นิ่ง — ความเคลื่อนไหวมาจาก CSS
+              เพื่อให้ prefers-reduced-motion ปิดได้จริง ซึ่ง SMIL ปิดไม่ได้) */}
+          <filter id={`${uid}-flame-warp`} x="-70%" y="-70%" width="240%" height="240%">
+            <feTurbulence
+              type="fractalNoise"
+              baseFrequency="0.014 0.032"
+              numOctaves="2"
+              seed={warpSeed}
+              result="noise"
+            />
+            <feDisplacementMap
+              in="SourceGraphic"
+              in2="noise"
+              scale="17"
+              xChannelSelector="R"
+              yChannelSelector="G"
+            />
+            <feGaussianBlur stdDeviation="2.4" />
+          </filter>
         </defs>
 
         {/* 1) แสงเรืองเกาะขอบการ์ด — วงนุ่มด้านนอก + แกนแสงติดขอบ + เรืองรอบช่องภาพ */}
@@ -180,6 +223,64 @@ export default function CardAura({ rarity, seed = '', variant = DEFAULT_AURA_VAR
                 strokeWidth="6"
                 filter={`url(#${uid}-bloom)`}
               />
+            </g>
+          </g>
+        )}
+
+        {/* 1.5) FLOW — แสงไหลวนตามขอบการ์ด + เปลวไฟลุกจากขอบล่าง + แสงไหลรอบช่องภาพ
+            ผู้ใช้สั่ง 2026-09-24: "อยากได้เหมือนเปลวไฟ หรือการไหลเหมือนน้ำ"
+            ทุกชั้นถูก clip: ขอบการ์ด = outsideCard · เปลว/ริม = outsideArt
+            ⇒ ไม่มีแสงทับตัวภาพเลย การ์ดคม 100% (แก้ข้อติ "แสงทำให้การ์ดเสียความคมชัด") */}
+        {layers.flow && (
+          <g className="card-aura__flow">
+            {/* เรืองที่ล้นออกนอกการ์ด (ตามการไหลชุดเดียวกับแกนแสง) */}
+            <g clipPath={`url(#${uid}-outside)`}>
+              <rect
+                className="card-aura__flow-glow"
+                x={frame.x}
+                y={frame.y}
+                width={frame.w}
+                height={frame.h}
+                rx={frame.r}
+                fill="none"
+                stroke={`url(#${uid}-core)`}
+                strokeWidth={flow.glowWidth}
+                filter={`url(#${uid}-soft)`}
+              />
+            </g>
+            {/* แกนแสงไหลบนเส้นกรอบ (คม) */}
+            <rect
+              className="card-aura__flow-core"
+              x={frame.x}
+              y={frame.y}
+              width={frame.w}
+              height={frame.h}
+              rx={frame.r}
+              fill="none"
+              stroke={`url(#${uid}-edge)`}
+              strokeWidth={flow.width}
+            />
+            {/* เปลวไฟลุกขึ้นจากขอบล่าง — ตัดด้วย `outsideCard` → เห็นเฉพาะส่วนที่อยู่
+                "นอกเงาการ์ด" (เหมือนไฟลุกอยู่ข้างหลังการ์ด) ไม่ทับตัวหนังสือ/ตัวภาพเลย */}
+            <g clipPath={`url(#${uid}-outside)`}>
+              <g className="card-aura__flames" filter={`url(#${uid}-flame-warp)`}>
+                {flames.map((f, i) => (
+                  <g key={i} transform={`translate(${f.x} ${flameBaseY}) rotate(${f.tiltDeg})`}>
+                    <g
+                      className="card-aura__flame"
+                      style={{ animationDelay: `-${f.delaySec}s`, animationDuration: `${f.durSec}s` }}
+                    >
+                      <path
+                        d={`M0 0 C ${(f.w * 0.55).toFixed(1)} ${(-f.h * 0.34).toFixed(1)} ` +
+                          `${(f.w * 0.4).toFixed(1)} ${(-f.h * 0.82).toFixed(1)} 0 ${(-f.h).toFixed(1)} ` +
+                          `C ${(-f.w * 0.4).toFixed(1)} ${(-f.h * 0.82).toFixed(1)} ` +
+                          `${(-f.w * 0.55).toFixed(1)} ${(-f.h * 0.34).toFixed(1)} 0 0 Z`}
+                        fill={`url(#${uid}-flame)`}
+                      />
+                    </g>
+                  </g>
+                ))}
+              </g>
             </g>
           </g>
         )}
@@ -233,9 +334,16 @@ export default function CardAura({ rarity, seed = '', variant = DEFAULT_AURA_VAR
           </g>
         )}
 
-        {/* 4) ประกายลอยขึ้น (ตำแหน่ง/จังหวะต่างกันทุกใบ) */}
+        {/* 4) ประกายลอยขึ้น (ตำแหน่ง/จังหวะต่างกันทุกใบ)
+            ⚠️ 2026-09-24: ต้องถูกตัดเสมอ ไม่ให้ทับตัวการ์ดเลย
+            - ดีไซน์ในกรอบ (inner) → ตัดที่ขอบช่องภาพ (art-outside)
+            - ดีไซน์ flow (นอกกรอบ) → ตัดที่เงาการ์ด (outside)
+            เดิมประกายลอยผ่านตัวภาพด้วย mix-blend-mode screen + blur → ภาพ "เสียความคมชัด" */}
         {layers.sparks && (
-          <g className="card-aura__sparks">
+          <g
+            className="card-aura__sparks"
+            clipPath={layers.flow ? `url(#${uid}-outside)` : layers.clip ? `url(#${uid}-art-outside)` : undefined}
+          >
             {sparks.map((s, i) => (
               <circle
                 key={i}

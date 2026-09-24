@@ -20,9 +20,9 @@ import { foilHash } from '@/lib/card-foil';
 export type AuraTier = 'NONE' | 'PLUS7' | 'PLUS9' | 'PLUS11' | 'PLUS13';
 
 /** ดีไซน์แสงที่ผู้ใช้เลือกได้ */
-export type AuraVariant = 'tier' | 'bloom' | 'radiant' | 'ascend' | 'inner';
+export type AuraVariant = 'tier' | 'bloom' | 'radiant' | 'ascend' | 'inner' | 'flow';
 
-export const AURA_VARIANTS: AuraVariant[] = ['tier', 'bloom', 'radiant', 'ascend', 'inner'];
+export const AURA_VARIANTS: AuraVariant[] = ['tier', 'bloom', 'radiant', 'ascend', 'inner', 'flow'];
 
 /**
  * ดีไซน์ที่ใช้จริงบนการ์ดทุกหน้า (ผู้ใช้เลือกจากภาพจริง 2026-09-23: "ลองทำแบบ inner")
@@ -54,6 +54,10 @@ export interface AuraSpec {
   pillarSec: number;
   /** คาบการลอยของประกาย (วินาที) */
   sparkSec: number;
+  /** คาบการไหลของแสงรอบขอบ (วินาที) — ให้แสง "ไหล" ไปตามขอบการ์ดเหมือนน้ำ */
+  flowSec: number;
+  /** จำนวนเปลวไฟที่ลุกขึ้นตามขอบล่าง/ข้าง (ดีไซน์ `flow`) */
+  flameCount: number;
   /** จำนวนประกายที่ลอยขึ้น */
   sparkCount: number;
 }
@@ -67,6 +71,8 @@ const NO_AURA: AuraSpec = {
   breatheSec: 0,
   flareSec: 0,
   pillarSec: 0,
+  flowSec: 0,
+  flameCount: 0,
   sparkSec: 0,
   sparkCount: 0,
 };
@@ -89,6 +95,8 @@ export const AURA_SPECS: Record<string, AuraSpec> = {
     breatheSec: 4.6,
     flareSec: 26,
     pillarSec: 7.5,
+    flowSec: 9,
+    flameCount: 5,
     sparkSec: 5.4,
     sparkCount: 4,
   },
@@ -100,6 +108,8 @@ export const AURA_SPECS: Record<string, AuraSpec> = {
     breatheSec: 3.9,
     flareSec: 22,
     pillarSec: 6.6,
+    flowSec: 7.5,
+    flameCount: 7,
     sparkSec: 4.8,
     sparkCount: 6,
   },
@@ -111,6 +121,8 @@ export const AURA_SPECS: Record<string, AuraSpec> = {
     breatheSec: 3.3,
     flareSec: 18,
     pillarSec: 5.8,
+    flowSec: 6.2,
+    flameCount: 9,
     sparkSec: 4.2,
     sparkCount: 8,
   },
@@ -122,6 +134,8 @@ export const AURA_SPECS: Record<string, AuraSpec> = {
     breatheSec: 2.8,
     flareSec: 15,
     pillarSec: 5,
+    flowSec: 5,
+    flameCount: 11,
     sparkSec: 3.6,
     sparkCount: 10,
   },
@@ -144,23 +158,27 @@ export interface AuraLayers {
   flare: boolean;
   pillar: boolean;
   sparks: boolean;
+  /** เปลวไฟ/แสงไหลตามขอบ (ดีไซน์ `flow`) */
+  flow: boolean;
   /** true = ตัดแสงให้อยู่ "ในกรอบการ์ด" (ใช้ในกล่องที่มี overflow-hidden) */
   clip: boolean;
 }
 
-const NO_LAYERS: AuraLayers = { halo: false, flare: false, pillar: false, sparks: false, clip: false };
+const NO_LAYERS: AuraLayers = {
+  halo: false, flare: false, pillar: false, sparks: false, flow: false, clip: false,
+};
 
 /** บันไดของระดับ "ตีบวก" — ยิ่งสูงยิ่งมีองค์ประกอบเพิ่ม (ใช้กับดีไซน์ `tier`) */
 export function tierLayers(rarity?: string | null): AuraLayers {
   switch (auraSpec(rarity).tier) {
     case 'PLUS7':
-      return { halo: true, flare: false, pillar: false, sparks: false, clip: false };
+      return { halo: true, flare: false, pillar: false, sparks: false, flow: false, clip: false };
     case 'PLUS9':
-      return { halo: true, flare: true, pillar: false, sparks: false, clip: false };
+      return { halo: true, flare: true, pillar: false, sparks: false, flow: false, clip: false };
     case 'PLUS11':
-      return { halo: true, flare: true, pillar: true, sparks: false, clip: false };
+      return { halo: true, flare: true, pillar: true, sparks: false, flow: false, clip: false };
     case 'PLUS13':
-      return { halo: true, flare: true, pillar: true, sparks: true, clip: false };
+      return { halo: true, flare: true, pillar: true, sparks: true, flow: false, clip: false };
     default:
       return NO_LAYERS;
   }
@@ -173,15 +191,25 @@ export function auraLayers(variant: AuraVariant, rarity?: string | null): AuraLa
     case 'tier':
       return tierLayers(rarity);
     case 'bloom':
-      return { halo: true, flare: false, pillar: false, sparks: false, clip: false };
+      return { halo: true, flare: false, pillar: false, sparks: false, flow: false, clip: false };
     case 'radiant':
-      return { halo: true, flare: true, pillar: false, sparks: false, clip: false };
+      return { halo: true, flare: true, pillar: false, sparks: false, flow: false, clip: false };
     case 'ascend':
-      return { halo: true, flare: false, pillar: true, sparks: true, clip: false };
+      return { halo: true, flare: false, pillar: true, sparks: true, flow: false, clip: false };
     case 'inner':
       // ตัดแสงให้อยู่ในกรอบการ์ด → ปลอดภัยกับกล่องที่ overflow-hidden (ไม่ต้องแก้ layout หน้าไหน)
       // flare (ประกายดาว) ถูกถอดออก — ผู้ใช้รีวิวบนการ์ดจริง 2026-09-23: "ประกายดาวไม่เหมาะเลย"
-      return { halo: true, flare: false, pillar: false, sparks: true, clip: true };
+      return { halo: true, flare: false, pillar: false, sparks: true, flow: false, clip: true };
+    case 'flow':
+      // 🆕 2026-09-24 ตามคำสั่งผู้ใช้: "อยากได้เหมือนเปลวไฟ หรือการไหลเหมือนน้ำ"
+      //   + แก้ข้อติ: "แสงทำให้การ์ดเสียความคมชัด"
+      //   ⇒ clip: false = ใช้พื้นที่ล้นนอกการ์ด 12% (ต้องมีที่ว่าง) และ **ทุกชั้นถูกตัด
+      //     ด้วย `outsideCard`** → แสงอยู่ได้แค่ "เส้นขอบการ์ด" กับ "นอกตัวการ์ด"
+      //     = ไม่มีแสงทับตัวภาพ/ตัวหนังสือเลย (คม 100% แก้ข้อติตรงจุด)
+      //     เปลวไฟอยู่ "ข้างหลังการ์ด" (ถูกตัดที่เงาการ์ด) = ท้องไฟลุกใต้การ์ดแบบไอเทมตีบวก
+      //   ⚠️ กล่องที่มี overflow-hidden (เช่น thumbnail) จะตัดแสงนอกกรอบทิ้ง
+      //      แต่ยังเห็น "แสงไหลบนเส้นขอบ" (ชั้น flow-core) → ไม่แบนเหมือนไม่มีเอฟเฟกต์
+      return { halo: true, flare: false, pillar: false, sparks: true, flow: true, clip: false };
     default:
       return NO_LAYERS;
   }
@@ -303,7 +331,14 @@ export interface AuraSpark {
  * ประกายที่ลอยขึ้น — ตำแหน่ง/จังหวะมาจาก hash ของการ์ด (deterministic)
  * เกลี่ย x ให้ทั่วความกว้างการ์ด เพื่อไม่ให้กองอยู่ที่เดียว
  */
-export function auraSparks(seed: string, count: number, sparkSec: number): AuraSpark[] {
+/**
+ * ประกายที่ลอยขึ้น — ตำแหน่ง/จังหวะมาจาก hash ของการ์ด (deterministic)
+ * เกลี่ย x ให้ทั่วความกว้างการ์ด เพื่อไม่ให้กองอยู่ที่เดียว
+ *
+ * @param baseY ระดับฐาน (เริ่ม) ของประกาย — ค่าเริ่มต้น 500 = แถบล่างของการ์ด (ดีไซน์ในกรอบ)
+ *   ดีไซน์ `flow` ส่งค่าที่อยู่ "ใต้การ์ด" เพื่อให้ประกายลอยขึ้นมาจากกองไฟข้างหลังการ์ด
+ */
+export function auraSparks(seed: string, count: number, sparkSec: number, baseY = 500): AuraSpark[] {
   if (count <= 0) return [];
   const { x, w } = AURA_CARD.frame;
   const sparks: AuraSpark[] = [];
@@ -314,13 +349,112 @@ export function auraSparks(seed: string, count: number, sparkSec: number): AuraS
     const jitter = (h % 1000) / 1000 - 0.5;
     sparks.push({
       x: x + slot * (i + 0.5) + jitter * slot * 0.7,
-      y: 500 + ((h >>> 10) % 90),
+      y: baseY + ((h >>> 10) % 90),
       r: 1.6 + (((h >>> 6) % 100) / 100) * 2.6,
       delaySec: ((h >>> 14) % 100) / 10,
       durSec: sparkSec * (0.8 + (((h >>> 18) % 100) / 100) * 0.5),
     });
   }
   return sparks;
+}
+
+export interface AuraFlame {
+  /** ตำแหน่งฐานของเปลว (หน่วยเดียวกับ viewBox) */
+  x: number;
+  /** ความสูงของเปลว (user unit) */
+  h: number;
+  /** ความกว้างของเปลว (user unit) */
+  w: number;
+  /** เอียงของเปลว (องศา) — ทำให้แต่ละลูกไม่ตั้งตรงเหมือนกัน */
+  tiltDeg: number;
+  /** หน่วงเวลา (วินาที, ค่าลบ = เริ่มกลางคาบ) */
+  delaySec: number;
+  /** คาบการลุก-หุบ (วินาที) */
+  durSec: number;
+}
+
+/**
+ * เปลวไฟที่ลุกขึ้นจากขอบล่างของกรอบ (ดีไซน์ `flow`)
+ *
+ * ทำไมอยู่ได้โดยไม่ทำภาพเสีย: ชั้นนี้ถูก clip ด้วย `outsideArt` → เปลวที่ลอยสูงเกินขอบล่าง
+ * ของช่องภาพจะถูก "ตัด" ทันที = ดูเหมือนภาพบังเปลวอยู่ข้างหน้า (ไม่ทับ ไม่ฝ้า ไม่เบลอภาพ)
+ * ตำแหน่ง/ความสูง/จังหวะ มาจาก hash ของการ์ด → deterministic 100% (ไม่กระพริบเปลี่ยนทุก render)
+ */
+export function auraFlames(seed: string, count: number, flameSec: number): AuraFlame[] {
+  if (count <= 0) return [];
+  const { x: fx, w: fw } = AURA_CARD.frame;
+  const flames: AuraFlame[] = [];
+  for (let i = 0; i < count; i += 1) {
+    // 2 ลูกต่อจุดยึด (ลูกหลักสูง + ลูกเล็กด้านข้าง) → อ่านเป็น "กองไฟ" ไม่เป็นซี่ฟันที่เรียงสวย
+    for (let k = 0; k < 2; k += 1) {
+      const h = foilHash(`${seed}~flame#${i}:${k}`);
+      const slot = fw / count;
+      const jitter = (h % 1000) / 1000 - 0.5;
+      // ลูกเล็ก (k=1) เตี้ยกว่า + เบี่ยงข้าง → ไม่เรียงเป็นแถวเดียวกัน
+      const small = k === 1;
+      const hMin = small ? 26 : 70;
+      const hSpan = small ? 46 : 118;
+      const wMin = small ? 12 : 20;
+      const wSpan = small ? 14 : 26;
+      flames.push({
+        x: fx + slot * (i + 0.5) + jitter * slot * (small ? 1.6 : 0.9),
+        h: hMin + (((h >>> 9) % 100) / 100) ** 1.4 * hSpan,
+        w: wMin + (((h >>> 15) % 100) / 100) * wSpan,
+        tiltDeg: (((h >>> 21) % 25) - 12) * 1.3,
+        delaySec: ((h >>> 5) % 100) / 10,
+        // ลูกเล็กกระพริบเร็วกว่า → ไฟดูมีชีวิต
+        durSec: flameSec * (small ? 0.5 : 0.8) * (0.7 + (((h >>> 17) % 100) / 100) * 0.7),
+      });
+    }
+  }
+  return flames;
+}
+
+export interface AuraFlowDash {
+  /** ความยาวช่วงแสงที่ไหล (user unit) */
+  dash: number;
+  /** ช่องว่างระหว่างช่วงแสง (ต้องรวมกับ dash แล้วเท่ารอบเส้นพอดี → ไหลวนเนียน) */
+  gap: number;
+  /** คาบการไหลครบรอบ (วินาที) */
+  durSec: number;
+  /** ความกว้างเส้นแกนแสง */
+  width: number;
+  /** ความกว้างเส้นของชั้นเรืองที่ล้นออกนอกการ์ด */
+  glowWidth: number;
+  /** ช่วงแสงที่ไหลรอบ "ช่องภาพ" (เส้นรอบสั้นกว่า → ต้องมีชุดค่าของตัวเอง) */
+  rimDash: number;
+  rimGap: number;
+  rimDurSec: number;
+}
+
+/** ความยาวเส้นรอบกรอบการ์ด (ใช้คำนวณจังหวะไหลให้ครบรอบพอดี) */
+export const AURA_FRAME_PERIMETER =
+  2 * (AURA_CARD.frame.w + AURA_CARD.frame.h);
+
+/** ความยาวเส้นรอบ "ช่องภาพ" + ขอบที่เรืองออกไป 5 หน่วย (ใช้กับชั้น flow-rim) */
+export const AURA_RIM_PERIMETER =
+  2 * (AURA_CARD.art.w + 10 + AURA_CARD.art.h + 10);
+
+/**
+ * แสง "ไหล" ไปตามขอบการ์ด + รอบช่องภาพ (ดีไซน์ `flow`) — stroke-dasharray + animate dashoffset
+ * ยิ่งระดับสูง ช่วงแสงยิ่งยาว/เส้นยิ่งหนา/ไหลเร็วขึ้น (เทียบเคียง MU: ยิ่งตีบวกยิ่งเรือง)
+ */
+export function auraFlowDash(spec: AuraSpec): AuraFlowDash {
+  const total = AURA_FRAME_PERIMETER;
+  // ช่วงแสงสั้นลง (จากเดิม 0.14–0.26 ของรอบ) → อ่านเป็น "ลำแสงที่ไหล" ชัดกว่าแสงเรืองยาว
+  const dash = total * (0.1 + spec.intensity * 0.08);
+  const rimTotal = AURA_RIM_PERIMETER;
+  const rimDash = rimTotal * (0.2 + spec.intensity * 0.1);
+  return {
+    dash,
+    gap: total - dash,
+    durSec: spec.flowSec,
+    width: 4.2 + spec.intensity * 3.2,
+    glowWidth: 16 + spec.intensity * 12,
+    rimDash,
+    rimGap: rimTotal - rimDash,
+    rimDurSec: spec.flowSec * 1.4,
+  };
 }
 
 /**
@@ -334,7 +468,9 @@ export function auraStyle(
 ): Record<string, string> {
   const spec = auraSpec(rarity);
   const variation = auraVariation(seed);
+  const flow = auraFlowDash(spec);
   const scale = options.reduceIntense ? REDUCE_INTENSE_SCALE : 1;
+  const n = (v: number) => String(Math.round(v * 100) / 100);
   return {
     '--aura-intensity': String(spec.intensity * scale),
     '--aura-core': spec.core,
@@ -342,6 +478,16 @@ export function auraStyle(
     '--aura-breathe': `${spec.breatheSec}s`,
     '--aura-flare-dur': `${spec.flareSec}s`,
     '--aura-pillar-dur': `${spec.pillarSec}s`,
+    '--aura-flow-dur': `${spec.flowSec}s`,
+    '--aura-flow-w': n(flow.width),
+    '--aura-flow-glow-w': n(flow.glowWidth),
+    '--aura-flow-dash': n(flow.dash),
+    '--aura-flow-gap': n(flow.gap),
+    '--aura-flow-len': n(AURA_FRAME_PERIMETER),
+    '--aura-rim-dash': n(flow.rimDash),
+    '--aura-rim-gap': n(flow.rimGap),
+    '--aura-rim-len': n(AURA_RIM_PERIMETER),
+    '--aura-rim-dur': `${n(flow.rimDurSec)}s`,
     '--aura-spark-dur': `${spec.sparkSec}s`,
     '--aura-delay': `-${variation.delaySec}s`,
     '--aura-tilt': `${variation.tiltDeg}deg`,

@@ -1,11 +1,15 @@
 import {
   AURA_BLEED_PERCENT,
   AURA_CARD,
+  AURA_FRAME_PERIMETER,
+  AURA_RIM_PERIMETER,
   AURA_SPECS,
   AURA_VARIANTS,
   DEFAULT_AURA_VARIANT,
   auraEnabled,
   auraClipPaths,
+  auraFlames,
+  auraFlowDash,
   auraGeometry,
   auraLayers,
   auraSparks,
@@ -33,6 +37,7 @@ describe('auraSpec — กติกาแสงเรืองตามระด
         flare: false,
         pillar: false,
         sparks: false,
+        flow: false,
         clip: false,
       });
     }
@@ -88,7 +93,14 @@ describe('tierLayers / auraLayers — องค์ประกอบแสงท
     const plus11 = tierLayers('LEGENDARY');
     const plus13 = tierLayers('MYTHIC');
 
-    expect(plus7).toEqual({ halo: true, flare: false, pillar: false, sparks: false, clip: false });
+    expect(plus7).toEqual({
+      halo: true,
+      flare: false,
+      pillar: false,
+      sparks: false,
+      flow: false,
+      clip: false,
+    });
     expect(plus9.flare).toBe(true);
     expect(plus11.pillar).toBe(true);
     expect(plus13.sparks).toBe(true);
@@ -104,11 +116,26 @@ describe('tierLayers / auraLayers — องค์ประกอบแสงท
     }
   });
 
-  test('ดีไซน์ inner ตัดแสงในกรอบ · ดีไซน์อื่นล้นออกนอกกรอบได้', () => {
+  test('ดีไซน์ inner ตัดแสงในกรอบ · flow/ดีไซน์อื่นล้นออกนอกกรอบ (clip=false)', () => {
     expect(auraLayers('inner', 'MYTHIC').clip).toBe(true);
+    // flow เปลี่ยนเป็น "นอกกรอบ" (2026-09-24) เพื่อไม่ให้มีแสงทับตัวการ์ดเลย
+    // ทุกชั้นของ flow ถูกตัดด้วย outsideCard แทน (ดูคอมเมนต์ใน auraLayers)
     for (const variant of AURA_VARIANTS.filter((v) => v !== 'inner')) {
       expect(auraLayers(variant, 'MYTHIC').clip).toBe(false);
     }
+  });
+
+  test('flow = เปลวไฟ/แสงไหล (halo + flow + sparks · ไม่มีประกายดาว)', () => {
+    const layers = auraLayers('flow', 'LEGENDARY');
+    expect(layers.flow).toBe(true);
+    expect(layers.halo).toBe(true);
+    expect(layers.sparks).toBe(true);
+    // ประกายดาว (flare) ถูกผู้ใช้ติ — ดีไซน์ flow ต้องไม่เอากลับมา
+    expect(layers.flare).toBe(false);
+    expect(layers.pillar).toBe(false);
+    // การ์ดธรรมดา: ไม่มีแสงแม้เลือกดีไซน์ flow
+    expect(auraLayers('flow', 'COMMON').flow).toBe(false);
+    expect(auraLayers('flow', 'UNCOMMON').halo).toBe(false);
   });
 
   test('ทุกดีไซน์มีขอบเรืองเป็นฐาน (halo) เมื่อระดับมีแสง', () => {
@@ -119,6 +146,92 @@ describe('tierLayers / auraLayers — องค์ประกอบแสงท
 
   test('ดีไซน์ไม่รู้จัก → ไม่วาดอะไรเลย', () => {
     expect(auraLayers('unknown-design' as never, 'MYTHIC').halo).toBe(false);
+  });
+});
+
+describe('auraFlames / auraFlowDash — ดีไซน์ flow (เปลวไฟ + แสงไหล)', () => {
+  test('seed เดิม → ค่าเดิมเสมอ (deterministic ไม่กระพริบเปลี่ยนทุก render)', () => {
+    expect(auraFlames('card-abc', 7, 6)).toEqual(auraFlames('card-abc', 7, 6));
+    expect(auraFlowDash(auraSpec('LEGENDARY'))).toEqual(auraFlowDash(auraSpec('LEGENDARY')));
+  });
+
+  test('การ์ดคนละใบ → ตำแหน่งเปลว/จังหวะต่างกัน', () => {
+    expect(auraFlames('card-aaa', 6, 6)).not.toEqual(auraFlames('card-bbb', 6, 6));
+  });
+
+  test('จำนวนเปลว = 2 เท่าของจุดยึด (ลูกหลัก + ลูกเล็ก) · ขอ 0 ได้ []', () => {
+    expect(auraFlames('card-1', 9, 6)).toHaveLength(18);
+    expect(auraFlames('card-1', 0, 6)).toEqual([]);
+    expect(auraFlames('card-1', -3, 6)).toEqual([]);
+  });
+
+  test('เปลวอยู่ในกรอบการ์ด (x อยู่ในกรอบ · สูงไม่เกินครึ่งบนของกรอบ)', () => {
+    const { frame } = AURA_CARD;
+    for (const f of auraFlames('card-xyz', 12, 6)) {
+      expect(f.x).toBeGreaterThan(frame.x);
+      expect(f.x).toBeLessThan(frame.x + frame.w);
+      expect(f.h).toBeGreaterThan(0);
+      // ฐานเปลวอยู่ล่างสุดของกรอบ → สูงได้ไม่เกินความสูงกรอบ (ไม่ลอยทะลุขอบบน)
+      expect(f.h).toBeLessThan(frame.h);
+      expect(f.w).toBeGreaterThan(0);
+      expect(f.w).toBeLessThan(frame.w / 2);
+      expect(Math.abs(f.tiltDeg)).toBeLessThanOrEqual(16);
+      expect(f.durSec).toBeGreaterThan(0);
+    }
+  });
+
+  test('มีความหลากหลายจริง (สูง/เตี้ย ปนกัน ไม่เป็นซี่ฟันเรียงเสมอ)', () => {
+    const heights = auraFlames('card-mix', 9, 6).map((f) => f.h);
+    expect(Math.max(...heights) / Math.min(...heights)).toBeGreaterThan(2);
+    const widths = auraFlames('card-mix', 9, 6).map((f) => f.w);
+    expect(new Set(widths.map((w) => Math.round(w))).size).toBeGreaterThan(3);
+  });
+
+  test('แสงไหล: dash + gap = รอบเส้นพอดี → ไหลวนไม่มีรอยต่อ', () => {
+    for (const rarity of RARITIES) {
+      const spec = auraSpec(rarity);
+      const flow = auraFlowDash(spec);
+      if (spec.intensity === 0) {
+        expect(flow.dash).toBeGreaterThan(0); // ค่าตั้งต้นยังคำนวณได้ (ไม่ถูกวาด)
+        continue;
+      }
+      expect(flow.dash + flow.gap).toBeCloseTo(AURA_FRAME_PERIMETER, 6);
+      expect(flow.rimDash + flow.rimGap).toBeCloseTo(AURA_RIM_PERIMETER, 6);
+      expect(flow.dash).toBeGreaterThan(0);
+      expect(flow.dash).toBeLessThan(AURA_FRAME_PERIMETER);
+      expect(flow.rimDash).toBeLessThan(AURA_RIM_PERIMETER);
+    }
+  });
+
+  test('ระดับสูง → ช่วงแสงยาวขึ้น/เส้นหนาขึ้น/ไหลเร็วขึ้น', () => {
+    const rare = auraFlowDash(auraSpec('RARE'));
+    const mythic = auraFlowDash(auraSpec('MYTHIC'));
+    expect(mythic.dash).toBeGreaterThan(rare.dash);
+    expect(mythic.width).toBeGreaterThan(rare.width);
+    expect(mythic.glowWidth).toBeGreaterThan(rare.glowWidth);
+    expect(mythic.durSec).toBeLessThan(rare.durSec);
+  });
+
+  test('auraStyle ส่งตัวแปรของ flow ครบ (CSS ใช้คำนวณเองได้)', () => {
+    const style = auraStyle('LEGENDARY', 'card-1');
+    for (const key of [
+      '--aura-flow-dur',
+      '--aura-flow-w',
+      '--aura-flow-glow-w',
+      '--aura-flow-dash',
+      '--aura-flow-gap',
+      '--aura-flow-len',
+      '--aura-rim-dash',
+      '--aura-rim-gap',
+      '--aura-rim-len',
+      '--aura-rim-dur',
+    ]) {
+      expect(style[key]).toBeDefined();
+      expect(style[key]).not.toBe('');
+    }
+    // ค่าตัวเลขต้องไม่เป็น NaN/ทศนิยมยาว (CSS สั้น)
+    expect(Number(style['--aura-flow-dash'])).not.toBeNaN();
+    expect(style['--aura-flow-dash'].length).toBeLessThan(10);
   });
 });
 
