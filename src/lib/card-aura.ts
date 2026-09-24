@@ -202,14 +202,13 @@ export function auraLayers(variant: AuraVariant, rarity?: string | null): AuraLa
       return { halo: true, flare: false, pillar: false, sparks: true, flow: false, clip: true };
     case 'flow':
       // 🆕 2026-09-24 ตามคำสั่งผู้ใช้: "อยากได้เหมือนเปลวไฟ หรือการไหลเหมือนน้ำ"
-      //   + แก้ข้อติ: "แสงทำให้การ์ดเสียความคมชัด"
-      //   ⇒ clip: false = ใช้พื้นที่ล้นนอกการ์ด 12% (ต้องมีที่ว่าง) และ **ทุกชั้นถูกตัด
-      //     ด้วย `outsideCard`** → แสงอยู่ได้แค่ "เส้นขอบการ์ด" กับ "นอกตัวการ์ด"
-      //     = ไม่มีแสงทับตัวภาพ/ตัวหนังสือเลย (คม 100% แก้ข้อติตรงจุด)
-      //     เปลวไฟอยู่ "ข้างหลังการ์ด" (ถูกตัดที่เงาการ์ด) = ท้องไฟลุกใต้การ์ดแบบไอเทมตีบวก
-      //   ⚠️ กล่องที่มี overflow-hidden (เช่น thumbnail) จะตัดแสงนอกกรอบทิ้ง
-      //      แต่ยังเห็น "แสงไหลบนเส้นขอบ" (ชั้น flow-core) → ไม่แบนเหมือนไม่มีเอฟเฟกต์
-      return { halo: true, flare: false, pillar: false, sparks: true, flow: true, clip: false };
+      //   + "ต้องการเป็น Inner ไม่ใช่ Outter" (แสงต้องอยู่ในกรอบการ์ด)
+      //   + แก้ข้อติ "แสงทำให้การ์ดเสียความคมชัด"
+      //   ⇒ clip: true → ใช้ geometry ของการ์ด ไม่มีแสงล้นออกนอกการ์ดเลย
+      //   ⇒ ทุกชั้นถูกตัดด้วย `ring` (วงแหวนขอบการ์ด ≈ 26 หน่วยในกรอบ) →
+      //     ไม่ทับทั้ง "ตัวภาพ" และ "กล่องข้อความ/สเตตัส" (ซึ่งกินพื้นที่กลางการ์ดหมดแล้ว)
+      //     แสงไหล/เปลวไฟจึงอยู่บน "ขอบการ์ด" = สไตล์ inner ที่ผู้ใช้ต้องการ
+      return { halo: true, flare: false, pillar: false, sparks: true, flow: true, clip: true };
     default:
       return NO_LAYERS;
   }
@@ -283,14 +282,29 @@ export function outsideRectPath(outer: Box, hole: Box, holeRadius: number): stri
   return `${outerPath} ${holePath}`;
 }
 
-/** path สำหรับ clip ของชั้นแสง — นอกการ์ด / นอกช่องภาพ */
-export function auraClipPaths(clip: boolean): { outsideCard: string; outsideArt: string } {
+/** path สำหรับ clip ของชั้นแสง — นอกการ์ด / นอกช่องภาพ / วงแหวนขอบการ์ด / ในกรอบการ์ด */
+export function auraClipPaths(clip: boolean): {
+  outsideCard: string;
+  outsideArt: string;
+  ring: string;
+  insideCard: string;
+} {
   const [vx, vy, vw, vh] = auraGeometry(clip).viewBox.split(' ').map(Number);
   const outer: Box = { x: vx, y: vy, w: vw, h: vh };
   const { frame, art } = AURA_CARD;
+  // วงแหวนขอบการ์ด = กรอบการ์ด ลบ ขอบเขตที่เยื้องเข้าไป AURA_RING_WIDTH
+  const ring: Box = {
+    x: frame.x + AURA_RING_WIDTH,
+    y: frame.y + AURA_RING_WIDTH,
+    w: frame.w - AURA_RING_WIDTH * 2,
+    h: frame.h - AURA_RING_WIDTH * 2,
+  };
   return {
     outsideCard: outsideRectPath(outer, { x: frame.x, y: frame.y, w: frame.w, h: frame.h }, frame.r),
     outsideArt: outsideRectPath(outer, { x: art.x, y: art.y, w: art.w, h: art.h }, art.r),
+    ring: outsideRectPath({ x: frame.x, y: frame.y, w: frame.w, h: frame.h }, ring,
+      Math.max(0, frame.r - AURA_RING_WIDTH)),
+    insideCard: roundedRectPath({ x: frame.x, y: frame.y, w: frame.w, h: frame.h }, frame.r),
   };
 }
 
@@ -380,9 +394,15 @@ export interface AuraFlame {
  * ของช่องภาพจะถูก "ตัด" ทันที = ดูเหมือนภาพบังเปลวอยู่ข้างหน้า (ไม่ทับ ไม่ฝ้า ไม่เบลอภาพ)
  * ตำแหน่ง/ความสูง/จังหวะ มาจาก hash ของการ์ด → deterministic 100% (ไม่กระพริบเปลี่ยนทุก render)
  */
-export function auraFlames(seed: string, count: number, flameSec: number): AuraFlame[] {
+export function auraFlames(
+  seed: string,
+  count: number,
+  flameSec: number,
+  options: { maxHeight?: number } = {}
+): AuraFlame[] {
   if (count <= 0) return [];
   const { x: fx, w: fw } = AURA_CARD.frame;
+  const cap = options.maxHeight ?? Infinity;
   const flames: AuraFlame[] = [];
   for (let i = 0; i < count; i += 1) {
     // 2 ลูกต่อจุดยึด (ลูกหลักสูง + ลูกเล็กด้านข้าง) → อ่านเป็น "กองไฟ" ไม่เป็นซี่ฟันที่เรียงสวย
@@ -396,9 +416,15 @@ export function auraFlames(seed: string, count: number, flameSec: number): AuraF
       const hSpan = small ? 46 : 118;
       const wMin = small ? 12 : 20;
       const wSpan = small ? 14 : 26;
+      const height = hMin + (((h >>> 9) % 100) / 100) ** 1.4 * hSpan;
+      // maxHeight (ใช้เมื่อเปลวต้องอยู่ใน "วงแหวนขอบการ์ด"): **ย่อสัดส่วน** ไม่ใช่ตัดที่เพดาน
+      // (ถ้าตัดด้วย min() เปลวจะสูงเท่ากันหมด = กลับไปเป็นซี่ฟันเรียงเสมอ)
+      const scaled = Number.isFinite(cap)
+        ? cap * (0.3 + 0.7 * (height / (70 + 118)))
+        : height;
       flames.push({
         x: fx + slot * (i + 0.5) + jitter * slot * (small ? 1.6 : 0.9),
-        h: hMin + (((h >>> 9) % 100) / 100) ** 1.4 * hSpan,
+        h: scaled,
         w: wMin + (((h >>> 15) % 100) / 100) * wSpan,
         tiltDeg: (((h >>> 21) % 25) - 12) * 1.3,
         delaySec: ((h >>> 5) % 100) / 10,
@@ -431,9 +457,21 @@ export interface AuraFlowDash {
 export const AURA_FRAME_PERIMETER =
   2 * (AURA_CARD.frame.w + AURA_CARD.frame.h);
 
-/** ความยาวเส้นรอบ "ช่องภาพ" + ขอบที่เรืองออกไป 5 หน่วย (ใช้กับชั้น flow-rim) */
+/** ช่วงแสงที่ไหลรอบ "ช่องภาพ" + ขอบที่เรืองออกไป 5 หน่วย (ใช้กับชั้น flow-rim) */
 export const AURA_RIM_PERIMETER =
   2 * (AURA_CARD.art.w + 10 + AURA_CARD.art.h + 10);
+
+/**
+ * ความกว้าง "วงแหวนขอบการ์ด" (user unit) ที่ยอมให้แสง/เปลวไฟอยู่ได้
+ *
+ * ทำไมต้องมีวงแหวนนี้ (2026-09-24): ผู้ใช้ยืนยันว่าต้องเป็นดีไซน์ **Inner** (แสงอยู่ในกรอบการ์ด)
+ * แต่ภายในกรอบ ภาพ+กล่องข้อความ+สเตตัส กินพื้นที่หมดแล้ว → เหลือแค่ "วงแหวนขอบการ์ด"
+ * ⇒ ทุกชั้นของ flow ถูกตัดให้อยู่ในวงแหวนนี้ → ไม่ทับทั้งตัวภาพและตัวหนังสือ
+ */
+export const AURA_RING_WIDTH = 30;
+
+/** ความสูงสูงสุดของเปลวไฟเมื่ออยู่ในวงแหวนขอบการ์ด (ต้องไม่ล้นเข้าไปทับกล่องข้อความ) */
+export const AURA_RING_FLAME_MAX = 28;
 
 /**
  * แสง "ไหล" ไปตามขอบการ์ด + รอบช่องภาพ (ดีไซน์ `flow`) — stroke-dasharray + animate dashoffset

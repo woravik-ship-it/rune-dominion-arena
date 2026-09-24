@@ -116,11 +116,12 @@ describe('tierLayers / auraLayers — องค์ประกอบแสงท
     }
   });
 
-  test('ดีไซน์ inner ตัดแสงในกรอบ · flow/ดีไซน์อื่นล้นออกนอกกรอบ (clip=false)', () => {
-    expect(auraLayers('inner', 'MYTHIC').clip).toBe(true);
-    // flow เปลี่ยนเป็น "นอกกรอบ" (2026-09-24) เพื่อไม่ให้มีแสงทับตัวการ์ดเลย
-    // ทุกชั้นของ flow ถูกตัดด้วย outsideCard แทน (ดูคอมเมนต์ใน auraLayers)
-    for (const variant of AURA_VARIANTS.filter((v) => v !== 'inner')) {
+  test('ดีไซน์ในกรอบ (inner/flow) ตัดแสงในกรอบ · ดีไซน์อื่นล้นออกนอกกรอบได้', () => {
+    // ผู้ใช้กำหนด 2026-09-24: "ต้องการเป็น Inner ไม่ใช่ Outter" → flow ต้องอยู่ในกรอบด้วย
+    for (const variant of ['inner', 'flow'] as const) {
+      expect(auraLayers(variant, 'MYTHIC').clip).toBe(true);
+    }
+    for (const variant of AURA_VARIANTS.filter((v) => v !== 'inner' && v !== 'flow')) {
       expect(auraLayers(variant, 'MYTHIC').clip).toBe(false);
     }
   });
@@ -210,6 +211,27 @@ describe('auraFlames / auraFlowDash — ดีไซน์ flow (เปลวไ
     expect(mythic.width).toBeGreaterThan(rare.width);
     expect(mythic.glowWidth).toBeGreaterThan(rare.glowWidth);
     expect(mythic.durSec).toBeLessThan(rare.durSec);
+  });
+
+  test('วงแหวนขอบการ์ด (ring) อยู่ "ในกรอบ" และไม่ทับช่องภาพ', () => {
+    const { ring, insideCard } = auraClipPaths(true);
+    expect(ring).toContain('M'); // มี path จริง
+    expect(insideCard).toContain('M');
+    // วงแหวนต้องแคบกว่ากรอบการ์ด (มีรูตรงกลาง) — ตรวจจากจำนวนพิกัดที่ปรากฏ
+    expect(ring.length).toBeGreaterThan(insideCard.length);
+    // ในกรอบ ต้องเป็นกรอบการ์ดพอดี (ไม่มี bleed 12%)
+    expect(insideCard).toContain(`M${AURA_CARD.frame.x + AURA_CARD.frame.r} ${AURA_CARD.frame.y}`);
+  });
+
+  test('เปลวไฟแบบจำกัดความสูง (maxHeight) ยังสูง/เตี้ยต่างกัน แต่ไม่เกินเพดาน', () => {
+    const capped = auraFlames('card-ring', 9, 6, { maxHeight: 24 });
+    expect(capped.length).toBe(18);
+    for (const f of capped) {
+      expect(f.h).toBeLessThanOrEqual(24);
+      expect(f.h).toBeGreaterThan(0);
+    }
+    // ยังมีความหลากหลาย (ไม่แบนเป็นค่าเดียว)
+    expect(new Set(capped.map((f) => Math.round(f.h))).size).toBeGreaterThan(2);
   });
 
   test('auraStyle ส่งตัวแปรของ flow ครบ (CSS ใช้คำนวณเองได้)', () => {

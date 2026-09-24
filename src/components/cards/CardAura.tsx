@@ -4,6 +4,7 @@ import type { CSSProperties } from 'react';
 import {
   AURA_CARD,
   AURA_RADIUS,
+  AURA_RING_FLAME_MAX,
   DEFAULT_AURA_VARIANT,
   auraClipPaths,
   auraFlames,
@@ -34,12 +35,9 @@ const { frame, art } = AURA_CARD;
 const CENTER_X = art.x + art.w / 2;
 const CENTER_Y = art.y + art.h / 2;
 /**
- * ระดับฐานของเปลวไฟ/ประกายของดีไซน์ `flow` = ใต้การ์ดเล็กน้อย
- * ทำไมต้องอยู่ใต้การ์ด: เปลวถูก clip ด้วย `outsideCard` → ส่วนที่อยู่ "ในการ์ด" ถูกตัดทิ้ง
- * เหลือเฉพาะปลายเปลวที่ลอยขึ้นมาแตะขอบล่างการ์ด = ดูเหมือนกองไฟอยู่ข้างหลังการ์ด
- * (และรับประกันว่าไม่มีแสงทับตัวการ์ดเลย — ตัวหนังสือ/ตัวภาพคม 100%)
+ * (ตัดออกแล้ว 2026-09-24) เดิมดีไซน์ `flow` วางเปลวไฟ "ใต้การ์ด" — ผู้ใช้ยืนยันว่าต้องเป็น Inner
+ * จึงย้ายเปลวกลับมาอยู่บนวงแหวนขอบการ์ด (`AURA_RING_FLAME_MAX`) ไม่ใช้ค่าฐานใต้การ์ดอีก
  */
-const AURA_FLOW_BASE_Y = AURA_CARD.height + (AURA_CARD.height * 12) / 100 - 6;
 
 /**
  * ชั้น "แสงเรืองแบบไอเทมตีบวก" (MU Online style) — SVG glow ล้วน ไม่มีการเจนภาพ
@@ -80,14 +78,14 @@ export default function CardAura({ rarity, seed = '', variant = DEFAULT_AURA_VAR
     ...auraStyle(rarity, seed, { reduceIntense }),
   } as unknown as CSSProperties;
 
-  const sparks = layers.sparks
-    ? auraSparks(seed, spec.sparkCount, spec.sparkSec, layers.flow ? AURA_FLOW_BASE_Y : 500)
+  const sparks = layers.sparks ? auraSparks(seed, spec.sparkCount, spec.sparkSec) : [];
+  const flames = layers.flow
+    ? auraFlames(seed, spec.flameCount, spec.flowSec, { maxHeight: AURA_RING_FLAME_MAX })
     : [];
-  const flames = layers.flow ? auraFlames(seed, spec.flameCount, spec.flowSec) : [];
   const flow = auraFlowDash(spec);
   const { tiltDeg } = auraVariation(seed);
-  // ฐานเปลว: ดีไซน์ flow = ใต้การ์ด (ปลายเปลวลอยขึ้นมาแตะขอบ) · ดีไซน์ในกรอบ = ขอบล่างด้านใน
-  const flameBaseY = layers.flow ? AURA_FLOW_BASE_Y : frame.y + frame.h - 10;
+  // เปลวอยู่บน "วงแหวนขอบการ์ด" → ฐานคือขอบล่างด้านในกรอบ (clip ด้วย ring อีกชั้น)
+  const flameBaseY = frame.y + frame.h - 6;
   // seed ของ feTurbulence: ให้แต่ละใบ "ลายเปลว" ต่างกันแบบ deterministic
   const warpSeed = Math.abs(foilHash(`${seed}~warp`)) % 100;
 
@@ -150,6 +148,14 @@ export default function CardAura({ rarity, seed = '', variant = DEFAULT_AURA_VAR
           {/* ตัดแสงให้อยู่ "นอกช่องภาพ" → ขอบช่องภาพเรือง แต่ตัวภาพคม */}
           <clipPath id={`${uid}-art-outside`} clipPathUnits="userSpaceOnUse">
             <path d={clips.outsideArt} clipRule="evenodd" />
+          </clipPath>
+          {/* วงแหวนขอบการ์ด (ใช้กับดีไซน์ flow) → แสง/เปลวอยู่บนขอบ ไม่ทับภาพ/ข้อความ */}
+          <clipPath id={`${uid}-ring`} clipPathUnits="userSpaceOnUse">
+            <path d={clips.ring} clipRule="evenodd" />
+          </clipPath>
+          {/* ในกรอบการ์ด (ใช้ตัดแสงให้ไม่ล้นออกนอกการ์ด) */}
+          <clipPath id={`${uid}-inside`} clipPathUnits="userSpaceOnUse">
+            <path d={clips.insideCard} />
           </clipPath>
           {/* เปลวไฟ: สว่างที่โคน → จางที่ปลาย */}
           <linearGradient id={`${uid}-flame`} x1="0" y1="1" x2="0" y2="0">
@@ -227,14 +233,14 @@ export default function CardAura({ rarity, seed = '', variant = DEFAULT_AURA_VAR
           </g>
         )}
 
-        {/* 1.5) FLOW — แสงไหลวนตามขอบการ์ด + เปลวไฟลุกจากขอบล่าง + แสงไหลรอบช่องภาพ
-            ผู้ใช้สั่ง 2026-09-24: "อยากได้เหมือนเปลวไฟ หรือการไหลเหมือนน้ำ"
-            ทุกชั้นถูก clip: ขอบการ์ด = outsideCard · เปลว/ริม = outsideArt
-            ⇒ ไม่มีแสงทับตัวภาพเลย การ์ดคม 100% (แก้ข้อติ "แสงทำให้การ์ดเสียความคมชัด") */}
+        {/* 1.5) FLOW — แสงไหลวนตามขอบการ์ด + เปลวไฟลุกบนขอบ (ดีไซน์ INNER)
+            ผู้ใช้สั่ง 2026-09-24: "อยากได้เหมือนเปลวไฟ หรือการไหลเหมือนน้ำ" + "ต้องการเป็น Inner"
+            ทุกชั้นถูกตัดด้วย `ring` (วงแหวนขอบการ์ด) → แสงอยู่บนขอบเท่านั้น
+            ไม่ล้นออกนอกการ์ด (ไม่มี halo นอกกรอบ) และไม่ทับภาพ/กล่องข้อความ */}
         {layers.flow && (
           <g className="card-aura__flow">
-            {/* เรืองที่ล้นออกนอกการ์ด (ตามการไหลชุดเดียวกับแกนแสง) */}
-            <g clipPath={`url(#${uid}-outside)`}>
+            {/* แกนลำแสงไหลรอบเส้นกรอบการ์ด (อยู่ในกรอบ 100%) */}
+            <g clipPath={`url(#${uid}-inside)`}>
               <rect
                 className="card-aura__flow-glow"
                 x={frame.x}
@@ -248,7 +254,6 @@ export default function CardAura({ rarity, seed = '', variant = DEFAULT_AURA_VAR
                 filter={`url(#${uid}-soft)`}
               />
             </g>
-            {/* แกนแสงไหลบนเส้นกรอบ (คม) */}
             <rect
               className="card-aura__flow-core"
               x={frame.x}
@@ -260,9 +265,8 @@ export default function CardAura({ rarity, seed = '', variant = DEFAULT_AURA_VAR
               stroke={`url(#${uid}-edge)`}
               strokeWidth={flow.width}
             />
-            {/* เปลวไฟลุกขึ้นจากขอบล่าง — ตัดด้วย `outsideCard` → เห็นเฉพาะส่วนที่อยู่
-                "นอกเงาการ์ด" (เหมือนไฟลุกอยู่ข้างหลังการ์ด) ไม่ทับตัวหนังสือ/ตัวภาพเลย */}
-            <g clipPath={`url(#${uid}-outside)`}>
+            {/* เปลวไฟลุกขึ้น "บนขอบการ์ด" — ถูกตัดด้วยวงแหวน → ไม่ทับภาพ/ตัวหนังสือ */}
+            <g clipPath={`url(#${uid}-ring)`}>
               <g className="card-aura__flames" filter={`url(#${uid}-flame-warp)`}>
                 {flames.map((f, i) => (
                   <g key={i} transform={`translate(${f.x} ${flameBaseY}) rotate(${f.tiltDeg})`}>
