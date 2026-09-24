@@ -2,8 +2,9 @@
 
 import { useEffect, useState } from 'react';
 import CardAura from '@/components/cards/CardAura';
+import CardAuraCanvas from '@/components/cards/CardAuraCanvas';
 import CardFoil from '@/components/cards/CardFoil';
-import { DEFAULT_AURA_VARIANT, type AuraVariant } from '@/lib/card-aura';
+import { DEFAULT_AURA_VARIANT, isCanvasVariant, type AuraVariant } from '@/lib/card-aura';
 import { cardArtSrc, isRegenerating, cardFrameUrl } from '@/lib/card-image';
 
 interface CardFaceProps {
@@ -84,6 +85,7 @@ export default function CardFace({
   }, [artSrc, cardId, imageStatus]);
 
   const artWindow = { left: '5.71%', top: '17.67%', width: '88.57%', height: '37%' } as const;
+  const chosenVariant = auraVariant ?? DEFAULT_AURA_VARIANT;
 
   return (
     <>
@@ -120,8 +122,13 @@ export default function CardFace({
       {/* ชั้นแสงเลื่อม (foil) ครอบบนการ์ด — CSS ล้วน ไม่เกี่ยวกับการเจนภาพ · ความเข้มตามระดับความหายาก */}
       <CardFoil rarity={rarity} seed={cardId} />
 
-      {/* ชั้นแสงเรืองแบบไอเทมตีบวก (aura) — SVG glow · ระดับต่ำ (COMMON/UNCOMMON) ไม่ render อะไรเลย */}
-      <CardAura rarity={rarity} seed={cardId} variant={auraVariant ?? DEFAULT_AURA_VARIANT} />
+      {/* ชั้นแสงเรืองแบบไอเทมตีบวก (aura) — SVG glow · ระดับต่ำ (COMMON/UNCOMMON) ไม่ render อะไรเลย
+          ดีไซน์ `neon` วาดด้วย Canvas 2D (คนละคอมโพเนนต์) — เลือกตาม isCanvasVariant */}
+      {isCanvasVariant(chosenVariant) ? (
+        <CardAuraCanvas rarity={rarity} seed={cardId} />
+      ) : (
+        <CardAura rarity={rarity} seed={cardId} variant={chosenVariant} />
+      )}
     </>
   );
 }

@@ -17,6 +17,7 @@ import {
   auraStyle,
   auraUid,
   auraVariation,
+  isCanvasVariant,
   roundedRectPath,
   tierLayers,
 } from '@/lib/card-aura';
@@ -139,9 +140,13 @@ describe('tierLayers / auraLayers — องค์ประกอบแสงท
     expect(auraLayers('flow', 'UNCOMMON').halo).toBe(false);
   });
 
-  test('ทุกดีไซน์มีขอบเรืองเป็นฐาน (halo) เมื่อระดับมีแสง', () => {
-    for (const variant of AURA_VARIANTS) {
+  test('ทุกดีไซน์ SVG มีขอบเรืองเป็นฐาน (halo) เมื่อระดับมีแสง', () => {
+    for (const variant of AURA_VARIANTS.filter((v) => !isCanvasVariant(v))) {
       expect(auraLayers(variant, 'LEGENDARY').halo).toBe(true);
+    }
+    // ดีไซน์ Canvas (neon) ไม่มีชั้น SVG — วาดด้วย CardAuraCanvas แทน (ดู tests/unit/card-canvas.test.ts)
+    for (const variant of AURA_VARIANTS.filter((v) => isCanvasVariant(v))) {
+      expect(auraLayers(variant, 'LEGENDARY').halo).toBe(false);
     }
   });
 

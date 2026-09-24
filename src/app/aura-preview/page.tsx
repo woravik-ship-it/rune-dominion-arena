@@ -39,6 +39,10 @@ const VARIANT_INFO: Record<AuraVariant, { label: string; desc: string }> = {
     label: 'Flow — เปลวไฟ / แสงไหล (Inner · ใหม่ 2026-09-24)',
     desc: 'แสงไหลวนบนขอบการ์ด + เปลวไฟลุกขึ้นบนขอบ · อยู่ในกรอบการ์ด 100% (ไม่ล้นออกนอก) และทุกชั้นถูกตัดด้วย "วงแหวนขอบการ์ด" ⇒ ไม่ทับทั้งตัวภาพและกล่องข้อความ การ์ดคม 100% · ใช้ได้ทุกหน้าโดยไม่ต้องแก้ layout',
   },
+  neon: {
+    label: 'Neon — Canvas 2D (additive + shadowBlur · ใหม่ 2026-09-24)',
+    desc: 'วาดด้วย Canvas 2D จริงตามคำสั่งผู้ใช้: ctx.globalCompositeOperation="lighter" + shadowBlur/shadowColor → ออร่านีออนรอบการ์ด · ลำแสงไหลรอบขอบ + อนุภาคไหล (เหมือนน้ำ) + เปลวไฟลุกขึ้นจากขอบล่าง · ภาพ/ข้อความคม (แสงถูก clip ไม่ทับ)',
+  },
 };
 
 const PER_ROW = 2;

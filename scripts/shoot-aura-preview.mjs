@@ -35,6 +35,8 @@ const SCALE = Number(arg('--scale', '2'));
 const QUERY = arg('--query', '');
 const FULL = flag('--full');
 const LIVE = flag('--live');
+// --freeze N = แช่เวลาให้เอฟเฟกต์ Canvas (window.__CARD_NEON_TIME__) → ภาพนิ่งเทียบดีไซน์ได้คงที่
+const FREEZE = arg('--freeze', '');
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
@@ -99,6 +101,16 @@ try {
     deviceScaleFactor: SCALE,
     mobile: false,
   });
+
+  // แช่เวลาให้เอฟเฟกต์ Canvas (ถ้าสั่ง --freeze) — ต้องตั้งก่อนหน้าเว็บ mount
+  if (FREEZE !== '') {
+    const t = Number(FREEZE);
+    if (Number.isFinite(t)) {
+      await send('Page.addScriptToEvaluateOnNewDocument', {
+        source: `window.__CARD_NEON_TIME__ = ${t};`,
+      });
+    }
+  }
 
   await send('Page.navigate', { url });
   for (let i = 0; i < 100 && !events.includes('Page.loadEventFired'); i += 1) await sleep(100);

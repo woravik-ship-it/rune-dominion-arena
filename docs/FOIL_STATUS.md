@@ -2,7 +2,43 @@
 
 > วันที่: 2026-09-23 · ทำโดย Cline (Telegram session)
 
-## รอบ 5 (2026-09-24) — ดีไซน์ `flow`: เปลวไฟ/แสงไหล **แบบ Inner** + แก้ข้อติ "แสงทำให้การ์ดเสียความคมชัด"
+## รอบ 6 (2026-09-24) — เอฟเฟกต์ **Canvas 2D** (additive + shadowBlur) — ดีไซน์ `neon`
+
+**คำสั่งผู้ใช้ (ส่ง prompt มาให้ทำตาม):**
+*"เขียนทับด้วยระบบพิกัด 2D ธรรมดา จะใช้คุณสมบัติการเรืองแสงและการเบลอของ Canvas
+`ctx.globalCompositeOperation = 'lighter'` … `ctx.shadowBlur = 20; ctx.shadowColor = '#00ffff';`
+เพื่อสร้างออร่ารอบตัวการ์ด"*
+
+### ทำอะไร (ตาม prompt ตรง ๆ)
+| ชั้น | เทคนิค Canvas |
+|---|---|
+| ออร่านีออนรอบกรอบ | `shadowColor`/`shadowBlur` + `lineWidth` → stroke 3 รอบ (ฟุ้ง → แกน → สว่างสุด) ด้วย `globalCompositeOperation='lighter'` |
+| ลำแสงไหลรอบขอบ | `setLineDash()` + `lineDashOffset` วิ่งตามเวลา (ครบรอบเส้นพอดี → ไร้รอยต่อ) |
+| อนุภาคไหล (เหมือนน้ำ) | จุดสว่าง + หาง 4 จุด วิ่งตามเส้นรอบการ์ด (พารามิเตอร์เส้นรอบเป็น arc length) |
+| เปลวไฟ | เส้นโค้ง quadratic ลุกขึ้นจากขอบล่าง แกว่งตามเวลา + `shadowBlur` ให้เรือง |
+
+- วาดใน **ระบบพิกัดการ์ด 420×600** แล้ว `ctx.setTransform()` สเกลตามขนาดจริง (คมทุกขนาด, DPR ≤ 2)
+- **clip 2 ชั้น**: `outsideArt` (ห้ามแสงทับช่องภาพ) + `ring` (วงแหวนขอบการ์ดสำหรับเปลว) ⇒ ภาพ/ข้อความคม 100%
+- เคารพ `prefers-reduced-motion` (วาดนิ่ง), "ลดเอฟเฟกต์รุนแรง" (alpha ÷2), COMMON/UNCOMMON ไม่วาด
+- ประหยัดแรง: หยุดวาดเมื่อแท็บซ่อน/การ์ดพ้นจอ (IntersectionObserver)/การ์ดเล็กกว่า 120px
+
+### ไฟล์
+`src/lib/card-canvas.ts` (pure: สเปก/เรขาคณิตเส้นรอบ/อนุภาค — เทสต์ได้) ·
+`src/components/cards/CardAuraCanvas.tsx` (วาดจริง + rAF) ·
+`src/lib/card-aura.ts` (+variant `neon`, `isCanvasVariant`) ·
+`CardFace.tsx` (เลือกคอมโพเนนต์) · `globals.css` (`.card-aura-canvas`) ·
+`scripts/inspect-card-canvas.mjs` (`npm run inspect:canvas`) ·
+`scripts/shoot-aura-preview.mjs` (+`--freeze` แช่เวลาให้ภาพนิ่งเทียบกันได้) ·
+`tests/unit/card-canvas.test.ts` (17 เทสต์)
+
+### ตรวจแล้ว (พิกเซลจริง ไม่ใช่คำบรรยาย)
+`npm run inspect:canvas --base http://localhost:3000 --query 'variant=neon&rarity=LEGENDARY'`:
+- ✅ วาดจริง 112,937 พิกเซลสว่าง (maxA=255) · ✅ แสงที่ขอบการ์ด alpha=18
+- ✅ **ไม่มีแสงทับช่องภาพเลย** (alpha กลางภาพ 0 · มุมภาพ 0/0)
+`tsc` 0 error · `next lint` ไม่มี warning · **jest 347 ผ่าน / 26 suites** · build + deploy production แล้ว
+
+---
+
 
 ผู้ใช้รีวิวการ์ดจริง (ดีไซน์ `inner` ระดับ LEGENDARY):
 *"แบบนี้ใกล้เคียง แต่แสงทำให้การ์ดเสียความคมชัด แล้วที่อยากได้ อยากได้ เหมือนเปรวไฟ หรือการไหล เหมือนน้ำ"*

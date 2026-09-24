@@ -30,6 +30,7 @@
     "health": "curl -s http://localhost:3000/api/health",
     "inspect:cards": "node scripts/inspect-cards-page.mjs",
     "inspect:layout": "node scripts/inspect-card-layout.mjs",
+    "inspect:canvas": "node scripts/inspect-card-canvas.mjs",
     "shoot:aura": "node scripts/shoot-aura-preview.mjs"
   },
   "dependencies": {

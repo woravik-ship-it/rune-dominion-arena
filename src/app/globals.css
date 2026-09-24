@@ -441,6 +441,17 @@ body {
     transform-origin: 50% 100%;
     animation: cardAuraFlame ease-in-out infinite;
   }
+  /* 6) Canvas neon (ดีไซน์ `neon`) — เอฟเฟกต์วาดด้วย Canvas 2D (additive + shadowBlur)
+     ตัว canvas ใหญ่กว่าการ์ด 12% เพื่อให้ออร่าล้นออกนอกได้ (เหมือนดีไซน์นอกกรอบ) */
+  .card-aura-canvas {
+    position: absolute;
+    inset: -12%;
+    width: auto;
+    height: auto;
+    pointer-events: none;
+    z-index: 2;
+    mix-blend-mode: screen;
+  }
 }
 
 /* แสงไหลวนครบรอบเส้น (dashoffset วิ่ง 1 รอบความยาวเส้น → ไร้รอยต่อ) */

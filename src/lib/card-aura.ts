@@ -20,9 +20,20 @@ import { foilHash } from '@/lib/card-foil';
 export type AuraTier = 'NONE' | 'PLUS7' | 'PLUS9' | 'PLUS11' | 'PLUS13';
 
 /** ดีไซน์แสงที่ผู้ใช้เลือกได้ */
-export type AuraVariant = 'tier' | 'bloom' | 'radiant' | 'ascend' | 'inner' | 'flow';
+export type AuraVariant = 'tier' | 'bloom' | 'radiant' | 'ascend' | 'inner' | 'flow' | 'neon';
 
-export const AURA_VARIANTS: AuraVariant[] = ['tier', 'bloom', 'radiant', 'ascend', 'inner', 'flow'];
+export const AURA_VARIANTS: AuraVariant[] = ['tier', 'bloom', 'radiant', 'ascend', 'inner', 'flow', 'neon'];
+
+/**
+ * ดีไซน์ที่วาดด้วย **Canvas 2D** (ไม่ใช่ SVG) — คอมโพเนนต์ SVG จะไม่วาดอะไรให้ดีไซน์นี้
+ * ดูเหตุผล/เทคนิคใน src/lib/card-canvas.ts + src/components/cards/CardAuraCanvas.tsx
+ */
+export const CANVAS_VARIANTS: AuraVariant[] = ['neon'];
+
+/** ดีไซน์นี้วาดด้วย Canvas ไหม */
+export function isCanvasVariant(variant: AuraVariant | string): boolean {
+  return CANVAS_VARIANTS.includes(variant as AuraVariant);
+}
 
 /**
  * ดีไซน์ที่ใช้จริงบนการ์ดทุกหน้า (ผู้ใช้เลือกจากภาพจริง 2026-09-23: "ลองทำแบบ inner")
@@ -209,6 +220,10 @@ export function auraLayers(variant: AuraVariant, rarity?: string | null): AuraLa
       //     ไม่ทับทั้ง "ตัวภาพ" และ "กล่องข้อความ/สเตตัส" (ซึ่งกินพื้นที่กลางการ์ดหมดแล้ว)
       //     แสงไหล/เปลวไฟจึงอยู่บน "ขอบการ์ด" = สไตล์ inner ที่ผู้ใช้ต้องการ
       return { halo: true, flare: false, pillar: false, sparks: true, flow: true, clip: true };
+    case 'neon':
+      // 🆕 2026-09-24: ดีไซน์นี้วาดด้วย **Canvas 2D** ทั้งหมด (CardAuraCanvas + card-canvas.ts)
+      // ไม่มีชั้น SVG → คอมโพเนนต์ SVG ไม่เรนเดอร์อะไร (CardFace เลือกคอมโพเนนต์ตาม isCanvasVariant)
+      return NO_LAYERS;
     default:
       return NO_LAYERS;
   }
