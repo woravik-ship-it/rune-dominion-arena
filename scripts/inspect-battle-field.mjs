@@ -9,10 +9,12 @@
  *   4) ชื่อทีม = ชื่อ Deck จริง (ไม่ใช่ "ทีม A / ทีม B")
  *   5) ปุ่มข้ามไม่มีคำว่า "รู้ผล"
  *   6) เฟรมสุดท้ายมีดาบ (คนโจมตี) + โล่/แดง (คนรับ)
- *   7) HP รวมตรงกับผลรวม HP การ์ด
- *   8) log ใหม่สุดอยู่บน (order มาก→น้อย)
- *   9) ไอคอนสถานะ (🔥 เผา · 💧 อ่อนแอ · 🛡️ โล่ · ⚡ ว่องไว) ตรงกับข้อมูลบนการ์ด
- *  10) ไม่ถูก onboarding modal บังภาพ (ภาพที่ได้ใช้รีวิวได้จริง)
+ *   7) ไอคอนดาบ/โล่อยู่กลางการ์ด (ไม่ตกขอบการ์ด)
+ *   8) จบศึกแล้วมีปุ่ม "ดู Replay" + "ต่อสู้อีกครั้ง"
+ *   9) HP รวมตรงกับผลรวม HP การ์ด
+ *  10) log ใหม่สุดอยู่บน (order มาก→น้อย)
+ *  11) ไอคอนสถานะ (🔥 เผา · 💧 อ่อนแอ · 🛡️ โล่ · ⚡ ว่องไว) ตรงกับข้อมูลบนการ์ด
+ *  12) ไม่ถูก onboarding modal บังภาพ (ภาพที่ได้ใช้รีวิวได้จริง)
  *
  * วิธีใช้:
  *   node scripts/inspect-battle-field.mjs --token "<session>" --battle <battleId>
@@ -50,6 +52,23 @@ const MEASURE = `(() => {
       status: el.getAttribute('data-battle-status') || '',
       statusBadges: el.querySelectorAll('[data-battle-status-badge]').length,
       hit: Boolean(el.querySelector('[data-battle-hit]')),
+      /** สัญลักษณ์ดาบ/โล่ กลางการ์ด — ตำแหน่งต้องอยู่ในการ์ดและใกล้กลาง */
+      marker: (() => {
+        const m = el.querySelector('[data-battle-marker]');
+        if (!m) return null;
+        const inner = m.firstElementChild ?? m;
+        const r = inner.getBoundingClientRect();
+        const cx = box.left + box.width / 2;
+        const cy = box.top + box.height / 2;
+        const mx = r.left + r.width / 2;
+        const my = r.top + r.height / 2;
+        return {
+          kind: m.getAttribute('data-battle-marker'),
+          inside: r.left >= box.left && r.right <= box.right && r.top >= box.top && r.bottom <= box.bottom,
+          offsetX: Math.round(Math.abs(mx - cx)),
+          offsetY: Math.round(Math.abs(my - cy)),
+        };
+      })(),
       /** มีรูปการ์ดจริงในช่องภาพไหม (ผู้ใช้สั่ง: ต้องแสดงการ์ดเต็มใบ) */
       art: el.querySelectorAll('img[src*="/art"]').length,
       /** มีกรอบการ์ด (overlay ของ CardFace) ไหม */
@@ -70,11 +89,20 @@ const MEASURE = `(() => {
   const logOrders = [...document.querySelectorAll('[data-log-order]')].map((el) =>
     Number(el.getAttribute('data-log-order'))
   );
+  const finished = Boolean(document.querySelector('[data-battle-finished]'));
+  const replayBtn = (() => {
+    const el = document.querySelector('[data-battle-replay]');
+    return el ? (el.textContent || '').trim() : '';
+  })();
+  const refightBtn = (() => {
+    const el = document.querySelector('[data-battle-refight]');
+    return el ? { label: (el.textContent || '').trim(), disabled: el.disabled === true } : null;
+  })();
   const skipLabel = (() => {
     const btn = [...document.querySelectorAll('button')].find((b) => (b.textContent || '').includes('ข้าม'));
     return btn ? (btn.textContent || '').trim() : '';
   })();
-  return { path: location.pathname, cards, teamHp, teamNames, logOrders, skipLabel };
+  return { path: location.pathname, cards, teamHp, teamNames, logOrders, skipLabel, finished, replayBtn, refightBtn };
 })()`;
 
 async function connect(wsUrl) {
@@ -208,6 +236,16 @@ try {
   await sleep(2500);
   const mid = (await send('Runtime.evaluate', { returnByValue: true, expression: MEASURE })).result.value;
 
+  // เก็บภาพ "กลางรบ" ด้วย (มีดาบ/โล่ให้ดูว่าไอคอนอยู่กลางการ์ดจริง) — ภาพสุดท้ายคือตอนจบศึก
+  if (mid?.cards?.some((c) => c.marker)) {
+    const midShot = await send('Page.captureScreenshot', {
+      format: 'png',
+      captureBeyondViewport: true,
+      clip: { x: 0, y: 0, width: WIDTH, height: Math.min(HEIGHT, 5000), scale: 1 },
+    });
+    writeFileSync(OUT.replace(/\.png$/i, '-mid.png'), Buffer.from(midShot.data, 'base64'));
+  }
+
   // ── แล้วกดข้าม (รู้ผลเลย) → เฟรมสุดท้าย + log ครบ แล้ววัด
   await send('Runtime.evaluate', {
     expression: `(() => {
@@ -300,6 +338,29 @@ try {
     'กลางรบมีดาบ (คนโจมตี) + โล่/แดง (คนรับ)',
     atkCount >= 1 && defCount >= 1 && hitCount >= 1,
     `⚔️ ${atkCount} · 🛡️ ${defCount} · แดง ${hitCount}`,
+  ]);
+
+  // ผู้ใช้สั่ง: "สัญลักษณ์ดาบกับโล่ ตอนต่อสู้เอามาไว้ตรงกลางเลย ไว้มุม มันตกขอบ"
+  // วัด "กลางรบ" (เฟรมที่มีคนโจมตี/คนรับจริง) — เฟรมสุดท้ายมักเป็น faint จึงไม่มีสัญลักษณ์
+  const markers = mid.cards.filter((c) => c.marker);
+  const markersOk = markers.every(
+    (c) => c.marker.inside && c.marker.offsetX <= c.w * 0.15 && c.marker.offsetY <= c.h * 0.25
+  );
+  checks.push([
+    'ไอคอนดาบ/โล่อยู่กลางการ์ด (ไม่ตกขอบการ์ด)',
+    markers.length >= 1 && markersOk,
+    markers.length
+      ? markers
+          .map((c) => `${c.marker.kind}ในกรอบ=${c.marker.inside} เยื้อง(${c.marker.offsetX},${c.marker.offsetY})px`)
+          .join(' · ')
+      : 'เฟรมสุดท้ายไม่มีคนโจมตี/คนรับ',
+  ]);
+
+  // ผู้ใช้สั่ง: "การต่อสู้ผ่านไปแล้ว สามารถกดดู Replay หรือต่อสู้ใหม่ได้"
+  checks.push([
+    'จบศึกแล้วมีปุ่ม "ดู Replay" + "ต่อสู้อีกครั้ง"',
+    after.finished && after.replayBtn.includes('Replay') && Boolean(after.refightBtn?.label.includes('ต่อสู้อีกครั้ง')),
+    `finished=${after.finished} · replay="${after.replayBtn}" · refight="${after.refightBtn?.label ?? '-'}" (disabled=${after.refightBtn?.disabled ?? '-'})`,
   ]);
 
   // HP รวมตรงกับผลรวมการ์ด ("1,724/3,500" → ตัวเลขก่อน /)

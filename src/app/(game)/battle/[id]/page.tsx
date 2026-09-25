@@ -2,13 +2,20 @@
 
 import { apiFetch } from '@/lib/api-client';
 import { useState, useEffect, useRef, useMemo } from 'react';
-import { useParams } from 'next/navigation';
+import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import type { BattleLogEntry, CombatCard } from '@/services/combat';
 import { BATTLE_ACTION_ICON, buildReplayFrames, cardStatuses } from '@/services/battle-replay';
 import type { BattleCardMeta } from '@/services/battle-display';
+import { refightBody } from '@/services/battle-display';
 import CardFace from '@/components/cards/CardFace';
 import { BATTLE_MANA_MAX } from '@/lib/constants';
+
+/** เด็คของแต่ละฝ่าย (จาก API) — ใช้ปุ่ม "ต่อสู้อีกครั้ง" */
+interface BattleDeckRef {
+  id: string;
+  name: string | null;
+}
 
 interface BattleData {
   battleId: string;
@@ -20,6 +27,9 @@ interface BattleData {
   teamNames: { A: string; B: string };
   /** ข้อมูลการ์ดสำหรับวาดการ์ดเต็มใบ (key = cardId) */
   cardMeta: Record<string, BattleCardMeta>;
+  /** เด็คของสองฝ่าย (ฝ่าย B เป็น null เมื่อสู้กับบอท) */
+  decks: { A: BattleDeckRef | null; B: BattleDeckRef | null };
+  isBotBattle: boolean;
 }
 
 // ความเร็วตามคำสั่งผู้ใช้: x1 ดูออก (ไม่เร่งใส) · x4/x8 เร็วขึ้น · ข้าม = รู้ผลเลย
@@ -43,12 +53,16 @@ function barColor(pct: number): string {
 
 export default function BattleViewerPage() {
   const params = useParams();
+  const router = useRouter();
   const battleId = params.id as string;
   const [battle, setBattle] = useState<BattleData | null>(null);
   const [loading, setLoading] = useState(true);
   const [visibleCount, setVisibleCount] = useState(0);
   const [playing, setPlaying] = useState(false);
   const [speed, setSpeed] = useState<number>(1);
+  /** สถานะของปุ่ม "ต่อสู้อีกครั้ง" (กำลังสร้างศึกใหม่) + ข้อความผิดพลาด */
+  const [refighting, setRefighting] = useState(false);
+  const [actionError, setActionError] = useState<string | null>(null);
   const timer = useRef<ReturnType<typeof setInterval> | null>(null);
 
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -75,6 +89,8 @@ export default function BattleViewerPage() {
           // ชื่อทีม/ข้อมูลการ์ดมาจาก API (ผู้ใช้สั่ง: ชื่อทีม = ชื่อ Deck · การ์ดวาดเต็มใบ)
           teamNames: data.data.teamNames ?? { A: 'ทีมของฉัน', B: 'คู่ต่อสู้' },
           cardMeta: data.data.cardMeta ?? {},
+          decks: data.data.decks ?? { A: null, B: null },
+          isBotBattle: Boolean(data.data.isBotBattle),
         });
       }
     } catch (e) { console.error(e); }
@@ -110,6 +126,41 @@ export default function BattleViewerPage() {
   const restart = () => {
     pausePlay();
     setVisibleCount(0);
+  };
+
+  /** "ดู Replay" — ย้อนไปเฟรมแรกแล้วเล่นใหม่ทันที (ใช้เมื่อศึกจบแล้ว) */
+  const replayFromStart = () => {
+    pausePlay();
+    setVisibleCount(0);
+    // ให้ state รีเซ็ตก่อน แล้วค่อยเริ่ม interval (ไม่งั้นเฟรมแรกจะถูกข้าม)
+    setTimeout(() => startPlay(), 0);
+  };
+
+  /**
+   * "ต่อสู้อีกครั้ง" — สร้างศึกใหม่ด้วยเด็คเดิม (ผู้ใช้สั่ง: ศึกที่ผ่านไปแล้วต้องสู้ใหม่ได้)
+   * ยิง /api/battle/simulate เหมือนหน้าท้าทายบอท แล้วพาไปดูผลของศึกใหม่
+   */
+  const refight = async () => {
+    const body = refightBody(battle?.decks.A?.id, battle?.decks.B?.id);
+    if (!body) {
+      setActionError('ศึกนี้ไม่มีข้อมูลเด็ค (เก่ากว่าที่ระบบเก็บ snapshot) — เริ่มศึกใหม่ได้ที่หน้า Battle');
+      return;
+    }
+    setActionError(null);
+    setRefighting(true);
+    try {
+      const res = await apiFetch('/api/battle/simulate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+      const data = await res.json();
+      if (!res.ok) { setActionError(data.error || 'เริ่มสู้ใหม่ไม่สำเร็จ'); return; }
+      router.push(`/battle/${data.data.battleId}`);
+    } catch (e) {
+      console.error(e);
+      setActionError('เริ่มสู้ใหม่ไม่สำเร็จ');
+    } finally { setRefighting(false); }
   };
 
   // เฟรมทั้งหมด (คำนวณครั้งเดียวต่อ battle) + เฟรมปัจจุบันตาม visibleCount
@@ -202,25 +253,25 @@ export default function BattleViewerPage() {
                   data-battle-hit="true"
                 />
               )}
+              {/* สัญลักษณ์ดาบ/โล่ — วาง "กลางการ์ด" (ผู้ใช้สั่ง: ไว้มุมแล้วตกขอบ) */}
+              {(isAttacker || isDefender) && (
+                <span
+                  data-battle-marker={isAttacker ? 'attacker' : 'defender'}
+                  className="pointer-events-none absolute inset-0 flex items-center justify-center"
+                >
+                  <span
+                    className={`flex h-9 w-9 items-center justify-center rounded-full bg-black/75 text-xl leading-none ring-2 ${
+                      isAttacker ? 'ring-amber-300 shadow-[0_0_12px_#fbbf24]' : 'ring-sky-300 shadow-[0_0_12px_#38bdf8]'
+                    }`}
+                    title={isAttacker ? 'กำลังโจมตี' : 'กำลังรับการโจมตี'}
+                  >
+                    {isAttacker ? '⚔️' : '🛡️'}
+                  </span>
+                </span>
+              )}
               {!c.alive && (
                 <span className="pointer-events-none absolute inset-0 flex items-center justify-center bg-black/60 text-xl">
                   💀
-                </span>
-              )}
-              {isAttacker && (
-                <span
-                  className="absolute -top-2 -right-1 rounded-full bg-amber-400 px-1 text-[11px] leading-5"
-                  title="กำลังโจมตี"
-                >
-                  ⚔️
-                </span>
-              )}
-              {isDefender && (
-                <span
-                  className="absolute -top-2 -left-1 rounded-full bg-sky-400 px-1 text-[11px] leading-5"
-                  title="กำลังรับการโจมตี"
-                >
-                  🛡️
                 </span>
               )}
             </div>
@@ -270,7 +321,29 @@ export default function BattleViewerPage() {
         </p>
 
         {finished && (
-          <div className="text-center text-3xl font-bold mb-3">{resultText}</div>
+          <div data-battle-finished="true" className="mb-3 rounded-xl border border-amber-700/40 bg-amber-950/10 p-3">
+            <div className="mb-2 text-center text-3xl font-bold">{resultText}</div>
+            {/* ผู้ใช้สั่ง: "การต่อสู้ผ่านไปแล้ว สามารถกดดู Replay หรือต่อสู้ใหม่ได้" */}
+            <div className="flex flex-wrap gap-2">
+              <button data-battle-replay onClick={replayFromStart} className="btn-primary flex-1 text-sm">
+                🔁 ดู Replay
+              </button>
+              <button
+                data-battle-refight
+                onClick={refight}
+                disabled={refighting}
+                className="btn-secondary flex-1 text-sm disabled:opacity-50"
+              >
+                {refighting ? 'กำลังเริ่มศึกใหม่...' : '⚔️ ต่อสู้อีกครั้ง'}
+              </button>
+            </div>
+            <p className="mt-2 text-center text-[11px] text-gray-400">
+              ต่อสู้อีกครั้ง = ศึกใหม่ด้วยทีมเดิม {battle.isBotBattle ? '(คู่ต่อสู้เป็นบอท)' : `(คู่ต่อสู้ ${battle.decks.B?.name ?? '-'})`}
+            </p>
+            {actionError && (
+              <p className="mt-2 text-center text-xs text-red-400">{actionError}</p>
+            )}
+          </div>
         )}
 
         {frame && (

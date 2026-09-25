@@ -5,6 +5,7 @@ import { useState, useEffect, useMemo } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import CardFace from '@/components/cards/CardFace';
+import { arenaJoinMessage } from '@/services/arena';
 
 interface BoardEntry {
   rank: number;
@@ -94,7 +95,11 @@ export default function ArenaRoomPage() {
     setErr(null); setMsg(null);
     const pickedDeckId = requireDeck();
     if (!pickedDeckId) return;
-    if (!confirm(`ใช้ Coin ${room?.entryFee} เหรียญเพื่อเข้าท้าทายห้องนี้ด้วยทีม "${selectedDeck?.name}"?`)) return;
+    // ผู้ใช้สั่ง 2026-09-25: ส่งทีมเข้าห้องได้หลายครั้ง — คิดค่าเข้าทุกครั้ง
+    if (!confirm(
+      `ใช้ Coin ${room?.entryFee} ส่งทีม "${selectedDeck?.name}" เข้าห้องนี้?\n` +
+      '(ส่งทีมเข้าซ้ำ/เปลี่ยนทีมได้ตลอด — คิดค่าเข้าทุกครั้ง)'
+    )) return;
     setBusy(true);
     try {
       const res = await apiFetch(`/api/arena/${roomId}/join`, {
@@ -102,12 +107,17 @@ export default function ArenaRoomPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           deckId: pickedDeckId,
-          idempotencyKey: `${roomId}-temp-${Date.now()}`,
+          // คีย์เฉพาะคำขอ (กันเน็ตสะดุดแล้วยิงซ้ำ = หักซ้ำ) — ใช้เวลาแทน randomUUID เพราะเว็ปอาจรันบน http
+          idempotencyKey: `${roomId}-${pickedDeckId}-${Date.now()}`,
         }),
       });
       const data = await res.json();
       if (!res.ok) { setErr(data.error || 'เข้าร่วมไม่สำเร็จ'); return; }
-      setMsg(`เข้าร่วมด้วยทีม "${selectedDeck?.name}" แล้ว! กดท้าทายเพื่อสู้กับแชมป์`);
+      setMsg(arenaJoinMessage(
+        selectedDeck?.name ?? '',
+        Boolean(data.data?.rejoined),
+        Number(data.data?.entryFee ?? room?.entryFee ?? 0)
+      ));
       await loadRoom();
     } finally { setBusy(false); }
   };
@@ -233,14 +243,17 @@ export default function ArenaRoomPage() {
           )}
         </section>
 
-        <div className="flex gap-2 mb-6">
+        <div className="flex gap-2 mb-2">
           <button onClick={handleJoin} disabled={busy || !selectedDeck} className="btn-secondary text-sm flex-1 disabled:opacity-50">
-            เข้าร่วม ({room.entryFee} Coin)
+            ส่งทีมเข้าห้อง ({room.entryFee} Coin)
           </button>
           <button onClick={handleChallenge} disabled={busy || !selectedDeck} className="btn-primary text-sm flex-1 disabled:opacity-50">
             ⚔️ ท้าทายแชมป์
           </button>
         </div>
+        <p className="mb-6 text-[11px] text-gray-500">
+          ส่งทีมเข้าห้องได้หลายครั้ง (เปลี่ยนทีมได้ตลอด) — คิดค่าเข้า {room.entryFee} Coin ทุกครั้งที่ส่งทีม
+        </p>
 
         <h2 className="font-bold mb-2">Leaderboard (10 อันดับ)</h2>
         {room.leaderboard.length === 0 ? (

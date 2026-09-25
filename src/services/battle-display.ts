@@ -70,3 +70,18 @@ export function teamCardIds(teams: { A?: { cardId: string }[]; B?: { cardId: str
 export function hasArt(meta?: BattleCardMeta | null): boolean {
   return Boolean(cardArtSrc(meta?.imageUrl));
 }
+
+/**
+ * body สำหรับปุ่ม "ต่อสู้อีกครั้ง" (POST /api/battle/simulate)
+ * - มีเด็คฝ่าย B → สู้กับเด็คเดิม
+ * - ไม่มี (ศึกกับบอท) → bot: true เหมือนเดิม
+ * คืน null เมื่อไม่รู้เด็คฝ่าย A (การต่อสู้เก่ามาก/ไม่มี snapshot) → ปุ่มจะถูกปิด
+ */
+export function refightBody(
+  attackerDeckId?: string | null,
+  defenderDeckId?: string | null
+): { attackerDeckId: string; defenderDeckId?: string; bot?: boolean } | null {
+  if (!attackerDeckId) return null;
+  if (defenderDeckId) return { attackerDeckId, defenderDeckId };
+  return { attackerDeckId, bot: true };
+}

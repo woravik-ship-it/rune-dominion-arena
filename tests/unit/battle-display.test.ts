@@ -4,6 +4,7 @@ import {
   BATTLE_TEAM_SIZE,
   cardMetaMap,
   hasArt,
+  refightBody,
   teamCardIds,
   teamName,
 } from '@/services/battle-display';
@@ -75,5 +76,22 @@ describe('รวม cardId จาก snapshot ทีม', () => {
 
   it('ขนาดทีมมาตรฐาน = 5 ใบ', () => {
     expect(BATTLE_TEAM_SIZE).toBe(5);
+  });
+});
+
+// ปุ่ม "ต่อสู้อีกครั้ง" (ผู้ใช้สั่ง: ศึกที่ผ่านไปแล้วต้องสู้ใหม่ได้)
+describe('refightBody — body ของการต่อสู้อีกครั้ง', () => {
+  it('มีเด็คทั้งสองฝ่าย → สู้กับเด็คเดิม', () => {
+    expect(refightBody('deckA', 'deckB')).toEqual({ attackerDeckId: 'deckA', defenderDeckId: 'deckB' });
+  });
+
+  it('ไม่มีเด็คฝ่าย B (ศึกกับบอท) → ใช้ bot: true', () => {
+    expect(refightBody('deckA', null)).toEqual({ attackerDeckId: 'deckA', bot: true });
+    expect(refightBody('deckA', undefined)).toEqual({ attackerDeckId: 'deckA', bot: true });
+  });
+
+  it('ไม่รู้เด็คฝ่าย A → null (ปุ่มจะแจ้งให้ไปเริ่มศึกใหม่เอง)', () => {
+    expect(refightBody(null, 'deckB')).toBeNull();
+    expect(refightBody(undefined, undefined)).toBeNull();
   });
 });

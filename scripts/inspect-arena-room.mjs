@@ -56,7 +56,9 @@ const MEASURE = `(() => {
     previewArt,
     actionButtons: [...document.querySelectorAll('button')]
       .map((b) => (b.textContent || '').trim())
-      .filter((t) => t.includes('เข้าร่วม') || t.includes('ท้าทาย')),
+      .filter((t) => t.includes('ส่งทีม') || t.includes('เข้าร่วม') || t.includes('ท้าทาย')),
+    /** ข้อความชี้แจงเรื่องค่าเข้า (ผู้ใช้สั่ง: ส่งทีมเข้าห้องซ้ำได้ คิดค่าเข้าทุกครั้ง) */
+    rejoinNote: (document.body.innerText || '').includes('คิดค่าเข้า'),
   };
 })()`;
 
@@ -200,6 +202,13 @@ try {
     'ปุ่มเข้าร่วม/ท้าทายผูกกับเด็คที่เลือก',
     afterPick.actionButtons.length === 2 && afterPick.selectedDeckId === afterPick.previewDeckId,
     `${afterPick.actionButtons.join(' | ')} · selected=${afterPick.selectedDeckId}`,
+  ]);
+
+  // ผู้ใช้สั่ง: "การเพิ่มทีมเข้ามาในห้อง เก็บค่าเข้า จะจัดเข้ามากี่ครั้งก็ได้" → หน้าจอต้องบอกชัด
+  checks.push([
+    'หน้าจอบอกว่าส่งทีมเข้าห้องซ้ำได้ + คิดค่าเข้าทุกครั้ง',
+    afterPick.rejoinNote === true,
+    afterPick.rejoinNote ? 'พบข้อความ "คิดค่าเข้า…"' : 'ไม่พบข้อความชี้แจงค่าเข้า',
   ]);
 
   console.log(`URL: ${url}`);

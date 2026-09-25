@@ -64,6 +64,19 @@ export async function GET(
           A: teamName('A', deckName(battle.attackerDeckId)),
           B: teamName('B', deckName(battle.defenderDeckId), isBot),
         },
+        /**
+         * เด็คของแต่ละฝ่าย (ใช้ปุ่ม "ต่อสู้อีกครั้ง" — ยิง /api/battle/simulate ด้วยเด็คเดิม)
+         * ฝ่าย B ของศึกกับบอทจะไม่มีเด็ค (isBotBattle = true → ใช้ bot: true)
+         */
+        decks: {
+          A: battle.attackerDeckId
+            ? { id: battle.attackerDeckId, name: deckName(battle.attackerDeckId) }
+            : null,
+          B: battle.defenderDeckId
+            ? { id: battle.defenderDeckId, name: deckName(battle.defenderDeckId) }
+            : null,
+        },
+        isBotBattle: isBot,
         /** ข้อมูลการ์ดที่ต้องใช้วาดการ์ดเต็มใบ (key = cardId) */
         cardMeta: cardMetaMap(cards),
         createdAt: battle.createdAt,

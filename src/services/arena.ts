@@ -54,6 +54,50 @@ export function validateRoomName(name: string): { valid: boolean; error?: string
   return { valid: true };
 }
 
+/**
+ * จำนวน Coin ที่ต้องจ่ายตอนเข้าร่วม/เปลี่ยนทีมในห้อง
+ * (ผู้ใช้สั่ง 2026-09-25: "การเพิ่มทีมเข้ามาในห้อง เก็บค่าเข้า จะจัดเข้ามากี่ครั้งก็ได้")
+ */
+export const ARENA_JOIN_RECHARGE_NOTE = 'เข้าได้หลายครั้ง — คิดค่าเข้าทุกครั้งที่ส่งทีมเข้าห้อง';
+
+/** Type ของ wallet transaction ที่ใช้ระบุ "จ่ายค่าเข้าห้อง Arena" (ใช้COUNT เพดานรายวัน) */
+export const ARENA_JOIN_REFERENCE_TYPE = 'ARENA_JOIN';
+
+export interface ArenaJoinPlan {
+  /** ต้องหัก Coin ค่าเข้าไหม */
+  charge: boolean;
+  /** create = เข้าครั้งแรก · update = ส่งทีมเข้าซ้ำ (เปลี่ยนเด็ค) · skip = คำขอเดิมยิงซ้ำ (idempotent) */
+  mode: 'create' | 'update' | 'skip';
+  /** Coin ที่ต้องหัก (0 เมื่อ skip) */
+  cost: number;
+}
+
+/**
+ * แผนการเข้าร่วมห้อง Arena
+ * - เข้าครั้งแรก → หักค่าเข้า + สร้างแถวผู้เข้าร่วม
+ * - ส่งทีมเข้าซ้ำ → **หักค่าเข้าใหม่** + อัปเดตเด็คของผู้เข้าร่วมเดิม
+ *   (ไม่สร้างแถวซ้ำ เพราะมี @@unique([roomId, userId]) และผู้เข้าร่วมต้องไม่ถูกนับซ้ำ)
+ * - idempotencyKey เดิมยิงซ้ำ (เช่น เน็ตสะดุดแล้วกดใหม่) → ไม่หักซ้ำ ไม่แตะข้อมูล
+ */
+export function arenaJoinPlan(opts: {
+  alreadyJoined: boolean;
+  idempotentDuplicate?: boolean;
+}): ArenaJoinPlan {
+  if (opts.idempotentDuplicate) return { charge: false, mode: 'skip', cost: 0 };
+  return {
+    charge: true,
+    mode: opts.alreadyJoined ? 'update' : 'create',
+    cost: ARENA_JOIN_COST,
+  };
+}
+
+/** ข้อความแจ้งผลหลังเข้าห้อง (ใช้ทั้งหน้าเว็บและเทสต์) */
+export function arenaJoinMessage(deckName: string, rejoined: boolean, cost: number): string {
+  return rejoined
+    ? `เปลี่ยนทีมเป็น "${deckName}" แล้ว — หัก ${cost} Coin (เข้าได้หลายครั้ง คิดค่าเข้าทุกครั้ง)`
+    : `เข้าร่วมด้วยทีม "${deckName}" แล้ว — หัก ${cost} Coin`;
+}
+
 /** นับจำนวนครั้งที่ join วันนี้ (ใช้กรอง daily cap 20 ครั้ง) */
 export function countTodayJoins(
   joinedAtList: Date[],
