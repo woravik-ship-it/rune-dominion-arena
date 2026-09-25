@@ -10,6 +10,14 @@ interface Deck {
   description: string | null;
   isActive: boolean;
   teamPower: number;
+  /** Phase 15: คะแนนรวมที่คิดโบนัสตามบทบาทช่องแล้ว (โจมตี/ป้องกัน/สนับสนุน) */
+  formationScore?: {
+    total: number;
+    baseScore: number;
+    bonusScore: number;
+    affinityScore: number;
+    grade: { key: string; labelTh: string; color: string };
+  };
   cardCount: number;
 }
 
@@ -111,8 +119,20 @@ export default function DecksPage() {
                   <div>
                     <h3 className="font-bold text-lg">{deck.name}</h3>
                     <p className="text-sm text-gray-400">
-                      ⚡ พลังทีม {deck.teamPower.toLocaleString('th-TH')} • {deck.cardCount}/5 ใบ
+                      ⚡ คะแนนรวม {(deck.formationScore?.total ?? deck.teamPower).toLocaleString('th-TH')}
+                      {deck.formationScore?.grade && (
+                        <span className="ml-1" style={{ color: deck.formationScore.grade.color }}>
+                          · เกรด {deck.formationScore.grade.key}
+                        </span>
+                      )}
+                      {' • '}{deck.cardCount}/5 ใบ
                     </p>
+                    {deck.formationScore && (
+                      <p className="text-xs text-gray-500">
+                        สเตตัส {deck.formationScore.baseScore.toLocaleString('th-TH')} · โบนัสช่อง +
+                        {(deck.formationScore.bonusScore + deck.formationScore.affinityScore).toLocaleString('th-TH')}
+                      </p>
+                    )}
                   </div>
                   {deck.isActive && (
                     <span className="text-xs bg-green-600 px-2 py-1 rounded-full">ใช้งาน</span>

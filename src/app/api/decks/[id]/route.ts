@@ -1,7 +1,36 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
-import { calculateTeamPower, validateDeck, validatePositions } from '@/services/deck';
+import {
+  calculateTeamPower,
+  formationFromSlots,
+  skillsOf,
+  validateDeck,
+  validatePositions,
+  type CardStatRow,
+  type CardStatSource,
+} from '@/services/deck';
 import { resolveRequestUserId } from '@/lib/current-user';
+
+/** แปลงการ์ดจาก Prisma → แถวสำหรับสูตรคะแนน (ไม่ต้องเขียนฟิลด์ซ้ำหลายที่) */
+function statRow(slot: { cardId: string; card: CardStatSource }): CardStatRow {
+  return {
+    cardId: slot.cardId,
+    name: slot.card.name,
+    nameTh: slot.card.nameTh,
+    element: slot.card.element,
+    rarity: slot.card.rarity,
+    role: slot.card.role,
+    atk: slot.card.atk,
+    def: slot.card.def,
+    hp: slot.card.hp,
+    spd: slot.card.spd,
+    manaCost: slot.card.manaCost,
+    skill1Name: slot.card.skill1Name,
+    skill1ManaCost: slot.card.skill1ManaCost,
+    skill2Name: slot.card.skill2Name,
+    skill2ManaCost: slot.card.skill2ManaCost,
+  };
+}
 
 // GET /api/decks/:id — รายละเอียดเด็ค
 export async function GET(
@@ -18,6 +47,9 @@ export async function GET(
     if (!deck) {
       return NextResponse.json({ error: 'ไม่พบเด็ค' }, { status: 404 });
     }
+
+    const rows = deck.slots.map((s) => statRow(s));
+    const formation = formationFromSlots(deck.slots.map((s) => ({ position: s.position, card: statRow(s) })));
 
     return NextResponse.json({
       success: true,
@@ -37,7 +69,21 @@ export async function GET(
             spd: s.card.spd,
           }))
         ),
-        slots: deck.slots.map((s) => ({
+        /** Phase 15: คะแนนตามบทบาทช่อง + แกน 6 เหลี่ยม (สูตรเดียวกับหน้าจัดทีม) */
+        formationScore: {
+          total: formation.total,
+          baseScore: formation.baseScore,
+          bonusScore: formation.bonusScore,
+          affinityScore: formation.affinityScore,
+          axes: formation.axes,
+          grade: formation.grade,
+          slots: formation.slots.map((slot) => ({
+            position: slot.position,
+            role: slot.role,
+            bonus: slot.bonus,
+          })),
+        },
+        slots: deck.slots.map((s, i) => ({
           position: s.position,
           cardId: s.cardId,
           name: s.card.name,
@@ -52,6 +98,8 @@ export async function GET(
             spd: s.card.spd,
             manaCost: s.card.manaCost,
           },
+          /** สกิล (ใช้คิดโบนัสช่องสนับสนุนฝั่งเว็บ + แสดงในอนาคต) */
+          skills: skillsOf(rows[i]),
           imageUrl: s.card.imageUrl,
           imageStatus: s.card.imageStatus,
         })),
@@ -168,6 +216,10 @@ export async function PUT(
       });
     });
 
+    const updatedFormation = formationFromSlots(
+      updated.slots.map((s) => ({ position: s.position, card: statRow(s) }))
+    );
+
     return NextResponse.json({
       success: true,
       data: {
@@ -183,6 +235,15 @@ export async function PUT(
             spd: s.card.spd,
           }))
         ),
+        /** Phase 15: คะแนนที่คิดโบนัสช่องแล้ว (ใช้ยืนยันกับที่หน้าจอคำนวณสด) */
+        formationScore: {
+          total: updatedFormation.total,
+          baseScore: updatedFormation.baseScore,
+          bonusScore: updatedFormation.bonusScore,
+          affinityScore: updatedFormation.affinityScore,
+          axes: updatedFormation.axes,
+          grade: updatedFormation.grade,
+        },
       },
     });
   } catch (error) {

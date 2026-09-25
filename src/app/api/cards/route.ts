@@ -73,6 +73,22 @@ export async function GET(request: NextRequest) {
           spd: uc.card.spd,
           manaCost: uc.card.manaCost,
         },
+        /**
+         * Phase 15: ส่งสกิลมาด้วย (ชื่อ/คำอธิบาย/ค่ามานา) เพื่อให้หน้าจัดทีมคิด "พลังสกิล"
+         * ของช่องสนับสนุนได้จริงโดยไม่ต้องยิง API เพิ่มทีละใบ
+         */
+        skills: [
+          uc.card.skill1Name && {
+            name: uc.card.skill1Name,
+            description: uc.card.skill1Desc,
+            manaCost: uc.card.skill1ManaCost ?? 0,
+          },
+          uc.card.skill2Name && {
+            name: uc.card.skill2Name,
+            description: uc.card.skill2Desc,
+            manaCost: uc.card.skill2ManaCost ?? 0,
+          },
+        ].filter(Boolean),
         imageUrl: uc.card.imageUrl,
         imageStatus: uc.card.imageStatus,
         /** จำนวนใบที่ถือครอง — ค้นพบซ้ำจะได้อีกใบ (x2, x3, ...) */

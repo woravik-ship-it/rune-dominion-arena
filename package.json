@@ -31,6 +31,7 @@
     "inspect:cards": "node scripts/inspect-cards-page.mjs",
     "inspect:layout": "node scripts/inspect-card-layout.mjs",
     "inspect:canvas": "node scripts/inspect-card-canvas.mjs",
+    "inspect:deck": "node scripts/inspect-deck-formation.mjs",
     "shoot:aura": "node scripts/shoot-aura-preview.mjs"
   },
   "dependencies": {

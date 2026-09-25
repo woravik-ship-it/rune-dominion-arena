@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
-import { validateDeck, validatePositions, calculateTeamPower } from '@/services/deck';
+import { calculateTeamPower, validateDeck, validatePositions, formationFromSlots, skillsOf } from '@/services/deck';
 import { parseJsonBody, deckCreateSchema } from '@/lib/validation';
 import { enforceRateLimit } from '@/lib/api-guard';
 import { resolveRequestUserId } from '@/lib/current-user';
@@ -26,41 +26,76 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json({
       success: true,
-      data: decks.map((deck) => ({
-        id: deck.id,
-        name: deck.name,
-        description: deck.description,
-        isActive: deck.isActive,
-        teamPower: calculateTeamPower(
+      data: decks.map((deck) => {
+        // Phase 15: คะแนนตามบทบาทช่อง (โจมตี/ป้องกัน/สนับสนุน) + แกน 6 เหลี่ยม — สูตรชุดเดียวกับหน้าจัดทีม
+        const formation = formationFromSlots(
           deck.slots.map((s) => ({
-            cardId: s.cardId,
-            element: s.card.element,
-            atk: s.card.atk,
-            def: s.card.def,
-            hp: s.card.hp,
-            spd: s.card.spd,
+            position: s.position,
+            card: {
+              cardId: s.cardId,
+              name: s.card.name,
+              nameTh: s.card.nameTh,
+              element: s.card.element,
+              rarity: s.card.rarity,
+              role: s.card.role,
+              atk: s.card.atk,
+              def: s.card.def,
+              hp: s.card.hp,
+              spd: s.card.spd,
+              manaCost: s.card.manaCost,
+              skill1Name: s.card.skill1Name,
+              skill1ManaCost: s.card.skill1ManaCost,
+              skill2Name: s.card.skill2Name,
+              skill2ManaCost: s.card.skill2ManaCost,
+            },
           }))
-        ),
-        cardCount: deck.slots.length,
-        slots: deck.slots.map((s) => ({
-          position: s.position,
-          cardId: s.cardId,
-          name: s.card.name,
-          nameTh: s.card.nameTh,
-          element: s.card.element,
-          rarity: s.card.rarity,
-          role: s.card.role,
-          stats: {
-            atk: s.card.atk,
-            def: s.card.def,
-            hp: s.card.hp,
-            spd: s.card.spd,
-            manaCost: s.card.manaCost,
+        );
+        return {
+          id: deck.id,
+          name: deck.name,
+          description: deck.description,
+          isActive: deck.isActive,
+          /** @deprecated ใช้ formationScore.total (คะแนนที่คิดโบนัสช่องแล้ว) สำหรับการแสดงผลผู้เล่น */
+          teamPower: calculateTeamPower(
+            deck.slots.map((s) => ({
+              cardId: s.cardId,
+              element: s.card.element,
+              atk: s.card.atk,
+              def: s.card.def,
+              hp: s.card.hp,
+              spd: s.card.spd,
+            }))
+          ),
+          formationScore: {
+            total: formation.total,
+            baseScore: formation.baseScore,
+            bonusScore: formation.bonusScore,
+            affinityScore: formation.affinityScore,
+            axes: formation.axes,
+            grade: formation.grade,
           },
-          imageUrl: s.card.imageUrl,
-          imageStatus: s.card.imageStatus,
-        })),
-      })),
+          cardCount: deck.slots.length,
+          slots: deck.slots.map((s) => ({
+            position: s.position,
+            cardId: s.cardId,
+            name: s.card.name,
+            nameTh: s.card.nameTh,
+            element: s.card.element,
+            rarity: s.card.rarity,
+            role: s.card.role,
+            stats: {
+              atk: s.card.atk,
+              def: s.card.def,
+              hp: s.card.hp,
+              spd: s.card.spd,
+              manaCost: s.card.manaCost,
+            },
+            skills: skillsOf(s.card),
+            imageUrl: s.card.imageUrl,
+            imageStatus: s.card.imageStatus,
+          })),
+        };
+      }),
     });
   } catch (error) {
     console.error('List decks error:', error);

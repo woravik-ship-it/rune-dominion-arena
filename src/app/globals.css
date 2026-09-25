@@ -101,13 +101,16 @@ body {
   }
 }
 
-/* หมุนวงรุ้งในช่องภาพ (composited เช่นกัน) */
-@keyframes cardFoilSpin {
+/* เลื่อนแถบโฮโลแกรมในช่องภาพ (composited: transform เท่านั้น)
+   ⚠️ เดิมเป็นวงกลม conic-gradient ที่ "หมุน" → ผู้ใช้ติ 2026-09-24: เห็นเป็น "วงแหว่ง"
+   (ขอบวงกลมโผล่ในมุมภาพ) และ color-dodge ทำให้ "ภาพสีเพี้ยน" ⇒ เปลี่ยนเป็นแถบเฉดรุ้ง
+   กว้างเต็มช่องภาพ เลื่อนซ้าย↔ขวา (ไม่มีขอบวงกลมให้เห็น + screen blend ไม่เพี้ยนสี) */
+@keyframes cardFoilHolo {
   0% {
-    transform: rotate(0deg);
+    transform: translate3d(-33%, 0, 0);
   }
   100% {
-    transform: rotate(360deg);
+    transform: translate3d(33%, 0, 0);
   }
 }
 
@@ -162,29 +165,35 @@ body {
     opacity: calc(var(--foil-intensity, 0) * 0.44);
   }
 
-  /* 2) วงรุ้งหมุนในช่องภาพ — ทำให้ "ตัวภาพ" เลื่อม */
+  /* 2) แถบโฮโล/รุ้งเลื่อมในช่องภาพ — ต้อง "เต็มช่องภาพ" เสมอ (ไม่มีขอบวงกลม)
+      เดิม: inset -85%/-35% + border-radius 50% + conic-gradient + color-dodge
+      → ผู้ใช้ติ 2026-09-24: "แสงหมุนทับภาพ แหว่ง + ภาพสีเพี้ยน"
+      รอบนี้: เฉดรุ้งเป็น "แถบตรง" แผ่เต็มช่องภาพ เลื่อนซ้าย↔ขวาด้วย transform
+      + mix-blend-mode: screen ⇒ ต่อเนื่องไม่มีรอยต่อ และสีของภาพไม่เพี้ยน */
   .card-foil > .card-foil__art {
     overflow: hidden;
   }
 
   .card-foil > .card-foil__art > .card-foil__prism {
     position: absolute;
-    inset: -85% -35%;
-    border-radius: 50%;
-    background: conic-gradient(
-      from 0deg,
-      #ff2d95,
-      #ffd166,
-      #4ade80,
-      #22d3ee,
-      #6366f1,
-      #e879f9,
-      #ff2d95
+    top: 0;
+    bottom: 0;
+    left: -50%;
+    width: 200%;
+    background: linear-gradient(
+      105deg,
+      rgba(255, 45, 149, 0) 0%,
+      rgba(255, 45, 149, 0.5) 14%,
+      rgba(255, 209, 102, 0.45) 30%,
+      rgba(74, 222, 128, 0.4) 46%,
+      rgba(34, 211, 238, 0.45) 62%,
+      rgba(99, 102, 241, 0.4) 78%,
+      rgba(232, 121, 249, 0) 100%
     );
-    mix-blend-mode: color-dodge;
-    opacity: calc(var(--foil-intensity, 0) * 0.22);
-    filter: hue-rotate(var(--foil-hue, 0deg)) saturate(1.3);
-    animation: cardFoilSpin var(--foil-prism-dur, 14s) linear infinite;
+    mix-blend-mode: screen;
+    opacity: calc(var(--foil-intensity, 0) * 0.3);
+    filter: hue-rotate(var(--foil-hue, 0deg)) saturate(1.2);
+    animation: cardFoilHolo var(--foil-prism-dur, 14s) linear infinite;
     animation-delay: var(--foil-delay, 0s);
     will-change: transform;
   }
@@ -446,8 +455,9 @@ body {
   .card-aura-canvas {
     position: absolute;
     inset: -12%;
-    width: auto;
-    height: auto;
+    width: 124%;
+    height: 124%;
+    max-width: none;
     pointer-events: none;
     z-index: 2;
     mix-blend-mode: screen;
@@ -518,6 +528,106 @@ body {
   /* แสงไหล: หยุดวิ่งแต่ยังมีช่วงแสงอยู่ → ดูเป็นแสงนิ่งที่ขอบ (ไม่หายไปทั้งชั้น) */
   .card-aura__flow-core {
     opacity: calc(var(--aura-intensity, 0) * 0.7);
+  }
+}
+
+/* ============================================================================
+   หน้าจัดทีมแบบวงกลม + กราฟ 6 เหลี่ยม (Phase 15)
+   ผู้ใช้กำหนด (2026-09-25): เรียงการ์ดเป็นวงกลม (โจมตี 2 · ป้องกัน 2 · สนับสนุน 1)
+   + กราฟสถานะ 6 เหลี่ยมและคะแนนรวมตรงกลาง + Graphics เรียลไทม์ตอนการ์ดเข้า/ออก
+   ค่ามุม/พิกัดทั้งหมดมาจาก src/lib/deck-formation.ts (pure — เทสต์ได้)
+   ============================================================================ */
+
+/* วงแหวนประดับด้านนอกหมุนช้าๆ (หมุนจากศูนย์กลาง SVG ที่ (50,50)) */
+@keyframes deckRingSpin {
+  0% {
+    transform: rotate(0deg);
+  }
+  100% {
+    transform: rotate(360deg);
+  }
+}
+
+/* แสงพลังงานไหลวนตามรางวงรี (stroke-dashoffset อย่างเดียว → composited บน GPU) */
+@keyframes deckRingFlow {
+  0% {
+    stroke-dashoffset: 100;
+  }
+  100% {
+    stroke-dashoffset: 0;
+  }
+}
+
+/* การ์ดเข้าช่อง: จาง→ชัด + ขยายขึ้นเล็กน้อย (ผู้ใช้เห็นทันทีว่าการ์ดใบไหนเพิ่งเข้า) */
+@keyframes deckSlotIn {
+  0% {
+    opacity: 0;
+    transform: translateY(6px) scale(0.82);
+  }
+  60% {
+    opacity: 1;
+    transform: translateY(-2px) scale(1.04);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+/* ตัวเลขคะแนนรวมเต้นเบาๆ เมื่อค่าปลี่ยน (ทั้งกลางวงกลมและกลางหกเหลี่ยม) */
+@keyframes deckScorePop {
+  0% {
+    transform: scale(1);
+  }
+  35% {
+    transform: scale(1.16);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+
+/* เส้นเชื่อม: หายใจเบาๆ ให้วงดู "มีชีวิต" */
+@keyframes deckLinkPulse {
+  0%,
+  100% {
+    opacity: 0.55;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
+/* ใช้ผ่าน class ของ Tailwind ไม่ได้ (ชื่อไม่มีใน config) → ประกาศตรงนี้ตามแบบเดิมของโปรเจกต์ */
+.deck-ring__spin {
+  animation: deckRingSpin 26s linear infinite;
+}
+
+.deck-ring__flow {
+  animation: deckRingFlow 4.5s linear infinite;
+}
+
+.deck-slot__card {
+  animation: deckSlotIn 0.42s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.deck-core__pop {
+  animation: deckScorePop 0.5s ease-out both;
+  display: inline-block;
+}
+
+/* ผู้ใช้ที่ปิดอนิเมชัน → ค่าเข้าที่ทันที ยังเห็นวงแหวน/จุดเรืองครบ ไม่มีอะไรหายไป */
+@media (prefers-reduced-motion: reduce) {
+  .deck-ring__spin,
+  .deck-ring__flow,
+  .deck-slot__card,
+  .deck-core__pop {
+    animation: none;
+  }
+
+  .deck-ring__flow {
+    stroke-dashoffset: 50;
+    opacity: 0.65;
   }
 }
 

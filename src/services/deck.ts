@@ -2,6 +2,91 @@
 // Rules: ทีม 5 ใบ, ห้ามซ้ำ, ธาตุเดียวกัน ≤ 3 ใบ, ต้องเป็นการ์ดที่ตัวเองเป็นเจ้าของ
 
 import { DECK_SIZE, MAX_SAME_ELEMENT } from '@/lib/constants';
+import {
+  formationReport,
+  skillPower,
+  type FormationCard,
+  type FormationReport,
+  type FormationSkill,
+} from '@/lib/deck-formation';
+
+// ===== Phase 15: การจัดทีมแบบวงกลม + คะแนนตามบทบาทช่อง =====
+// ตรรกะ pure ทั้งหมดอยู่ใน src/lib/deck-formation.ts — ที่นี่เป็น "ตัวแปลงแถวจาก DB" ให้ใช้ง่ายทั้ง API
+// (หลีกเลี่ยงการเขียนสูตรซ้ำในหลาย route: โบนัสช่อง + แกน 6 ด้าน + คะแนนรวม มาจากที่เดียว)
+
+/** รูปร่างแถวการ์ดที่ต้องใช้คำนวณคะแนน (ตรงกับ Prisma CardDefinition ที่ select มา) */
+export interface CardStatRow extends SkillSource {
+  cardId: string;
+  name?: string | null;
+  nameTh?: string | null;
+  element: string;
+  rarity: string;
+  role: string;
+  atk: number;
+  def: number;
+  hp: number;
+  spd: number;
+  manaCost: number;
+}
+
+/** เฉพาะฟิลด์สกิลที่ต้องใช้ (Prisma ส่งการ์ดทั้งก้อนมาก็เข้าเงื่อนไขนี้ทันที) */
+export interface SkillSource {
+  skill1Name?: string | null;
+  skill1ManaCost?: number | null;
+  skill2Name?: string | null;
+  skill2ManaCost?: number | null;
+}
+
+/** คอลัมน์การ์ดที่ต้องใช้คิดคะแนน (ไม่มี cardId) — ใช้กับ object การ์ดจาก Prisma ได้ตรงๆ */
+export type CardStatSource = Omit<CardStatRow, 'cardId'>;
+
+/** สกิลที่มีจริงของการ์ด (1–2 สกิล) — ใช้คิด "พลังสกิล" ของช่องสนับสนุน */
+export function skillsOf(card: SkillSource): FormationSkill[] {
+  const skills: FormationSkill[] = [];
+  if (card.skill1Name) {
+    skills.push({ name: card.skill1Name, manaCost: card.skill1ManaCost ?? 0 });
+  }
+  if (card.skill2Name) {
+    skills.push({ name: card.skill2Name, manaCost: card.skill2ManaCost ?? 0 });
+  }
+  return skills;
+}
+
+/** แปลงแถวการ์ดจาก DB → การ์ดสำหรับสูตรคะแนน (ใช้ร่วมกับฝั่งเว็บที่ส่งข้อมูลชุดเดียวกัน) */
+export function toFormationCard(row: CardStatRow): FormationCard {
+  return {
+    cardId: row.cardId,
+    name: row.name ?? null,
+    nameTh: row.nameTh ?? null,
+    element: row.element,
+    rarity: row.rarity,
+    role: row.role,
+    atk: row.atk,
+    def: row.def,
+    hp: row.hp,
+    spd: row.spd,
+    manaCost: row.manaCost,
+    skills: skillsOf(row),
+  };
+}
+
+/** สรุปคะแนนการจัดทีมจาก slots ของเด็ค (ช่องที่ไม่มี position นั้น = ว่าง) */
+export function formationFromSlots(
+  slots: Array<{ position: number; card: CardStatRow }>
+): FormationReport {
+  const byPosition: Array<FormationCard | null> = [null, null, null, null, null];
+  for (const slot of slots) {
+    if (slot.position >= 0 && slot.position < byPosition.length) {
+      byPosition[slot.position] = toFormationCard(slot.card);
+    }
+  }
+  return formationReport(byPosition);
+}
+
+/** พลังสกิลรวมทั้งทีม (ใช้แสดง/ตรวจสอบจากฝั่งเซิร์ฟเวอร์) */
+export function teamSkillPower(slots: Array<{ card: SkillSource }>): number {
+  return slots.reduce((sum, slot) => sum + skillPower(skillsOf(slot.card)), 0);
+}
 
 export interface DeckCardInput {
   cardId: string;
