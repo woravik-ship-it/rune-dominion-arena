@@ -5,11 +5,14 @@
  *
  *   1) การ์ด 10 ใบเรียงบน 5 (คู่ต่อสู้) / ล่าง 5 (เรา)
  *   2) การ์ดทุกใบมี HP/MP
- *   3) เฟรมสุดท้ายมีดาบ (คนโจมตี) + โล่/แดง (คนรับ)
- *   4) HP รวมตรงกับผลรวม HP การ์ด
- *   5) log ใหม่สุดอยู่บน (order มาก→น้อย)
- *   6) ไอคอนสถานะ (🔥 เผา · 💧 อ่อนแอ · 🛡️ โล่ · ⚡ ว่องไว) ตรงกับข้อมูลบนการ์ด
- *   7) ไม่ถูก onboarding modal บังภาพ (ภาพที่ได้ใช้รีวิวได้จริง)
+ *   3) การ์ดแสดงเต็มใบ — กรอบการ์ดครบทุกใบ + จำนวนรูปจริงตรงกับ cardMeta จาก API + สูงพอเห็นรูป
+ *   4) ชื่อทีม = ชื่อ Deck จริง (ไม่ใช่ "ทีม A / ทีม B")
+ *   5) ปุ่มข้ามไม่มีคำว่า "รู้ผล"
+ *   6) เฟรมสุดท้ายมีดาบ (คนโจมตี) + โล่/แดง (คนรับ)
+ *   7) HP รวมตรงกับผลรวม HP การ์ด
+ *   8) log ใหม่สุดอยู่บน (order มาก→น้อย)
+ *   9) ไอคอนสถานะ (🔥 เผา · 💧 อ่อนแอ · 🛡️ โล่ · ⚡ ว่องไว) ตรงกับข้อมูลบนการ์ด
+ *  10) ไม่ถูก onboarding modal บังภาพ (ภาพที่ได้ใช้รีวิวได้จริง)
  *
  * วิธีใช้:
  *   node scripts/inspect-battle-field.mjs --token "<session>" --battle <battleId>
@@ -47,6 +50,12 @@ const MEASURE = `(() => {
       status: el.getAttribute('data-battle-status') || '',
       statusBadges: el.querySelectorAll('[data-battle-status-badge]').length,
       hit: Boolean(el.querySelector('[data-battle-hit]')),
+      /** มีรูปการ์ดจริงในช่องภาพไหม (ผู้ใช้สั่ง: ต้องแสดงการ์ดเต็มใบ) */
+      art: el.querySelectorAll('img[src*="/art"]').length,
+      /** มีกรอบการ์ด (overlay ของ CardFace) ไหม */
+      frame: el.querySelectorAll('img[src*="/image"]').length,
+      w: Math.round(box.width),
+      h: Math.round(box.height),
       cy: Math.round(box.top + box.height / 2),
     };
   });
@@ -54,10 +63,18 @@ const MEASURE = `(() => {
     side: el.getAttribute('data-team-hp'),
     text: (el.textContent || '').trim(),
   }));
+  const teamNames = [...document.querySelectorAll('[data-team-name]')].map((el) => ({
+    side: el.getAttribute('data-team-name'),
+    text: (el.textContent || '').trim(),
+  }));
   const logOrders = [...document.querySelectorAll('[data-log-order]')].map((el) =>
     Number(el.getAttribute('data-log-order'))
   );
-  return { path: location.pathname, cards, teamHp, logOrders };
+  const skipLabel = (() => {
+    const btn = [...document.querySelectorAll('button')].find((b) => (b.textContent || '').includes('ข้าม'));
+    return btn ? (btn.textContent || '').trim() : '';
+  })();
+  return { path: location.pathname, cards, teamHp, teamNames, logOrders, skipLabel };
 })()`;
 
 async function connect(wsUrl) {
@@ -226,6 +243,54 @@ try {
     'การ์ดทุกใบมี HP/MP',
     after.cards.length > 0 && after.cards.every((c) => Number.isFinite(c.hp) && Number.isFinite(c.mp)),
     after.cards.map((c) => `${c.hp}/${c.mp}`).join(' '),
+  ]);
+
+  // ผู้ใช้สั่ง: "แสดงรูปการ์ดแบบเต็ม" → ต้องมีการ์ดเต็มใบ (กรอบการ์ด + รูปจริง) ขนาดที่เห็นรูปได้
+  // เทียบกับข้อมูลจริงจาก API: การ์ดที่มี imageUrl จริงกี่ใบ → ต้องเห็นรูปบนหน้าจอเท่านั้น
+  let expectedArt = -1;
+  try {
+    const apiRes = await fetch(`${BASE}/api/battle/${BATTLE}/log`, {
+      headers: TOKEN ? { cookie: `rda_session=${TOKEN}` } : {},
+    });
+    const apiData = await apiRes.json();
+    const teams = apiData?.data?.battleData?.teams ?? {};
+    const meta = apiData?.data?.cardMeta ?? {};
+    const ids = [...new Set([...(teams.A ?? []), ...(teams.B ?? [])].map((c) => c.cardId))];
+    expectedArt = ids.filter((id) => {
+      const url = meta[id]?.imageUrl;
+      return Boolean(url) && !String(url).includes('/image');
+    }).length;
+  } catch (error) {
+    console.error('อ่าน cardMeta จาก API ไม่ได้:', error instanceof Error ? error.message : error);
+  }
+  const withFrame = after.cards.filter((c) => c.frame > 0).length;
+  const withArt = after.cards.filter((c) => c.art > 0).length;
+  const minH = after.cards.length ? Math.min(...after.cards.map((c) => c.h)) : 0;
+  checks.push([
+    'การ์ดแสดงเต็มใบ (กรอบการ์ดครบทุกใบ + รูปจริงตรงกับข้อมูล + สูงพอเห็นรูป)',
+    after.cards.length > 0 &&
+      withFrame === after.cards.length &&
+      minH >= 120 &&
+      expectedArt >= 1 &&
+      withArt === expectedArt,
+    `กรอบ ${withFrame}/${after.cards.length} · รูปจริงบนจอ ${withArt} (API บอก ${expectedArt < 0 ? '?' : expectedArt}) · สูงต่ำสุด ${minH}px`,
+  ]);
+
+  // ผู้ใช้สั่ง: "ชื่อทีม ใส่ชื่อ Deck ไปเลย" → ป้ายชื่อทีมต้องเป็นชื่อ Deck จริง ไม่ใช่ ทีม A/ทีม B
+  const genericNames = ['ทีม A', 'ทีม B', 'ทีมของฉัน', 'คู่ต่อสู้'];
+  const names = after.teamNames ?? [];
+  checks.push([
+    'ชื่อทีมเป็นชื่อ Deck จริง (ไม่ใช่ "ทีม A/ทีม B")',
+    names.length === 2 &&
+      names.every((n) => n.text.length > 0 && !genericNames.includes(n.text)),
+    names.map((n) => `${n.side}=${n.text}`).join(' · ') || '(ไม่พบป้ายชื่อทีม)',
+  ]);
+
+  // ผู้ใช้สั่ง: ปุ่มข้ามต้องไม่มีคำว่า "รู้ผล"
+  checks.push([
+    'ปุ่มข้ามไม่มีคำว่า "รู้ผล"',
+    Boolean(after.skipLabel) && !after.skipLabel.includes('รู้ผล'),
+    `ป้ายปุ่ม = "${after.skipLabel}"`,
   ]);
 
   const atkCount = mid.cards.filter((c) => c.attacker).length;

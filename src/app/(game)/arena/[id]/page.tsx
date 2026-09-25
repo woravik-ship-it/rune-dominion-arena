@@ -1,8 +1,10 @@
 'use client';
 
 import { apiFetch } from '@/lib/api-client';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useParams, useRouter } from 'next/navigation';
+import Link from 'next/link';
+import CardFace from '@/components/cards/CardFace';
 
 interface BoardEntry {
   rank: number;
@@ -25,18 +27,38 @@ interface RoomDetail {
   leaderboard: BoardEntry[];
 }
 
+/** เด็คของฉัน (จาก /api/decks) — ใช้เป็น "เมนูเลือกทีม" ก่อนเข้าร่วม/ท้าทาย */
+interface DeckOption {
+  id: string;
+  name: string;
+  cardCount: number;
+  teamPower: number;
+  formationScore?: { total: number };
+  slots: {
+    cardId: string;
+    name: string;
+    nameTh: string | null;
+    rarity: string;
+    imageUrl: string | null;
+    imageStatus: string | null;
+  }[];
+}
+
 export default function ArenaRoomPage() {
   const params = useParams();
   const router = useRouter();
   const roomId = params.id as string;
 
   const [room, setRoom] = useState<RoomDetail | null>(null);
+  const [decks, setDecks] = useState<DeckOption[]>([]);
+  const [deckId, setDeckId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
   const [err, setErr] = useState<string | null>(null);
 
-  useEffect(() => { loadRoom(); }, [roomId]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(() => { loadRoom(); loadDecks(); }, [roomId]);
 
   const loadRoom = async () => {
     try {
@@ -47,46 +69,60 @@ export default function ArenaRoomPage() {
     finally { setLoading(false); }
   };
 
-  const needDeckThen = async (): Promise<string | null> => {
-    const decksRes = await apiFetch('/api/decks');
-    const decksData = await decksRes.json();
-    const full = decksData.data?.find((d: { cardCount: number; id: string }) => d.cardCount === 5);
-    return full?.id ?? null;
+  /** เมนูเลือกทีม: เด็คที่ใช้ได้ = มี 5 ใบ (เด็คไม่ครบเลือกไม่ได้ แต่แสดงให้เห็นว่าต้องไปจัดเพิ่ม) */
+  const loadDecks = async () => {
+    try {
+      const res = await apiFetch('/api/decks');
+      const data = await res.json();
+      const list: DeckOption[] = data.data ?? [];
+      setDecks(list);
+      const firstFull = list.find((d) => d.cardCount === 5);
+      if (firstFull) setDeckId((prev) => prev ?? firstFull.id);
+    } catch (e) { console.error(e); }
+  };
+
+  const selectedDeck = useMemo(() => decks.find((d) => d.id === deckId) ?? null, [decks, deckId]);
+
+  /** เด็คที่เลือกต้องมี 5 ใบ (ตรงกับที่ API บังคับ) */
+  const requireDeck = (): string | null => {
+    if (!selectedDeck) { setErr('เลือกทีม (Deck) ก่อน'); return null; }
+    if (selectedDeck.cardCount !== 5) { setErr('เด็คที่เลือกยังไม่ครบ 5 ใบ — ไปจัดทีมก่อน'); return null; }
+    return selectedDeck.id;
   };
 
   const handleJoin = async () => {
     setErr(null); setMsg(null);
-    const deckId = await needDeckThen();
-    if (!deckId) { setErr('ต้องมีเด็ค 5 ใบก่อน'); return; }
-    if (!confirm(`ใช้ Coin ${room?.entryFee} เหรียญเพื่อเข้าท้าทายห้องนี้?`)) return;
+    const pickedDeckId = requireDeck();
+    if (!pickedDeckId) return;
+    if (!confirm(`ใช้ Coin ${room?.entryFee} เหรียญเพื่อเข้าท้าทายห้องนี้ด้วยทีม "${selectedDeck?.name}"?`)) return;
     setBusy(true);
     try {
       const res = await apiFetch(`/api/arena/${roomId}/join`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          deckId,
+          deckId: pickedDeckId,
           idempotencyKey: `${roomId}-temp-${Date.now()}`,
         }),
       });
       const data = await res.json();
       if (!res.ok) { setErr(data.error || 'เข้าร่วมไม่สำเร็จ'); return; }
-      setMsg('เข้าร่วมแล้ว! กดท้าทายเพื่อสู้กับแชมป์');
+      setMsg(`เข้าร่วมด้วยทีม "${selectedDeck?.name}" แล้ว! กดท้าทายเพื่อสู้กับแชมป์`);
       await loadRoom();
     } finally { setBusy(false); }
   };
 
   const handleChallenge = async () => {
     setErr(null); setMsg(null);
-    const deckId = await needDeckThen();
-    if (!deckId) { setErr('ต้องมีเด็ค 5 ใบก่อน'); return; }
+    const pickedDeckId = requireDeck();
+    if (!pickedDeckId) return;
     setBusy(true);
     try {
       const res = await apiFetch(`/api/arena/${roomId}/challenge`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          deckId,
+          deckId: pickedDeckId,
           idempotencyKey: `ch-${roomId}-temp-${Date.now()}`,
         }),
       });
@@ -127,11 +163,81 @@ export default function ArenaRoomPage() {
         {msg && <p className="text-green-400 text-sm mb-3">{msg}</p>}
         {err && <p className="text-red-400 text-sm mb-3">{err}</p>}
 
+        {/* ── เมนูเลือกทีม (Deck) ก่อนเข้าร่วม/ท้าทาย — ผู้ใช้สั่ง 2026-09-25 */}
+        <section
+          data-arena-deck-picker="true"
+          data-arena-selected-deck={deckId ?? ''}
+          className="mb-4 rounded-xl border border-gray-700 bg-gray-800/60 p-3"
+        >
+          <h2 className="mb-2 text-sm font-bold">เลือกทีม (Deck) ที่จะใช้ประลอง</h2>
+          {decks.length === 0 ? (
+            <p className="text-sm text-gray-400">
+              ยังไม่มีเด็ค — <Link href="/decks" className="text-amber-400 underline">ไปจัดทีม 5 ใบ</Link>
+            </p>
+          ) : (
+            <div className="grid gap-2 sm:grid-cols-2">
+              {decks.map((d) => {
+                const usable = d.cardCount === 5;
+                const active = deckId === d.id;
+                return (
+                  <button
+                    key={d.id}
+                    type="button"
+                    data-arena-deck={d.id}
+                    data-arena-deck-usable={usable ? 'true' : 'false'}
+                    disabled={!usable}
+                    onClick={() => { setDeckId(d.id); setErr(null); }}
+                    className={`rounded-lg border-2 p-2 text-left transition-all ${
+                      active ? 'border-amber-400 bg-gray-700' : 'border-gray-700 bg-gray-800'
+                    } ${usable ? '' : 'opacity-50'}`}
+                  >
+                    <div className="truncate font-bold">
+                      {active ? '✅ ' : ''}{d.name}
+                    </div>
+                    <div className="text-[11px] text-gray-400">
+                      ⚡ {(d.formationScore?.total ?? d.teamPower).toLocaleString('th-TH')} • {d.cardCount}/5 ใบ
+                      {!usable && ' (ยังไม่ครบ)'}
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+          )}
+
+          {/* พรีวิวการ์ด 5 ใบของทีมที่เลือก (ต้องเห็นภาพจริงก่อนตัดสินใจใช้ Coin) */}
+          {selectedDeck && (
+            <div className="mt-3">
+              <p className="mb-1 text-[11px] text-gray-400">
+                ดูการ์ดในทีม: <span className="font-bold text-gray-200">{selectedDeck.name}</span>
+                {' '}({selectedDeck.cardCount}/5 ใบ)
+              </p>
+              <div data-arena-deck-preview={selectedDeck.id} className="grid grid-cols-5 gap-1">
+                {selectedDeck.slots.map((s) => (
+                  <div
+                    key={s.cardId}
+                    data-arena-deck-card={s.cardId}
+                    className="relative aspect-[7/10] overflow-hidden rounded-md border border-gray-700 bg-black/40"
+                    title={s.nameTh || s.name}
+                  >
+                    <CardFace
+                      cardId={s.cardId}
+                      imageUrl={s.imageUrl}
+                      imageStatus={s.imageStatus}
+                      rarity={s.rarity}
+                      alt={s.nameTh || s.name}
+                    />
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </section>
+
         <div className="flex gap-2 mb-6">
-          <button onClick={handleJoin} disabled={busy} className="btn-secondary text-sm flex-1">
+          <button onClick={handleJoin} disabled={busy || !selectedDeck} className="btn-secondary text-sm flex-1 disabled:opacity-50">
             เข้าร่วม ({room.entryFee} Coin)
           </button>
-          <button onClick={handleChallenge} disabled={busy} className="btn-primary text-sm flex-1">
+          <button onClick={handleChallenge} disabled={busy || !selectedDeck} className="btn-primary text-sm flex-1 disabled:opacity-50">
             ⚔️ ท้าทายแชมป์
           </button>
         </div>

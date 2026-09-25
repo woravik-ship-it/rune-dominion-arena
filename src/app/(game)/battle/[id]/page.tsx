@@ -6,6 +6,8 @@ import { useParams } from 'next/navigation';
 import Link from 'next/link';
 import type { BattleLogEntry, CombatCard } from '@/services/combat';
 import { BATTLE_ACTION_ICON, buildReplayFrames, cardStatuses } from '@/services/battle-replay';
+import type { BattleCardMeta } from '@/services/battle-display';
+import CardFace from '@/components/cards/CardFace';
 import { BATTLE_MANA_MAX } from '@/lib/constants';
 
 interface BattleData {
@@ -14,6 +16,10 @@ interface BattleData {
   roundsPlayed: number;
   log: BattleLogEntry[];
   teams: { A: CombatCard[]; B: CombatCard[] } | null;
+  /** ชื่อทีม (ชื่อ Deck จริง) จาก API */
+  teamNames: { A: string; B: string };
+  /** ข้อมูลการ์ดสำหรับวาดการ์ดเต็มใบ (key = cardId) */
+  cardMeta: Record<string, BattleCardMeta>;
 }
 
 // ความเร็วตามคำสั่งผู้ใช้: x1 ดูออก (ไม่เร่งใส) · x4/x8 เร็วขึ้น · ข้าม = รู้ผลเลย
@@ -66,6 +72,9 @@ export default function BattleViewerPage() {
           roundsPlayed: bd.roundsPlayed,
           log: bd.log ?? [],
           teams: bd.teams ?? null,
+          // ชื่อทีม/ข้อมูลการ์ดมาจาก API (ผู้ใช้สั่ง: ชื่อทีม = ชื่อ Deck · การ์ดวาดเต็มใบ)
+          teamNames: data.data.teamNames ?? { A: 'ทีมของฉัน', B: 'คู่ต่อสู้' },
+          cardMeta: data.data.cardMeta ?? {},
         });
       }
     } catch (e) { console.error(e); }
@@ -143,8 +152,9 @@ export default function BattleViewerPage() {
   const hpPctB = frame && frame.maxHpB > 0 ? (frame.hpB / frame.maxHpB) * 100 : 0;
 
   const renderSide = (cards: NonNullable<typeof frame>['teamA']) => (
-    <div className="grid grid-cols-5 gap-1.5">
+    <div className="grid grid-cols-5 gap-1">
       {cards.map((c) => {
+        const meta = battle.cardMeta[c.cardId];
         const isAttacker = frame?.attackerId === c.cardId;
         const isDefender = frame?.defenderId === c.cardId;
         const pct = c.maxHp > 0 ? (c.hp / c.maxHp) * 100 : 0;
@@ -160,44 +170,66 @@ export default function BattleViewerPage() {
             data-battle-hp={c.hp}
             data-battle-mp={c.mana}
             data-battle-status={statuses.map((s) => s.key).join(',')}
-            className={`relative rounded-lg border-2 bg-gray-900/80 p-1 text-center transition-all ${
-              c.alive ? '' : 'opacity-40 grayscale'
-            }`}
-            style={{
-              borderColor: c.alive ? border : '#4b5563',
-              boxShadow: isAttacker
-                ? '0 0 10px #fbbf24'
-                : isDefender
-                  ? '0 0 10px rgba(239,68,68,0.8)'
-                  : undefined,
-            }}
-            title={`${c.nameTh || c.name} · HP ${c.hp}/${c.maxHp} · MP ${c.mana}/${BATTLE_MANA_MAX}${
-              statuses.length ? ` · ${statuses.map((s) => s.label).join(' · ')}` : ''
-            }`}
+            className="min-w-0"
           >
-            {isAttacker && (
-              <span className="absolute -top-2 -right-1 rounded-full bg-amber-400 px-1 text-[11px] leading-5" title="กำลังโจมตี">
-                ⚔️
-              </span>
-            )}
-            {isDefender && (
-              <span className="absolute -top-2 -left-1 rounded-full bg-sky-400 px-1 text-[11px] leading-5" title="กำลังรับการโจมตี">
-                🛡️
-              </span>
-            )}
-            {isDefender && (
-              <span className="pointer-events-none absolute inset-0 rounded-md bg-red-500/25" data-battle-hit="true" />
-            )}
-            {!c.alive && (
-              <span className="pointer-events-none absolute inset-0 flex items-center justify-center rounded-md bg-black/60 text-xl">
-                💀
-              </span>
-            )}
-            <div className="truncate text-[10px] font-bold text-gray-100">{c.nameTh || c.name}</div>
+            {/* การ์ดเต็มใบ (ภาพ AI + กรอบ/ชื่อ/สเตตัส + แสงเรือง) — ผู้ใช้สั่ง "แสดงรูปการ์ดแบบเต็ม" */}
+            <div
+              className={`relative aspect-[7/10] overflow-hidden rounded-lg border-2 bg-black/40 transition-all ${
+                c.alive ? '' : 'opacity-40 grayscale'
+              }`}
+              style={{
+                borderColor: c.alive ? border : '#4b5563',
+                boxShadow: isAttacker
+                  ? '0 0 10px #fbbf24'
+                  : isDefender
+                    ? '0 0 10px rgba(239,68,68,0.8)'
+                    : undefined,
+              }}
+              title={`${c.nameTh || c.name} · HP ${c.hp}/${c.maxHp} · MP ${c.mana}/${BATTLE_MANA_MAX}${
+                statuses.length ? ` · ${statuses.map((s) => s.label).join(' · ')}` : ''
+              }`}
+            >
+              <CardFace
+                cardId={c.cardId}
+                imageUrl={meta?.imageUrl}
+                imageStatus={meta?.imageStatus}
+                rarity={meta?.rarity}
+                alt={c.nameTh || c.name}
+              />
+              {isDefender && (
+                <span
+                  className="pointer-events-none absolute inset-0 rounded-md bg-red-500/30"
+                  data-battle-hit="true"
+                />
+              )}
+              {!c.alive && (
+                <span className="pointer-events-none absolute inset-0 flex items-center justify-center bg-black/60 text-xl">
+                  💀
+                </span>
+              )}
+              {isAttacker && (
+                <span
+                  className="absolute -top-2 -right-1 rounded-full bg-amber-400 px-1 text-[11px] leading-5"
+                  title="กำลังโจมตี"
+                >
+                  ⚔️
+                </span>
+              )}
+              {isDefender && (
+                <span
+                  className="absolute -top-2 -left-1 rounded-full bg-sky-400 px-1 text-[11px] leading-5"
+                  title="กำลังรับการโจมตี"
+                >
+                  🛡️
+                </span>
+              )}
+            </div>
+
+            {/* HP/MP ต่อใบ — วางใต้การ์ด ไม่ทับรูป */}
             <div className="mt-0.5 h-1.5 overflow-hidden rounded-full bg-gray-700" title={`HP ${c.hp}/${c.maxHp}`}>
               <div className={`h-full ${barColor(pct)}`} style={{ width: `${Math.max(0, Math.min(100, pct))}%` }} />
             </div>
-            <div className="mt-0.5 flex justify-between text-[9px] leading-tight">
+            <div className="flex justify-between text-[9px] leading-tight">
               <span className="text-emerald-300">❤️ {c.hp}</span>
               <span className="text-sky-300">🔷 {c.mana}</span>
             </div>
@@ -227,10 +259,14 @@ export default function BattleViewerPage() {
 
   return (
     <main className="min-h-screen p-4">
-      <div className="max-w-2xl mx-auto">
+      <div className="mx-auto max-w-3xl">
         <h1 className="text-2xl font-bold text-center mb-1">สนามรบ</h1>
+        {/* ชื่อทีม = ชื่อ Deck จริงของแต่ละฝ่าย (ผู้ใช้สั่ง) */}
         <p className="text-center text-gray-400 text-sm mb-4">
-          ทีม A (คุณ) vs ทีม B • {battle.roundsPlayed} รอบ
+          <span data-team-name="A" className="text-blue-300 font-bold">{battle.teamNames.A}</span>
+          <span className="mx-1">vs</span>
+          <span data-team-name="B" className="text-red-300 font-bold">{battle.teamNames.B}</span>
+          {' • '}{battle.roundsPlayed} รอบ
         </p>
 
         {finished && (
@@ -241,7 +277,7 @@ export default function BattleViewerPage() {
           <div className="mb-3 space-y-1.5 rounded-xl bg-gray-800/70 p-2.5">
             <div>
               <div className="mb-0.5 flex justify-between text-[11px]">
-                <span className="font-bold text-blue-300">🛡️ ทีมเรา (ล่าง) HP รวม</span>
+                <span className="font-bold text-blue-300">🛡️ {battle.teamNames.A} (ล่าง) HP รวม</span>
                 <span className="text-gray-200" data-team-hp="A">{frame.hpA.toLocaleString('th-TH')}/{frame.maxHpA.toLocaleString('th-TH')}</span>
               </div>
               <div className="h-2 overflow-hidden rounded-full bg-gray-700">
@@ -250,7 +286,7 @@ export default function BattleViewerPage() {
             </div>
             <div>
               <div className="mb-0.5 flex justify-between text-[11px]">
-                <span className="font-bold text-red-300">⚔️ คู่ต่อสู้ (บน) HP รวม</span>
+                <span className="font-bold text-red-300">⚔️ {battle.teamNames.B} (บน) HP รวม</span>
                 <span className="text-gray-200" data-team-hp="B">{frame.hpB.toLocaleString('th-TH')}/{frame.maxHpB.toLocaleString('th-TH')}</span>
               </div>
               <div className="h-2 overflow-hidden rounded-full bg-gray-700">
@@ -263,12 +299,12 @@ export default function BattleViewerPage() {
         {frame ? (
           <div className="mb-3 space-y-2">
             <div className="rounded-xl border border-red-900/50 bg-red-950/20 p-2">
-              <p className="mb-1 text-[11px] font-bold text-red-300">คู่ต่อสู้ (บน)</p>
+              <p className="mb-1 text-[11px] font-bold text-red-300">⬆ {battle.teamNames.B} (บน)</p>
               {renderSide(frame.teamB)}
             </div>
             <div className="text-center text-[11px] text-gray-500">⚔️ VS ⚔️</div>
             <div className="rounded-xl border border-blue-900/50 bg-blue-950/20 p-2">
-              <p className="mb-1 text-[11px] font-bold text-blue-300">ทีมเรา (ล่าง)</p>
+              <p className="mb-1 text-[11px] font-bold text-blue-300">⬇ {battle.teamNames.A} (ล่าง)</p>
               {renderSide(frame.teamA)}
             </div>
           </div>
@@ -287,7 +323,7 @@ export default function BattleViewerPage() {
             <button onClick={pausePlay} className="btn-secondary text-sm">⏸ หยุด</button>
           )}
           <button onClick={restart} className="btn-secondary text-sm">↺ เริ่มใหม่</button>
-          <button onClick={skipAll} className="btn-secondary text-sm">⏩ ข้าม (รู้ผลเลย)</button>
+          <button onClick={skipAll} className="btn-secondary text-sm">⏩ ข้าม</button>
           <div className="flex gap-1">
             {SPEEDS.map((s) => (
               <button

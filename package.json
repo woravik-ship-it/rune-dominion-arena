@@ -33,6 +33,7 @@
     "inspect:canvas": "node scripts/inspect-card-canvas.mjs",
     "inspect:deck": "node scripts/inspect-deck-formation.mjs",
     "inspect:battle": "node scripts/inspect-battle-field.mjs",
+    "inspect:arena": "node scripts/inspect-arena-room.mjs",
     "shoot:aura": "node scripts/shoot-aura-preview.mjs"
   },
   "dependencies": {
