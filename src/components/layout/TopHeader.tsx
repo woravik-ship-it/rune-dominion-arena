@@ -41,11 +41,18 @@ export default function TopHeader() {
 
   return (
     <header className="sticky top-0 z-50 bg-black/80 backdrop-blur-md border-b border-white/10">
-      <div className="max-w-7xl mx-auto px-4 h-14 flex items-center justify-between">
-        <Link href="/" className="text-xl font-bold bg-gradient-to-r from-amber-400 to-orange-500 bg-clip-text text-transparent">
-          Rune Dominion
+      <div className="mx-auto flex h-14 max-w-7xl items-center gap-2 px-3 sm:px-4">
+        <Link
+          href="/"
+          className="shrink-0 text-lg font-bold bg-gradient-to-r from-amber-400 to-orange-500 bg-clip-text text-transparent sm:text-xl"
+        >
+          {/* มือถือ: ย่อชื่อแบรนด์ (ผู้ใช้สั่ง: UI มือถือต้องพอดี ไม่ล้นขอบ) */}
+          <span className="sm:hidden">🔮 RDA</span>
+          <span className="hidden sm:inline">Rune Dominion</span>
         </Link>
-        <nav className="flex items-center gap-3 md:gap-4 overflow-x-auto scrollbar-hide">
+
+        {/* ลิงก์ข้อความ: จอใหญ่เท่านั้น — มือถือใช้แถบล่าง (5 เมนู + ปุ่ม "เพิ่มเติม") */}
+        <nav className="hidden min-w-0 flex-1 items-center gap-3 overflow-x-auto scrollbar-hide md:flex md:gap-4">
           <Link href="/discover" className="shrink-0 whitespace-nowrap text-sm text-gray-300 hover:text-white transition-colors">
             Discover
           </Link>
@@ -64,7 +71,7 @@ export default function TopHeader() {
           <Link href="/battle" className="shrink-0 whitespace-nowrap text-sm text-gray-300 hover:text-white transition-colors">
             Battle
           </Link>
-          <Link href="/arena" className="shrink-0 whitespace-nowrap text-sm text-gray-300 hover:text-white transition-colors hidden md:inline">
+          <Link href="/arena" className="shrink-0 whitespace-nowrap text-sm text-gray-300 hover:text-white transition-colors">
             Arena
           </Link>
           {user && (user.role === 'ADMIN' || user.role === 'MODERATOR') && (
@@ -76,35 +83,50 @@ export default function TopHeader() {
               ⚙️ Admin
             </Link>
           )}
-          <Link href="/discover" className="shrink-0 whitespace-nowrap text-sm font-bold text-sky-300 hover:text-sky-200 transition-colors" title="พลังค้นหา (เหลือ/วัน)">
+        </nav>
+
+        {/* สถานะผู้เล่น (พลังค้นหา/Coin/ชื่อ) — โชว์ทุกจอแต่ย่อบนมือถือให้พอดี */}
+        <div className="ml-auto flex min-w-0 shrink-0 items-center gap-2 sm:gap-3">
+          <Link
+            href="/discover"
+            className="shrink-0 text-sm font-bold text-sky-300 hover:text-sky-200 transition-colors"
+            title="พลังค้นหา (เหลือ/วัน)"
+          >
             ⚡ {energy === null ? '...' : energy}
           </Link>
-          <Link href="/wallet" className="text-sm font-bold text-amber-400 hover:text-amber-300 transition-colors">
+          <Link
+            href="/wallet"
+            className="shrink-0 text-sm font-bold text-amber-400 hover:text-amber-300 transition-colors"
+            title="Coin"
+          >
             🪙 {balance === null ? '...' : balance.toLocaleString('th-TH')}
           </Link>
           {user ? (
-            <div className="flex items-center gap-2">
+            <div className="flex min-w-0 items-center gap-2">
               <Link
                 href="/profile"
-                className="text-sm text-gray-200 hover:text-white transition-colors max-w-[8rem] truncate"
+                className="flex min-w-0 items-center text-sm text-gray-200 transition-colors hover:text-white"
                 title={user.displayName || user.username}
               >
-                👤 {user.displayName || user.username}
+                <span className="shrink-0">👤</span>
+                <span className="ml-1 hidden max-w-[7rem] truncate sm:inline">
+                  {user.displayName || user.username}
+                </span>
               </Link>
               <button
                 onClick={logout}
-                className="text-xs text-gray-400 hover:text-red-400 transition-colors"
+                className="shrink-0 text-xs text-gray-400 transition-colors hover:text-red-400"
                 aria-label="ออกจากระบบ"
               >
-                ออกจากระบบ
+                ออก<span className="hidden sm:inline">จากระบบ</span>
               </button>
             </div>
           ) : (
-            <Link href="/login" className="text-sm text-amber-400 hover:text-amber-300 transition-colors">
+            <Link href="/login" className="shrink-0 text-sm text-amber-400 hover:text-amber-300 transition-colors">
               เข้าสู่ระบบ
             </Link>
           )}
-        </nav>
+        </div>
       </div>
     </header>
   );
