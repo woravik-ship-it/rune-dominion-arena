@@ -21,14 +21,16 @@ import {
   roundedRectPath,
   tierLayers,
 } from '@/lib/card-aura';
+import { neonSpec, orbitSpec, spiralStrands } from '@/lib/card-canvas';
 
 // Phase 14.10: ชั้น "แสงเรืองแบบไอเทมตีบวก" (item upgrade glow) — SVG glow ล้วน
-// กติกาเดิมที่ต้องไม่หลุด: COMMON/UNCOMMON = การ์ดธรรมดา ไม่มีแสง
+// กติกา (แก้ 2026-09-25): COMMON = การ์ดธรรมดา ไม่มีแสง · UNCOMMON = เริ่มมี "แสงวิ่งรอบขอบ" (PLUS5)
 const RARITIES = ['COMMON', 'UNCOMMON', 'RARE', 'EPIC', 'LEGENDARY', 'MYTHIC'] as const;
 
 describe('auraSpec — กติกาแสงเรืองตามระดับ', () => {
-  test('การ์ดธรรมดา (COMMON/UNCOMMON) ไม่มีแสง', () => {
-    for (const rarity of ['COMMON', 'UNCOMMON']) {
+  test('COMMON ไม่มีแสง · UNCOMMON เริ่มมีแสง (PLUS5 = วิ่งรอบขอบ)', () => {
+    // COMMON + ระดับที่ไม่รู้จัก = ไม่มีแสงเลย
+    for (const rarity of ['COMMON', undefined, null, 'x']) {
       const spec = auraSpec(rarity);
       expect(spec.tier).toBe('NONE');
       expect(spec.intensity).toBe(0);
@@ -42,6 +44,14 @@ describe('auraSpec — กติกาแสงเรืองตามระด
         clip: false,
       });
     }
+    // UNCOMMON = ระดับต่ำสุดที่มีแสง (ผู้ใช้สั่ง "เอาตั้งแต่ Uncommon เลย")
+    const un = auraSpec('UNCOMMON');
+    expect(un.tier).toBe('PLUS5');
+    expect(un.intensity).toBeGreaterThan(0);
+    expect(un.intensity).toBeLessThan(auraSpec('RARE').intensity);
+    expect(auraEnabled('UNCOMMON')).toBe(true);
+    expect(tierLayers('UNCOMMON').halo).toBe(true);
+    expect(tierLayers('UNCOMMON').flare).toBe(false);
   });
 
   test('RARE ขึ้นไปมีแสง และเข้มขึ้นตามระดับ (จังหวะเร็วขึ้นด้วย)', () => {
@@ -137,7 +147,7 @@ describe('tierLayers / auraLayers — องค์ประกอบแสงท
     expect(layers.pillar).toBe(false);
     // การ์ดธรรมดา: ไม่มีแสงแม้เลือกดีไซน์ flow
     expect(auraLayers('flow', 'COMMON').flow).toBe(false);
-    expect(auraLayers('flow', 'UNCOMMON').halo).toBe(false);
+    expect(auraLayers('flow', 'COMMON').halo).toBe(false);
   });
 
   test('ทุกดีไซน์ SVG มีขอบเรืองเป็นฐาน (halo) เมื่อระดับมีแสง', () => {
@@ -373,39 +383,57 @@ describe('roundedRectPath / auraClipPaths — รูสำหรับตัด�
   });
 });
 
-// Phase 14.11: นำดีไซน์ `inner` ไปใช้จริงบนการ์ด (ผู้ใช้เลือกจากภาพจริง 2026-09-23: "ลองทำแบบ inner")
-// CardFace ใช้ DEFAULT_AURA_VARIANT เป็นค่าตั้งต้น → ทุกหน้าที่ใช้ CardFace ได้แสงนี้ทันที
-describe('การนำไปใช้จริงบนการ์ด — ดีไซน์ตั้งต้น', () => {
-  test('ดีไซน์ตั้งต้นคือ inner และอยู่ในรายการดีไซน์ที่รองรับ', () => {
-    expect(DEFAULT_AURA_VARIANT).toBe('inner');
+// Phase 14.14 (2026-09-25): ผู้ใช้ส่ง GIF อ้างอิง (dreamassets 419-424) สั่ง "ให้แก้ effect เป็นเหมือนตัวอย่าง"
+// → ดีไซน์ที่ใช้จริงทั้งเกมเปลี่ยนจาก `inner` (SVG) เป็น `neon` (Canvas 2D + แถบแสงวนรอบ/วงแหวนฐาน)
+// CardFace ใช้ DEFAULT_AURA_VARIANT เป็นค่าตั้งต้น → ทุกหน้าที่ใช้ CardFace ได้เอฟเฟกต์นี้ทันที
+describe('การนำไปใช้จริงบนการ์ด — ดีไซน์ตั้งต้น (neon · Canvas 2D)', () => {
+  test('ดีไซน์ตั้งต้นคือ neon และอยู่ในรายการดีไซน์ที่รองรับ', () => {
+    expect(DEFAULT_AURA_VARIANT).toBe('neon');
     expect(AURA_VARIANTS).toContain(DEFAULT_AURA_VARIANT);
+    expect(isCanvasVariant(DEFAULT_AURA_VARIANT)).toBe(true);
   });
 
-  test('ดีไซน์ตั้งต้น "พอดีกรอบการ์ด" → ไม่ต้องแก้ layout/overflow ของหน้าใด', () => {
+  test('ดีไซน์ตั้งต้นวาดด้วย Canvas → ชั้น SVG ต้องไม่วาดอะไร (กันแสงซ้อน 2 ชั้น)', () => {
     const layers = auraLayers(DEFAULT_AURA_VARIANT, 'MYTHIC');
-    expect(layers.clip).toBe(true); // ตัดแสงในกรอบ
-
-    const geo = auraGeometry(layers.clip);
-    // ไม่มีระยะล้นออกนอกกล่องการ์ด (ต่างจากดีไซน์อื่นที่ inset = -12%) → กล่องแม่ overflow-hidden ได้
-    expect(geo.inset).toBe('0');
-    expect(geo.viewBox).toBe(`0 0 ${AURA_CARD.width} ${AURA_CARD.height}`);
+    expect(layers.halo).toBe(false);
+    expect(layers.flare).toBe(false);
+    expect(layers.pillar).toBe(false);
+    expect(layers.sparks).toBe(false);
+    expect(layers.flow).toBe(false);
   });
 
-  test('การ์ดทุกระดับที่ควรมีแสง ได้องค์ประกอบครบตามดีไซน์ตั้งต้น (ขอบเรือง + ประกายลอย · ไม่มีประกายดาว/เสาแสง)', () => {
+  test('การ์ดทุกระดับที่ควรมีแสง ได้ครบ: ออร่าขอบ + เกลียวหลายเส้น (สั้น/ยาว) + แสงกวาด', () => {
     for (const rarity of ['RARE', 'EPIC', 'LEGENDARY', 'MYTHIC']) {
-      const layers = auraLayers(DEFAULT_AURA_VARIANT, rarity);
-      expect(layers.halo).toBe(true);
-      expect(layers.flare).toBe(false); // ประกายดาวถูกถอดออก — ผู้ใช้รีวิวบนการ์ดจริง 2026-09-23: "ไม่เหมาะเลย"
-      expect(layers.sparks).toBe(true);
-      expect(layers.pillar).toBe(false); // เสาแสงล้นออกนอกกรอบ → ไม่ใช้ในโหมด clip
+      expect(neonSpec(rarity).enabled).toBe(true);
+      const orbit = orbitSpec(rarity);
+      expect(orbit.enabled).toBe(true);
+      // ผู้ใช้สั่ง "ต้องมีเกลียวมากกว่า 1 อัน มีสั้น มียาว"
+      expect(orbit.wisps).toBeGreaterThanOrEqual(2);
+      expect(orbit.tailClimb).toBeGreaterThanOrEqual(0.9); // แถบยาวคลุมทั้งช่วงการปีน
+      expect(orbit.riseSec).toBeGreaterThan(0); // ปีนขึ้น 1 รอบแนวตั้ง (วินาที)
+      expect(orbit.turns).toBeGreaterThan(1); // หมุนมากกว่า 1 รอบต่อการปีน (เห็นเป็นเกลียวชัด)
+      expect(orbit.sheenSec).toBeGreaterThan(0);
+      expect(orbit.alpha).toBeGreaterThan(0);
+      expect(orbit.alpha).toBeLessThanOrEqual(1);
+      // รายการเส้นจริง: ≥ 2 เส้น และมีทั้งสั้น/ยาว
+      const strands = spiralStrands(orbit, 'card-aura');
+      expect(strands.length).toBeGreaterThanOrEqual(2);
+      expect(strands[0].tailClimb).toBeGreaterThan(strands[strands.length - 1].tailClimb);
     }
+    // ระดับสูงได้ 2 แถบแสง (เหมือน GIF ที่มีเส้นแสง 2 เส้น)
+    expect(orbitSpec('MYTHIC').wisps).toBeGreaterThanOrEqual(2);
   });
 
-  test('กติกาเดิมไม่หลุด: การ์ดธรรมดา (COMMON/UNCOMMON) ยังไม่มีแสง', () => {
-    for (const rarity of ['COMMON', 'UNCOMMON', undefined, 'unknown']) {
-      const layers = auraLayers(DEFAULT_AURA_VARIANT, rarity);
-      expect(layers.halo || layers.flare || layers.pillar || layers.sparks).toBe(false);
+  test('กติกา (แก้ 2026-09-25): COMMON ไม่มีเอฟเฟกต์ · UNCOMMON มีแค่ "วิ่งรอบ"', () => {
+    for (const rarity of ['COMMON', undefined, 'unknown']) {
+      expect(neonSpec(rarity).enabled).toBe(false);
+      expect(orbitSpec(rarity).enabled).toBe(false);
+      expect(auraLayers(DEFAULT_AURA_VARIANT, rarity).halo).toBe(false);
       expect(auraStyle(rarity, 'card-1')['--aura-intensity']).toBe('0');
     }
+    // UNCOMMON: มีออร่าขอบ (neon) แต่ไม่มีเกลียว/เลื่อมบนภาพ
+    expect(neonSpec('UNCOMMON').enabled).toBe(true);
+    expect(orbitSpec('UNCOMMON').enabled).toBe(false);
+    expect(spiralStrands(orbitSpec('UNCOMMON'), 'c')).toEqual([]);
   });
 });

@@ -40,8 +40,8 @@ const VARIANT_INFO: Record<AuraVariant, { label: string; desc: string }> = {
     desc: 'แสงไหลวนบนขอบการ์ด + เปลวไฟลุกขึ้นบนขอบ · อยู่ในกรอบการ์ด 100% (ไม่ล้นออกนอก) และทุกชั้นถูกตัดด้วย "วงแหวนขอบการ์ด" ⇒ ไม่ทับทั้งตัวภาพและกล่องข้อความ การ์ดคม 100% · ใช้ได้ทุกหน้าโดยไม่ต้องแก้ layout',
   },
   neon: {
-    label: 'Neon — Canvas 2D (additive + shadowBlur · ใหม่ 2026-09-24)',
-    desc: 'วาดด้วย Canvas 2D จริงตามคำสั่งผู้ใช้: ctx.globalCompositeOperation="lighter" + shadowBlur/shadowColor → ออร่านีออนรอบการ์ด · ลำแสงไหลรอบขอบ + อนุภาคไหล (เหมือนน้ำ) + เปลวไฟลุกขึ้นจากขอบล่าง · ภาพ/ข้อความคม (แสงถูก clip ไม่ทับ)',
+    label: 'Neon — Canvas 2D (additive + shadowBlur · ใช้จริงบนการ์ดทุกหน้า)',
+    desc: 'บันไดตามระดับ: UNCOMMON = ออร่าขอบ + ลำแสงไหลรอบขอบอย่างเดียว · RARE = + อนุภาค + แถบแสงกวาด/เลื่อมบนภาพ + เกลียว 2 เส้น (วนนิด ๆ) · EPIC = เกลียว 4 เส้น จัดเต็ม · LEGENDARY/MYTHIC = 5–6 เส้น + ประกาย · เกลียววนทั้งการ์ดแบบสุ่มต่อใบ (คนละแกน/ฝั่ง/ทิศ · เกิด-หายแบบเฟด) วาดด้วย stroke ปลายมน + ไล่เฉด (เนียน) · เลื่อมเป็น tint/sweep + แสงกวาดขาวจาง (additive) ไม่ใช้วงรุ้ง ⇒ สีภาพไม่เพี้ยน · ~60fps',
   },
 };
 
@@ -126,8 +126,8 @@ export default async function AuraPreviewPage({
           ⚔️ พรีวิวแสงเรืองแบบไอเทมตีบวก (MU Online style)
         </h1>
         <p className="text-xs md:text-sm text-center text-gray-400 mb-2">
-          SVG glow ล้วน (feGaussianBlur + gradient) — ไม่ใช้ box-shadow และไม่มีลูกเปลวไฟแบบที่เคยไม่ผ่าน ·
-          แสงเกาะรูปทรงการ์ด สเกลตามขนาดจริงทุกหน้า
+          แสงเกาะรูปทรงการ์ด สเกลตามขนาดจริงทุกหน้า ·
+          ดีไซน์ neon วาดด้วย Canvas 2D (ออร่าสีระดับ + แสงไหลสีเดียวกับรูปการ์ดใบนั้น)
         </p>
         <p className="text-[11px] md:text-xs text-center text-gray-500 mb-6">
           ดีไซน์ bloom/radiant/ascend มีแสงล้นออกนอกการ์ด 12% (กล่องแม่ต้องไม่ overflow-hidden) ·

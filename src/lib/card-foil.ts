@@ -50,6 +50,8 @@ export const FOIL_SPECS: Record<string, FoilSpec> = {
     prismSec: 16,
     tint: ['#dbeafe', '#93c5fd'],
     sweep: true,
+    // 2026-09-25 (แก้ 2): ผู้ใช้ติ "รุ้งเลื่อมไม่เอา ไม่เนียน สีเพี้ยน" → ปิด prism
+    // "เลื่อม" ของ RARE ใช้แถบแสงกวาด (sweep) + แสงกวาดบนภาพจาก Canvas แทน
     prism: false,
     sparkle: false,
   },

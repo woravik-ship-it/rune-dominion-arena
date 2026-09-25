@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs';
 import { FOIL_SPECS, foilEnabled, foilHash, foilSpec, foilStyle, foilVariation } from '@/lib/card-foil';
 import { generatePlaceholderSvg } from '@/lib/image-placeholder';
 
@@ -41,13 +42,25 @@ describe('foilSpec — กติกาแสงเลื่อมตามระ
     expect(legendary.sweepSec).toBeGreaterThan(mythic.sweepSec);
   });
 
-  test('ชั้นวงรุ้ง/ประกายดาวเปิดเฉพาะระดับสูง', () => {
+  test('ชั้นวงรุ้ง/ประกายดาวเปิดตามบันไดระดับ', () => {
+    // 2026-09-25 (แก้ 2): ผู้ใช้ติ "รุ้งเลื่อมไม่เอา ไม่เนียน สีเพี้ยน" → RARE ไม่มี prism
+    // (และ CardFace ปิด prism ทั้งหมดเมื่อใช้ดีไซน์ Canvas ⇒ เลื่อมมาจาก sweep + แสงกวาดบนภาพ)
     expect(foilSpec('RARE').prism).toBe(false);
+    expect(foilSpec('RARE').sweep).toBe(true);
     expect(foilSpec('EPIC').prism).toBe(true);
     expect(foilSpec('EPIC').sparkle).toBe(false);
     expect(foilSpec('LEGENDARY').sparkle).toBe(true);
     expect(foilSpec('MYTHIC').sparkle).toBe(true);
     expect(foilSpec('MYTHIC').tier).toBe('PRISMATIC');
+    // บันไดความเข้มต้องเพิ่มขึ้นตามระดับ
+    const chain = ['RARE', 'EPIC', 'LEGENDARY', 'MYTHIC'].map((r) => foilSpec(r).intensity);
+    for (let i = 1; i < chain.length; i += 1) expect(chain[i]).toBeGreaterThan(chain[i - 1]);
+  });
+
+  test('CardFace ปิดวงรุ้ง (prism) เมื่อใช้ดีไซน์ Canvas — กัน "สีเพี้ยน" ทับภาพ', () => {
+    // ตรวจโค้ดจริง: ต้องส่ง disablePrism ตาม isCanvasVariant
+    const src = readFileSync('src/components/cards/CardFace.tsx', 'utf8');
+    expect(src).toMatch(/disablePrism=\{isCanvasVariant\(chosenVariant\)\}/);
   });
 
   test('ระดับที่ไม่รู้จัก/ไม่ส่งมา → ถือเป็น COMMON (ไม่ใส่เอฟเฟกต์)', () => {

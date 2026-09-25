@@ -8,6 +8,12 @@ interface CardFoilProps {
   rarity?: string | null;
   /** ใช้สร้างความต่างของแสงต่อการ์ดแต่ละใบ (ปกติส่ง cardId) */
   seed?: string;
+  /**
+   * TRUE = ซ่อนชั้นวงรุ้งหมุนทับช่องภาพ (prism)
+   * ใช้เมื่อดีไซน์ aura เป็น Canvas `neon` — แสงวิ่งอยู่ขอบแล้ว ไม่ต้องมีแสงหมุนทับภาพ
+   * (ผู้ใช้ติ 2026-09-24: แสงหมุนทับภาพดูแหว่ง + ทำให้ภาพสีเพี้ยน)
+   */
+  disablePrism?: boolean;
 }
 
 /**
@@ -46,17 +52,19 @@ const ART_WINDOW = {
  * ⚠️ คอมโพเนนต์นี้ `pointer-events: none` + `aria-hidden` เสมอ (ไม่กินคลิก ไม่รบกวน screen reader)
  * ⚠️ ต้องอยู่ในกล่องที่ `position: relative` เหมือน CardFace (เพราะทุกชั้นเป็น `absolute`)
  */
-export default function CardFoil({ rarity, seed = '' }: CardFoilProps) {
+export default function CardFoil({ rarity, seed = '', disablePrism = false }: CardFoilProps) {
   const spec = foilSpec(rarity);
   // ระดับล่าง (COMMON/UNCOMMON) ไม่มีชั้นแสงเลย → ไม่ต้อง render DOM เพิ่ม
   if (!spec.sweep && !spec.prism && !spec.sparkle) return null;
+  // neon: เหลือ tint + sweep + sparkle — ซ่อนวงรุ้งหมุนทับภาพ (กันสีเพี้ยน)
+  const showPrism = spec.prism && !disablePrism;
 
   const style = { ...CARD_FRAME, ...foilStyle(rarity, seed) } as unknown as CSSProperties;
 
   return (
     <div aria-hidden className="card-foil" style={style}>
       <span className="card-foil__tint" />
-      {spec.prism && (
+      {showPrism && (
         <span className="card-foil__art" style={ART_WINDOW}>
           <span className="card-foil__prism" />
         </span>

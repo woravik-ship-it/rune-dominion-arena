@@ -17,7 +17,7 @@
 import { foilHash } from '@/lib/card-foil';
 
 // ===== ระดับ "ตีบวก" (เทียบเคียง MU Online: ยิ่งสูงยิ่งเรือง) =====
-export type AuraTier = 'NONE' | 'PLUS7' | 'PLUS9' | 'PLUS11' | 'PLUS13';
+export type AuraTier = 'NONE' | 'PLUS5' | 'PLUS7' | 'PLUS9' | 'PLUS11' | 'PLUS13';
 
 /** ดีไซน์แสงที่ผู้ใช้เลือกได้ */
 export type AuraVariant = 'tier' | 'bloom' | 'radiant' | 'ascend' | 'inner' | 'flow' | 'neon';
@@ -36,16 +36,30 @@ export function isCanvasVariant(variant: AuraVariant | string): boolean {
 }
 
 /**
- * ดีไซน์ที่ใช้จริงบนการ์ดทุกหน้า (ผู้ใช้เลือกจากภาพจริง 2026-09-23: "ลองทำแบบ inner")
+ * ดีไซน์ที่ใช้จริงบนการ์ดทุกหน้า
  *
- * ทำไมเลือก `inner`:
- *  - ตัดแสงให้อยู่ในกรอบการ์ด → **ไม่ต้องแก้ layout/overflow ของหน้าไหนเลย**
- *    (กล่องการ์ดในหน้าจริงมี `overflow-hidden` หลายที่ ซึ่งจะตัดแสงของดีไซน์นอกกรอบทิ้ง)
- *  - ยังได้ครบทั้งขอบเรือง + ประกายดาวกลางภาพ + ประกายลอยขึ้น
+ * ประวัติการเลือก (สำคัญ):
+ *   · 2026-09-23 → `inner` (แสงอยู่ในการ์ด) หลังผู้ใช้ติ "ประกายดาวไม่เหมาะเลย"
+ *   · 2026-09-24 → ต่อด้วย Canvas 2D (`neon`) เพราะ SVG/CSS ทำ "แสงไหล/ออร่า" ได้ไม่เนียน
+ *   · 2026-09-25 → ผู้ใช้ส่ง GIF อ้างอิง (dreamassets 419–424) สั่ง *"ให้แก้ effect เป็นเหมือนตัวอย่าง"*
+ *     ⇒ `neon` ถูกต่อยอดด้วยชั้นใหม่ 3 ชั้นที่ได้จาก GIF จริง:
+ *        4) แถบแสงกวาดผ่านตัวแบบ (แสงสะท้อนโลหะ)
+ *        5) วงแหวนฐาน (วงรีเรืองใต้เท้าตัวแบบ — มีใน GIF ทุกใบ · ทำบางเบา)
+ *        6) **เกลียวแสงปีนขึ้น** (helix ผายหัวเรียมหาง ปีนจากเท้าถึงหัว — ครอบทั้งตัวแบบ)
+ *   · 2026-09-25 (รอบ 2) → ผู้ใช้ติ *"เป็นแค่หมุนเป็นวงกลม กับมีวงกลมยืดหด เฉยๆ …
+ *     ตัวอย่างจะเป็นเกลียว ขึ้นไปเลย และคลุมทั้งตัว ไม่ใช่อยู่แต่ตรงกลางการ์ด"*
+ *     ⇒ ชั้น 6 เปลี่ยนจาก "วงรีแบนหมุนกลางช่องภาพ" → `spiralStreak()` (helix)
+ *       และลดความเด่นของวงแหวนฐาน (ชั้น 5) ลง ⇒ ภาพที่ได้เป็นเกลียวปีนขึ้นจริง
+ *     และ **ถอดวงรุ้ง conic-gradient หมุน (color-dodge)** ที่เป็นต้นเหตุของ
+ *     "แสงทับภาพ แหว่ง + ภาพสีเพี้ยน" ออก
+ *
+ * ทำไมยังใช้ได้ทุกหน้าโดยไม่ต้องแก้ layout: ทุกชั้นใหม่ถูก clip ใน "ช่องภาพ"
+ * และชั้นขอบอยู่ในกรอบการ์ด ⇒ ไม่ต้องมีที่ว่างรอบการ์ด (กล่องที่ overflow-hidden ได้)
  *
  * เปลี่ยนดีไซน์ทั้งเกมได้ที่จุดเดียวนี้ (CardFace ใช้ค่านี้เป็นค่าตั้งต้น)
+ * ย้อนกลับไปดีไซน์เดิมได้ทันที: ตั้งค่านี้เป็น `'inner'`
  */
-export const DEFAULT_AURA_VARIANT: AuraVariant = 'inner';
+export const DEFAULT_AURA_VARIANT: AuraVariant = 'neon';
 
 
 export interface AuraSpec {
@@ -97,7 +111,20 @@ const NO_AURA: AuraSpec = {
  */
 export const AURA_SPECS: Record<string, AuraSpec> = {
   COMMON: NO_AURA,
-  UNCOMMON: { ...NO_AURA, core: '#f0fdf4', edge: '#86efac' },
+  // 2026-09-25 (ผู้ใช้สั่ง "เอาตั้งแต่ Uncommon เลย"): UNCOMMON มีแสง "วิ่งรอบขอบ" อย่างเดียว
+  UNCOMMON: {
+    tier: 'PLUS5',
+    intensity: 0.3,
+    core: '#f7fffb',
+    edge: '#86efac',
+    breatheSec: 5.4,
+    flareSec: 30,
+    pillarSec: 9,
+    flowSec: 11,
+    flameCount: 3,
+    sparkSec: 6.4,
+    sparkCount: 2,
+  },
   RARE: {
     tier: 'PLUS7',
     intensity: 0.5,
@@ -182,6 +209,9 @@ const NO_LAYERS: AuraLayers = {
 /** บันไดของระดับ "ตีบวก" — ยิ่งสูงยิ่งมีองค์ประกอบเพิ่ม (ใช้กับดีไซน์ `tier`) */
 export function tierLayers(rarity?: string | null): AuraLayers {
   switch (auraSpec(rarity).tier) {
+    case 'PLUS5':
+      // UNCOMMON: แค่ "แสงวิ่งรอบขอบ" (halo) — ยังไม่มีประกาย/เสาแสง
+      return { halo: true, flare: false, pillar: false, sparks: false, flow: false, clip: false };
     case 'PLUS7':
       return { halo: true, flare: false, pillar: false, sparks: false, flow: false, clip: false };
     case 'PLUS9':
