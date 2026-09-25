@@ -54,7 +54,10 @@ export default function OnboardingModal({ onClose }: { onClose: () => void }) {
   };
 
   return (
-    <div className="fixed inset-0 z-[100] bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
+    <div
+      data-onboarding-modal="true"
+      className="fixed inset-0 z-[100] bg-black/80 backdrop-blur-sm flex items-center justify-center p-4"
+    >
       <div className="bg-gray-900 border border-purple-700 rounded-2xl max-w-md w-full p-6">
         <div className="flex justify-end">
           <button onClick={onClose} className="text-gray-500 hover:text-white text-sm" aria-label="ปิด">

@@ -92,8 +92,7 @@ export default function ArenaRoomPage() {
       });
       const data = await res.json();
       if (!res.ok) { setErr(data.error || 'ท้าทายไม่สำเร็จ'); return; }
-      if (data.data.becameChampion) setMsg('🎉 ชนะ! คุณคือแชมป์คนใหม่');
-      else setMsg(data.data.winner === 'A' ? 'ชนะแต่แชมป์ป้องกันได้' : 'แพ้ แชมป์ป้องกันสำเร็จ');
+      // ผลแพ้/ชนะดูในห้อง battle อย่างเดียว — ที่นี่แค่พาไปดู ไม่ขึ้นข้อความสรุปก่อน
       router.push(`/battle/${data.data.battleLogId}`);
     } finally { setBusy(false); }
   };
