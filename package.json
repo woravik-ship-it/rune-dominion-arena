@@ -40,7 +40,8 @@
     "shoot:aura": "node scripts/shoot-aura-preview.mjs",
     "inspect:audio": "node scripts/inspect-audio.mjs",
     "inspect:profile": "node scripts/inspect-profile-avatar.mjs",
-    "inspect:admin": "node scripts/inspect-admin-cards.mjs"
+    "inspect:admin": "node scripts/inspect-admin-cards.mjs",
+    "inspect:ranking": "node scripts/inspect-ranking.mjs"
   },
   "dependencies": {
     "next": "^14.2.0",

@@ -38,6 +38,7 @@ export default function TopHeader() {
     { href: '/battle', key: 'nav.battle' },
     { href: '/arena', key: 'nav.arena' },
     { href: '/items', key: 'nav.items', className: 'text-sky-300 hover:text-sky-200' },
+    { href: '/ranking', key: 'nav.ranking', className: 'text-amber-200 hover:text-amber-100' },
     { href: '/notifications', key: 'nav.notifications' },
   ];
 
