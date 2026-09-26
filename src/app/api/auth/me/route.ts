@@ -17,6 +17,8 @@ export async function GET(request: NextRequest) {
       select: {
         id: true, username: true, email: true, displayName: true,
         avatarUrl: true, role: true, discoveryEnergy: true, isActive: true, createdAt: true,
+        // Phase 26: อวตารในเกม (อิโมจิ หรือภาพวาด 6×6)
+        avatarEmoji: true, avatarGrid: true,
       },
     });
     if (!user || !user.isActive) {

@@ -5,6 +5,7 @@
 import { apiFetch } from '@/lib/api-client';
 import { useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
+import { emitVeilShardsChanged } from '@/lib/veil-shard-events';
 import EventHubView, {
   EventHubData,
   EventQuestView,
@@ -82,6 +83,8 @@ export default function EventHubPage({ params }: { params: { eventId: string } }
       if (!res.ok) { setErr(data.error || 'เข้า Raid ไม่สำเร็จ'); return; }
       const d = data.data;
       setMsg(`ดาเมจ ${d.damageDealt.toLocaleString('th-TH')} · Points ${d.eventPoints.toLocaleString('th-TH')} · ได้ ${d.shardsEarned} Veil Shards`);
+      // Phase 25.1: ค่าเข้า/รางวัล Raid เปลี่ยนยอด 💠 → หัวเว็บอัปเดตทันที
+      emitVeilShardsChanged(Number(d.participation?.veilShards));
       await loadAll();
     } finally { setBusy(false); }
   };
@@ -92,6 +95,8 @@ export default function EventHubPage({ params }: { params: { eventId: string } }
       const { res, data } = await postJson(`/api/events/${params.eventId}/milestones`, { milestoneId });
       if (!res.ok) { setErr(data.message || 'รับรางวัลไม่สำเร็จ'); return; }
       setMsg(data.data.message);
+      // Phase 25.1: Milestone บางระดับให้ Veil Shards → แจ้งหัวเว็บให้ดึงยอดใหม่ทันที
+      emitVeilShardsChanged();
       await loadAll();
     } finally { setBusy(false); }
   };
@@ -102,6 +107,7 @@ export default function EventHubPage({ params }: { params: { eventId: string } }
       const { res, data } = await postJson(`/api/events/${params.eventId}/quests`, { eventQuestId });
       if (!res.ok) { setErr(data.message || 'รับรางวัลไม่สำเร็จ'); return; }
       setMsg(`${data.data.message} (+${data.data.coin} Coin)`);
+      emitVeilShardsChanged(Number(data.data.veilShards));
       await loadAll();
     } finally { setBusy(false); }
   };
@@ -115,6 +121,7 @@ export default function EventHubPage({ params }: { params: { eventId: string } }
       });
       if (!res.ok) { setErr(data.message || 'ซื้อไม่สำเร็จ'); return; }
       setMsg(data.data.message);
+      emitVeilShardsChanged(Number(data.data.veilShards));
       await loadAll();
     } finally { setBusy(false); }
   };

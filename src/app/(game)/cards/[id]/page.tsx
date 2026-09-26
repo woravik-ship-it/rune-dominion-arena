@@ -5,6 +5,8 @@ import { useState, useEffect } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import CardFace from '@/components/cards/CardFace';
+import CardArtStatus from '@/components/cards/CardArtStatus';
+import CardItemWorkshop from '@/components/cards/CardItemWorkshop';
 
 interface CardDetail {
   id: string;
@@ -34,6 +36,13 @@ interface CardDetail {
   isFavorite: boolean;
   firstDiscoverer: { username: string; displayName: string } | null;
   firstDiscoveredAt: string | null;
+  /** Phase 25: ขายคืนร้านได้กี่ Veil Shards (ตามความหายาก) */
+  sellValue?: number;
+  /** Phase 25: Status ที่ได้จาก Item + Status รวมจริง */
+  itemStats?: {
+    bonus: { atk: number; def: number; hp: number; spd: number };
+    effective: { atk: number; def: number; hp: number; spd: number };
+  };
 }
 
 const ELEMENT_NAMES: Record<string, { th: string; en: string; color: string }> = {
@@ -177,10 +186,17 @@ export default function CardDetailPage() {
             />
             {card.imageStatus === 'PENDING' && (
               <span className="absolute top-2 right-2 bg-yellow-600 text-xs px-2 py-1 rounded">
-                กำลังวาดภาพ
+                🎨
               </span>
             )}
           </div>
+
+          {/* สถานะการสร้างภาพ + เวลาที่ต้องรอ (Phase 20) */}
+          {card.imageUrl === null && (
+            <div className="px-6 pt-4">
+              <CardArtStatus cardId={card.id} />
+            </div>
+          )}
 
           {/* Card Info */}
           <div className="p-6">
@@ -231,29 +247,31 @@ export default function CardDetailPage() {
               )}
             </div>
 
-            {/* Stats */}
+            {/* Stats — Phase 25: โชว์ "สถานะรวม" (พื้นฐาน + Item ที่ใส่) */}
             <div className="grid grid-cols-5 gap-2 mb-4">
-              <div className="bg-gray-700 rounded-lg p-2 text-center">
-                <div className="text-xs text-gray-400">ATK</div>
-                <div className="text-lg font-bold text-red-400">{card.stats.atk}</div>
-              </div>
-              <div className="bg-gray-700 rounded-lg p-2 text-center">
-                <div className="text-xs text-gray-400">DEF</div>
-                <div className="text-lg font-bold text-blue-400">{card.stats.def}</div>
-              </div>
-              <div className="bg-gray-700 rounded-lg p-2 text-center">
-                <div className="text-xs text-gray-400">HP</div>
-                <div className="text-lg font-bold text-green-400">{card.stats.hp}</div>
-              </div>
-              <div className="bg-gray-700 rounded-lg p-2 text-center">
-                <div className="text-xs text-gray-400">SPD</div>
-                <div className="text-lg font-bold text-yellow-400">{card.stats.spd}</div>
-              </div>
-              <div className="bg-gray-700 rounded-lg p-2 text-center">
-                <div className="text-xs text-gray-400">MP</div>
-                <div className="text-lg font-bold text-purple-400">{card.stats.manaCost}</div>
-              </div>
+              {(
+                [
+                  { key: 'atk', label: 'ATK', cls: 'text-red-400', value: card.itemStats?.effective.atk ?? card.stats.atk, bonus: card.itemStats?.bonus.atk ?? 0 },
+                  { key: 'def', label: 'DEF', cls: 'text-blue-400', value: card.itemStats?.effective.def ?? card.stats.def, bonus: card.itemStats?.bonus.def ?? 0 },
+                  { key: 'hp', label: 'HP', cls: 'text-green-400', value: card.itemStats?.effective.hp ?? card.stats.hp, bonus: card.itemStats?.bonus.hp ?? 0 },
+                  { key: 'spd', label: 'SPD', cls: 'text-yellow-400', value: card.itemStats?.effective.spd ?? card.stats.spd, bonus: card.itemStats?.bonus.spd ?? 0 },
+                  { key: 'mp', label: 'MP', cls: 'text-purple-400', value: card.stats.manaCost, bonus: 0 },
+                ] as const
+              ).map((stat) => (
+                <div key={stat.key} data-card-stat={stat.key} className="bg-gray-700 rounded-lg p-2 text-center">
+                  <div className="text-xs text-gray-400">{stat.label}</div>
+                  <div className={`text-lg font-bold ${stat.cls}`}>{stat.value}</div>
+                  {stat.bonus > 0 && (
+                    <div data-card-stat-bonus={stat.key} className="text-[10px] font-bold text-emerald-400">
+                      +{stat.bonus}
+                    </div>
+                  )}
+                </div>
+              ))}
             </div>
+
+            {/* Phase 25: ช่างใส่ Item (3 ช่อง) + ขายคืนร้านเป็น Veil Shards */}
+            <CardItemWorkshop cardId={card.id} onChanged={loadCard} />
 
             {/* Description */}
             <div className="mb-4">

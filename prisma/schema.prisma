@@ -62,6 +62,19 @@ model User {
   discoveryEnergy   Int       @default(5) @map("discovery_energy")
   lastEnergyResetAt DateTime? @map("last_energy_reset_at")
 
+  // Phase 25: Veil Shards = สกุลเงินกลางของ "ร้านช่าง/กิจกรรม" (ได้จากการขายการ์ดคืนร้าน + กิจกรรม)
+  veilShards Int @default(0) @map("veil_shards")
+
+  // Phase 26: อวตารในเกม — เลือกอิโมจิ หรือวาดเองในช่อง 6×6
+  // avatarGrid = รหัส 36 ตัวอักษร (6 แถว × 6 ช่อง) · '.' = โปร่งใส · ตัวอักษรอื่น = สีในพาเลตต์ (ดู src/lib/avatar.ts)
+  avatarEmoji String? @map("avatar_emoji")
+  avatarGrid  String? @map("avatar_grid")
+
+  // Phase 20: ภาษาในเกม (th/en) + ค่าที่ผู้เล่นเลือกสำหรับการแจ้งเตือน
+  // notifyPrefs = { image: boolean, battle: boolean, arena: boolean, event: boolean, announcement: boolean }
+  locale      String @default("th") @map("locale")
+  notifyPrefs Json?  @map("notify_prefs")
+
   // Phase 10: fingerprint สำหรับตรวจ Alt-account (device id + IP)
   signupDeviceId String? @map("signup_device_id")
   lastDeviceId   String? @map("last_device_id")
@@ -76,8 +89,8 @@ model User {
   cards               UserCard[]
   decks               Deck[]
   discoveries         DiscoveryLog[]
-  attackerBattles     BattleLog[]          @relation("BattleAttacker")
-  defenderBattles     BattleLog[]          @relation("BattleDefender")
+  attackerBattles     BattleLog[]            @relation("BattleAttacker")
+  defenderBattles     BattleLog[]            @relation("BattleDefender")
   quests              QuestProgress[]
   arenaRooms          ArenaRoom[]
   arenaParticipations ArenaParticipant[]
@@ -86,7 +99,11 @@ model User {
   eventPurchases      EventShopPurchase[]
   eventQuestProgress  EventQuestProgress[]
   inventory           UserInventoryItem[]
-  discoveredCards     CardDefinition[]     @relation("FirstDiscoverer")
+  discoveredCards     CardDefinition[]       @relation("FirstDiscoverer")
+  notifications       Notification[]
+  // Phase 25: ไอเทมที่ถือ + ประวัติการได้/ใช้ Veil Shards
+  items               UserItem[]
+  veilShardTx         VeilShardTransaction[]
 
   // Phase 12: index สำหรับ fingerprint lookup (ทุกครั้งที่สมัคร/ล็อกอิน) + admin filter
   @@index([signupDeviceId])
@@ -205,6 +222,9 @@ model UserCard {
   // Relations
   user User           @relation(fields: [userId], references: [id], onDelete: Cascade)
   card CardDefinition @relation(fields: [cardId], references: [id], onDelete: Cascade)
+
+  // Phase 25: ช่องใส่ Item ของการ์ดใบนี้ (โจมตี/ป้องกัน/สนับสนุน — อย่างละ 1 ชิ้น)
+  itemSlots CardItemSlot[]
 
   @@unique([userId, cardId])
   @@index([userId])
@@ -496,6 +516,8 @@ model ImageJob {
   resultUrl    String?        @map("result_url")
   createdAt    DateTime       @default(now())
   updatedAt    DateTime       @updatedAt
+  // Phase 20: เวลาที่ worker เริ่มลงมือ (ใช้คำนวณเวลาสร้างจริง → ประมาณการรอคิวให้ผู้เล่น)
+  startedAt    DateTime?      @map("started_at")
   processedAt  DateTime?      @map("processed_at")
 
   // Relations
@@ -839,4 +861,159 @@ enum InventoryItemType {
   TITLE
   CRAFTING_DUST
   STORY_CHAPTER
+}
+
+// ===== NOTIFICATIONS (Phase 20) =====
+//
+// ผู้ใช้สั่ง 2026-09-26: "ทำระบบแจ้งเตือนต่างๆ เช่นทำรูปเสร็จ, ต่อสู้จบ รายงานผล
+// หรือประกาศต่างๆ สำหรับของแต่ละ User"
+//
+// เก็บข้อความสองภาษาในแถวเดียว (titleTh/titleEn) แล้วให้ API เลือกภาษาตาม User.locale
+// → ผู้เล่นสลับภาษาภายในเกมได้ โดยไม่ต้องสร้างข้อความใหม่
+model Notification {
+  id        String           @id @default(cuid())
+  userId    String           @map("user_id")
+  type      NotificationType
+  titleTh   String           @map("title_th")
+  titleEn   String           @map("title_en")
+  bodyTh    String           @map("body_th")
+  bodyEn    String           @map("body_en")
+  // ลิงก์ให้กดไปดูต่อ (เช่น /cards/<id> เพื่อดูภาพการ์ดที่สร้างเสร็จ)
+  href      String?
+  icon      String?
+  isRead    Boolean          @default(false) @map("is_read")
+  readAt    DateTime?        @map("read_at")
+  metadata  Json?
+  createdAt DateTime         @default(now()) @map("created_at")
+
+  // Relations
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt])
+  @@index([userId, isRead])
+  @@map("notifications")
+}
+
+enum NotificationType {
+  IMAGE_READY
+  IMAGE_FAILED
+  BATTLE_RESULT
+  ARENA_RESULT
+  EVENT
+  ANNOUNCEMENT
+  SYSTEM
+}
+
+// ประกาศจากทีมงาน — สร้างแล้ว fan-out เป็น Notification ให้ผู้เล่นทุกคน (ต่อ user)
+model Announcement {
+  id          String   @id @default(cuid())
+  titleTh     String   @map("title_th")
+  titleEn     String   @map("title_en")
+  bodyTh      String   @map("body_th")
+  bodyEn      String   @map("body_en")
+  href        String?
+  isActive    Boolean  @default(true) @map("is_active")
+  recipients  Int      @default(0)
+  createdBy   String?  @map("created_by")
+  publishedAt DateTime @default(now()) @map("published_at")
+
+  @@index([isActive, publishedAt])
+  @@map("announcements")
+}
+
+// ===== PHASE 25: ITEM + ช่องใส่ 3 ช่อง (โจมตี/ป้องกัน/สนับสนุน) + Veil Shards =====
+//
+// ผู้ใช้สั่ง 2026-09-27: "ได้จากการขายการ์ดคืนร้าน จำนวนขึ้นกับความหายากของการ์ด บางส่วนก็ได้จากกิจกรรม
+//   ทำในส่วนของช่างใส่ Item เพิ่ม Status ให้ 3 ช่อง Item โจมตี, ป้องกัน, สนับสนุน
+//   สำหรับใส่ Item ที่ได้รับ หรือ Craft มาได้"
+
+/// ช่องใส่ Item ของการ์ด — 3 ช่องตายตัว (โจมตี / ป้องกัน / สนับสนุน)
+enum ItemSlot {
+  ATTACK
+  DEFENSE
+  SUPPORT
+}
+
+/// แคตตาล็อก Item — ข้อมูลตั้งต้นอยู่ใน src/lib/item-definitions.ts และ upsert อัตโนมัติ (ensureCatalog)
+model ItemDefinition {
+  id            String   @id @default(cuid())
+  code          String   @unique
+  name          String
+  nameTh        String   @map("name_th")
+  descriptionTh String?  @map("description_th")
+  slot          ItemSlot
+  rarity        Rarity
+  atk           Int      @default(0)
+  def           Int      @default(0)
+  hp            Int      @default(0)
+  spd           Int      @default(0)
+  icon          String   @default("🗡️")
+  /// ราคาคราฟต์ (Veil Shards + ฝุ่นเวท) — 0 = ไม่ใช้ช่องทางนั้น
+  craftCost     Int      @default(0) @map("craft_cost")
+  dustCost      Int      @default(0) @map("dust_cost")
+  /// ราคาซื้อตรงด้วย Veil Shards (null = มีแต่ทางคราฟต์)
+  buyCost       Int?     @map("buy_cost")
+  isActive      Boolean  @default(true) @map("is_active")
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  userItems  UserItem[]
+  equippedBy CardItemSlot[]
+
+  @@index([slot])
+  @@index([rarity])
+  @@map("item_definitions")
+}
+
+/// Item ที่ผู้เล่นถืออยู่ (1 แถว = 1 ชนิด · quantity = จำนวนชิ้น)
+model UserItem {
+  id              String   @id @default(cuid())
+  userId          String   @map("user_id")
+  itemId          String   @map("item_id")
+  quantity        Int      @default(1)
+  firstAcquiredAt DateTime @default(now()) @map("first_acquired_at")
+  updatedAt       DateTime @updatedAt
+
+  user User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  item ItemDefinition @relation(fields: [itemId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, itemId])
+  @@index([userId])
+  @@map("user_items")
+}
+
+/// ช่องใส่ Item ของการ์ด (สูงสุด 1 ชิ้นต่อช่องต่อการ์ด)
+model CardItemSlot {
+  id         String   @id @default(cuid())
+  userCardId String   @map("user_card_id")
+  slot       ItemSlot
+  itemId     String   @map("item_id")
+  equippedAt DateTime @default(now()) @map("equipped_at")
+  updatedAt  DateTime @updatedAt
+
+  userCard UserCard       @relation(fields: [userCardId], references: [id], onDelete: Cascade)
+  item     ItemDefinition @relation(fields: [itemId], references: [id], onDelete: Cascade)
+
+  @@unique([userCardId, slot])
+  @@index([itemId])
+  @@map("card_item_slots")
+}
+
+/// ประวัติได้/ใช้ Veil Shards (รูปแบบเดียวกับ WalletTransaction ของ Coin)
+model VeilShardTransaction {
+  id             String          @id @default(cuid())
+  userId         String          @map("user_id")
+  amount         Int
+  type           TransactionType
+  source         String
+  description    String?
+  balanceBefore  Int             @map("balance_before")
+  balanceAfter   Int             @map("balance_after")
+  idempotencyKey String?         @unique @map("idempotency_key")
+  createdAt      DateTime        @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt])
+  @@map("veil_shard_transactions")
 }

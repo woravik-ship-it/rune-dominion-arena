@@ -1,6 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { resolveRequestUserId } from '@/lib/current-user';
+import { ItemService } from '@/services/item';
+import { applyItemStats, sumItemStats, type ItemStats } from '@/lib/item-definitions';
+import { cardSellValue } from '@/lib/veil-shards';
 
 export async function GET(
   request: NextRequest,
@@ -31,6 +34,10 @@ export async function GET(
 
     const ownerCount = await prisma.userCard.count({ where: { cardId: card.id } });
 
+    // Phase 25: ของที่ใส่ในช่อง 3 ช่อง + Status ที่ได้จาก Item (เฉพาะผู้ที่ล็อกอินและมี "การ์ดใบนี้" ในคลัง)
+    const equipped = userId && ownership ? await ItemService.equipmentForCard(userId, card.id) : [];
+    const itemBonus: ItemStats = sumItemStats(equipped.map((row) => row.stats));
+
     return NextResponse.json({
       success: true,
       data: {
@@ -44,6 +51,7 @@ export async function GET(
         element: card.element,
         rarity: card.rarity,
         role: card.role,
+        /** Status พื้นฐานของการ์ด (ตัวการ์ดเอง) */
         stats: {
           atk: card.atk,
           def: card.def,
@@ -51,6 +59,18 @@ export async function GET(
           spd: card.spd,
           manaCost: card.manaCost,
         },
+        /** Phase 25: Status จาก Item ที่ใส่ + Status รวมจริง (พื้นฐาน + Item) */
+        itemStats: {
+          bonus: itemBonus,
+          effective: applyItemStats(
+            { atk: card.atk, def: card.def, hp: card.hp, spd: card.spd },
+            itemBonus
+          ),
+        },
+        /** Phase 25: ของที่ใส่ในช่องทั้ง 3 (ว่าง = ไม่มี) */
+        equipment: equipped,
+        /** Phase 25: ขายคืนร้านได้เท่าไร (ตามความหายาก) */
+        sellValue: cardSellValue(card.rarity),
         skills: [
           card.skill1Name && {
             name: card.skill1Name,
