@@ -1,8 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { getAdminSession } from '@/lib/admin';
+import { normalizeLimit, normalizePage, pagerSummary } from '@/lib/pagination';
 
 // GET /api/admin/users — รายชื่อผู้เล่นพร้อมสถิติเบื้องต้น (pagination + search)
+// Phase 27: ใช้กติกาแบ่งหน้าชุดเดียวกับการ์ด (เพดาน 100/หน้า + คืนช่วงข้อมูลให้ UI ทำปุ่มเปลี่ยนหน้า)
 export async function GET(request: NextRequest) {
   try {
     if (!getAdminSession(request)) {
@@ -10,9 +12,9 @@ export async function GET(request: NextRequest) {
     }
 
     const { searchParams } = new URL(request.url);
-    const page = Math.max(1, Number(searchParams.get('page')) || 1);
-    const limit = Math.min(50, Math.max(1, Number(searchParams.get('limit')) || 20));
     const search = (searchParams.get('search') || '').trim();
+    const limit = normalizeLimit(searchParams.get('limit'));
+    const requestedPage = Math.max(1, Number(searchParams.get('page')) || 1);
 
     const where = search
       ? {
@@ -24,27 +26,27 @@ export async function GET(request: NextRequest) {
         }
       : {};
 
-    const [users, total] = await Promise.all([
-      prisma.user.findMany({
-        where,
-        select: {
-          id: true,
-          username: true,
-          email: true,
-          displayName: true,
-          role: true,
-          isActive: true,
-          discoveryEnergy: true,
-          createdAt: true,
-          _count: { select: { cards: true, decks: true, discoveries: true } },
-          wallet: { select: { balance: true } },
-        },
-        orderBy: { createdAt: 'desc' },
-        skip: (page - 1) * limit,
-        take: limit,
-      }),
-      prisma.user.count({ where }),
-    ]);
+    const total = await prisma.user.count({ where });
+    const page = normalizePage(requestedPage, total, limit);
+
+    const users = await prisma.user.findMany({
+      where,
+      select: {
+        id: true,
+        username: true,
+        email: true,
+        displayName: true,
+        role: true,
+        isActive: true,
+        discoveryEnergy: true,
+        createdAt: true,
+        _count: { select: { cards: true, decks: true, discoveries: true } },
+        wallet: { select: { balance: true } },
+      },
+      orderBy: { createdAt: 'desc' },
+      skip: (page - 1) * limit,
+      take: limit,
+    });
 
     return NextResponse.json({
       success: true,
@@ -62,7 +64,7 @@ export async function GET(request: NextRequest) {
         coinBalance: u.wallet?.balance ?? 0,
         createdAt: u.createdAt,
       })),
-      pagination: { page, limit, total, totalPages: Math.ceil(total / limit) },
+      pagination: pagerSummary(total, page, limit),
     });
   } catch (error) {
     console.error('Admin users error:', error);

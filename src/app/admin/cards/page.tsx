@@ -2,6 +2,11 @@
 
 import { useEffect, useState } from 'react';
 import CardFace from '@/components/cards/CardFace';
+import { normalizeLimit, pageWindow, type PagerLimits } from '@/lib/pagination';
+
+const CARD_PAGER: PagerLimits = { defaultLimit: 50, maxLimit: 100 };
+/** เพดานการกด "โหลดทั้งหมด" (กันดึงไม่จบเมื่อข้อมูลเยอะผิดปกติ) */
+const MAX_AUTO_PAGES = 50;
 
 interface AdminCard {
   id: string;
@@ -32,6 +37,19 @@ export default function AdminCardsPage() {
   const [cards, setCards] = useState<AdminCard[]>([]);
   const [search, setSearch] = useState('');
   const [loading, setLoading] = useState(true);
+  /** Phase 27: ข้อมูลแบ่งหน้า — เดิมขอครั้งเดียว limit=50 จึงเห็นการ์ดไม่ครบทุกใบ */
+  const [page, setPage] = useState(1);
+  const [limit, setLimit] = useState(CARD_PAGER.defaultLimit);
+  const [pagination, setPagination] = useState({
+    page: 1,
+    limit: CARD_PAGER.defaultLimit,
+    total: 0,
+    totalPages: 1,
+    from: 0,
+    to: 0,
+  });
+  const [loadingAll, setLoadingAll] = useState(false);
+  const [showAll, setShowAll] = useState(false);
   const [editing, setEditing] = useState<AdminCard | null>(null);
   const [editForm, setEditForm] = useState({ nameTh: '', loreTh: '' });
   const [msg, setMsg] = useState<string | null>(null);
@@ -60,13 +78,21 @@ export default function AdminCardsPage() {
     }
   };
 
-  const load = async (q = '') => {
+  const load = async (q = '', nextPage = 1, nextLimit = limit) => {
     setLoading(true);
+    setShowAll(false);
     try {
-      const res = await fetch(`/api/admin/cards?limit=50${q ? `&search=${encodeURIComponent(q)}` : ''}`);
+      const params = new URLSearchParams({ page: String(nextPage), limit: String(nextLimit) });
+      if (q) params.set('search', q);
+      const res = await fetch(`/api/admin/cards?${params.toString()}`);
       const data = await res.json();
-      if (data.success) setCards(data.data);
-      else setError(data.error);
+      if (data.success) {
+        setCards(data.data);
+        if (data.pagination) setPagination(data.pagination);
+        setPage(data.pagination?.page ?? nextPage);
+      } else {
+        setError(data.error);
+      }
     } catch {
       setError('โหลดข้อมูลไม่สำเร็จ');
     } finally {
@@ -74,7 +100,56 @@ export default function AdminCardsPage() {
     }
   };
 
-  useEffect(() => { load(); }, []);
+  /**
+   * โหลดทุกหน้าให้ครบในการกดครั้งเดียว (Phase 27) — 167 ใบเดิมเห็นแค่ 50
+   * ใช้ limit สูงสุดที่ API รับได้ แล้ววนหน้าถัดไปจนครบ (เพดาน MAX_AUTO_PAGES)
+   */
+  const loadAll = async (q = '') => {
+    setLoadingAll(true);
+    setError(null);
+    try {
+      const perPage = CARD_PAGER.maxLimit;
+      const collected: AdminCard[] = [];
+      let currentPage = 1;
+      let totalPages = 1;
+      let total = 0;
+      do {
+        const params = new URLSearchParams({ page: String(currentPage), limit: String(perPage) });
+        if (q) params.set('search', q);
+        // eslint-disable-next-line no-await-in-loop
+        const res = await fetch(`/api/admin/cards?${params.toString()}`);
+        // eslint-disable-next-line no-await-in-loop
+        const data = await res.json();
+        if (!res.ok || !data.success) {
+          setError(data.error || 'โหลดทั้งหมดไม่สำเร็จ');
+          return;
+        }
+        collected.push(...(data.data as AdminCard[]));
+        totalPages = data.pagination?.totalPages ?? 1;
+        total = data.pagination?.total ?? collected.length;
+        currentPage += 1;
+      } while (currentPage <= totalPages && currentPage <= MAX_AUTO_PAGES);
+
+      setCards(collected);
+      setShowAll(true);
+      setPage(1);
+      setPagination({
+        page: 1,
+        limit: perPage,
+        total,
+        totalPages,
+        from: collected.length ? 1 : 0,
+        to: collected.length,
+      });
+      setMsg(`โหลดครบทุกใบแล้ว (${collected.length}/${total})`);
+    } catch {
+      setError('โหลดทั้งหมดไม่สำเร็จ');
+    } finally {
+      setLoadingAll(false);
+    }
+  };
+
+  useEffect(() => { void load('', 1, CARD_PAGER.defaultLimit); /* eslint-disable-line react-hooks/exhaustive-deps */ }, []);
 
   const openEdit = async (card: AdminCard) => {
     setEditing(card);
@@ -106,7 +181,7 @@ export default function AdminCardsPage() {
       if (!res.ok) { setError(data.error || 'บันทึกไม่สำเร็จ'); return; }
       setMsg(`✅ บันทึกการ์ด "${data.data.name}" แล้ว`);
       setEditing(null);
-      await load(search);
+      await load(search, page);
     } catch {
       setError('บันทึกไม่สำเร็จ');
     }
@@ -118,11 +193,88 @@ export default function AdminCardsPage() {
         <input
           value={search}
           onChange={(e) => setSearch(e.target.value)}
-          onKeyDown={(e) => e.key === 'Enter' && load(search)}
+          onKeyDown={(e) => e.key === 'Enter' && load(search, 1)}
           placeholder="ค้นหาชื่อการ์ด..."
           className="flex-1 bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-white"
         />
-        <button onClick={() => load(search)} className="btn-primary text-sm">ค้นหา</button>
+        <button onClick={() => load(search, 1)} className="btn-primary text-sm">ค้นหา</button>
+      </div>
+
+      {/* Phase 27: แถบแบ่งหน้า — บอกว่ามีทั้งหมดกี่ใบ และโหลดให้ครบได้ในคลิกเดียว */}
+      <div
+        data-admin-cards-pager
+        className="mb-3 flex flex-wrap items-center gap-2 rounded-lg border border-gray-700 bg-gray-800/70 px-3 py-2 text-xs text-gray-300"
+      >
+        <span data-admin-cards-total>
+          ทั้งหมด <b className="text-white">{pagination.total}</b> ใบ
+          {showAll
+            ? ` · แสดงครบทั้ง ${cards.length} ใบ`
+            : ` · กำลังแสดง ${pagination.from}–${pagination.to} · หน้า ${pagination.page}/${pagination.totalPages}`}
+        </span>
+
+        <label className="ml-auto flex items-center gap-1">
+          ต่อหน้า
+          <select
+            data-admin-cards-limit
+            value={limit}
+            onChange={(e) => {
+              const next = normalizeLimit(e.target.value, CARD_PAGER);
+              setLimit(next);
+              void load(search, 1, next);
+            }}
+            className="rounded border border-gray-600 bg-gray-900 px-2 py-1 text-xs text-white"
+          >
+            {[20, 50, 100].map((size) => (
+              <option key={size} value={size}>{size}</option>
+            ))}
+          </select>
+        </label>
+
+        <button
+          type="button"
+          data-admin-cards-load-all
+          onClick={() => void loadAll(search)}
+          disabled={loadingAll}
+          className="btn-secondary px-3 py-1 text-xs disabled:opacity-50"
+        >
+          {loadingAll ? 'กำลังโหลด…' : `📥 โหลดทั้งหมด (${pagination.total})`}
+        </button>
+
+        {!showAll && pagination.totalPages > 1 && (
+          <span className="flex items-center gap-1">
+            <button
+              type="button"
+              data-admin-cards-prev
+              onClick={() => void load(search, Math.max(1, pagination.page - 1))}
+              disabled={pagination.page <= 1}
+              className="rounded bg-white/10 px-2 py-1 disabled:opacity-40"
+            >
+              ◀ ก่อนหน้า
+            </button>
+            {pageWindow(pagination.page, pagination.totalPages).map((p) => (
+              <button
+                key={p}
+                type="button"
+                data-admin-cards-page={p}
+                onClick={() => void load(search, p)}
+                className={`rounded px-2 py-1 ${
+                  p === pagination.page ? 'bg-amber-500 text-black' : 'bg-white/10 hover:bg-white/20'
+                }`}
+              >
+                {p}
+              </button>
+            ))}
+            <button
+              type="button"
+              data-admin-cards-next
+              onClick={() => void load(search, Math.min(pagination.totalPages, pagination.page + 1))}
+              disabled={pagination.page >= pagination.totalPages}
+              className="rounded bg-white/10 px-2 py-1 disabled:opacity-40"
+            >
+              ถัดไป ▶
+            </button>
+          </span>
+        )}
       </div>
 
       {msg && <p className="text-green-400 text-sm mb-2">{msg}</p>}
@@ -144,7 +296,7 @@ export default function AdminCardsPage() {
             </thead>
             <tbody>
               {cards.map((c) => (
-                <tr key={c.id} className="border-t border-gray-700 text-gray-200">
+                <tr key={c.id} data-admin-card={c.id} className="border-t border-gray-700 text-gray-200">
                   <td className="p-2">
                     {/* การ์ดย่อ: กดเพื่อดูรูปใหญ่ (เหมือนหน้าดูการ์ดปกติ) */}
                     <button
