@@ -9,6 +9,12 @@ import { isPromptSafe } from '@/lib/image-placeholder';
 import { sendImageWebhook } from '@/lib/image-webhook';
 import { buildCardImagePrompt, generateCardImageBytes, aiImageEnabled } from '@/lib/ai-image';
 import { saveCardArt } from '@/lib/card-art-store';
+import { NotificationService } from '@/services/notification';
+import {
+  DEFAULT_GENERATION_SECONDS,
+  estimateEtaSeconds,
+  normalizeAvgSeconds,
+} from '@/lib/image-eta';
 
 const BACKOFF_BASE_MS = 30_000; // 30 วิ
 const BACKOFF_MAX_MS = 10 * 60_000; // 10 นาที
@@ -43,6 +49,15 @@ export interface ProcessResult {
 }
 
 
+export interface ImageArtStatus {
+  cardId: string;
+  status: 'PENDING' | 'PROCESSING' | 'READY' | 'FAILED' | 'NONE';
+  queuePosition: number;
+  queueTotal: number;
+  etaSeconds: number;
+  artUrl: string | null;
+}
+
 export class ImageService {
   /** เข้าคิวสร้างภาพให้การ์ดใบเดียว — idempotent (มีงาน active อยู่แล้วไม่สร้างซ้ำ) */
   static async enqueue(cardId: string): Promise<{ enqueued: boolean; jobId?: string }> {
@@ -65,6 +80,93 @@ export class ImageService {
       },
     });
     return { enqueued: true, jobId: job.id };
+  }
+
+  /**
+   * สรุปสถานะคิวสร้างภาพ + เวลาที่ผู้เล่นต้องรอ (Phase 20)
+   *
+   * ผู้ใช้สั่ง: "ตอน Gen รูปการ์ด ให้บอกว่าใช้เวลาประมาณเท่าไร และสามารถกลับมาดูได้ภายหลัง"
+   * - avgSeconds = เวลาสร้างจริงเฉลี่ยของงานที่เสร็จล่าสุด (processedAt - startedAt)
+   * - etaSeconds = (งานที่อยู่ก่อนหน้า × เวลาเฉลี่ย) + งานที่กำลังทำอยู่
+   */
+  static async queueSnapshot(): Promise<{ queueTotal: number; inFlight: boolean; avgSeconds: number }> {
+    const [pending, processing, recent] = await Promise.all([
+      prisma.imageJob.count({ where: { status: 'PENDING' } }),
+      prisma.imageJob.count({ where: { status: 'PROCESSING' } }),
+      prisma.imageJob.findMany({
+        where: { status: 'COMPLETED', startedAt: { not: null }, processedAt: { not: null } },
+        orderBy: { processedAt: 'desc' },
+        take: 20,
+        select: { startedAt: true, processedAt: true },
+      }),
+    ]);
+
+    const durations = recent
+      .map((job) => {
+        const start = job.startedAt ? new Date(job.startedAt).getTime() : 0;
+        const end = job.processedAt ? new Date(job.processedAt).getTime() : 0;
+        return end > start ? (end - start) / 1000 : 0;
+      })
+      .filter((seconds) => seconds > 0);
+
+    const avgSeconds =
+      durations.length > 0
+        ? normalizeAvgSeconds(durations.reduce((sum, v) => sum + v, 0) / durations.length)
+        : DEFAULT_GENERATION_SECONDS;
+
+    return { queueTotal: pending, inFlight: processing > 0, avgSeconds };
+  }
+
+  /**
+   * สถานะภาพของการ์ดที่ระบุ (คิว + เวลารอ) — ใช้บอกผู้เล่นว่า "รออีกประมาณเท่าไร กลับมาดูภายหลังได้"
+   */
+  static async statusForCards(cardIds: string[]): Promise<ImageArtStatus[]> {
+    const ids = [...new Set(cardIds.filter(Boolean))].slice(0, 60);
+    if (ids.length === 0) return [];
+
+    const [cards, jobs, snapshot] = await Promise.all([
+      prisma.cardDefinition.findMany({
+        where: { id: { in: ids } },
+        select: { id: true, imageStatus: true, imageUrl: true },
+      }),
+      prisma.imageJob.findMany({
+        where: { cardId: { in: ids }, status: { in: ['PENDING', 'PROCESSING'] } },
+        orderBy: { createdAt: 'asc' },
+        select: { cardId: true, status: true, id: true },
+      }),
+      this.queueSnapshot(),
+    ]);
+
+    // คิวเป็นแบบมาก่อนได้ก่อน → งานที่ createdAt เก่ากว่าอยู่ก่อนหน้า
+    const pendingOrder = jobs.filter((job) => job.status === 'PENDING').map((job) => job.cardId);
+
+    return cards.map((card) => {
+      const job = jobs.find((j) => j.cardId === card.id);
+      const position = job?.status === 'PENDING' ? Math.max(0, pendingOrder.indexOf(card.id)) : 0;
+      const status: ImageArtStatus['status'] = job
+        ? (job.status as 'PENDING' | 'PROCESSING')
+        : card.imageUrl
+          ? 'READY'
+          : card.imageStatus === 'FAILED'
+            ? 'FAILED'
+            : 'NONE';
+
+      return {
+        cardId: card.id,
+        status,
+        queuePosition: position,
+        queueTotal: snapshot.queueTotal,
+        etaSeconds:
+          status === 'PENDING' || status === 'PROCESSING'
+            ? estimateEtaSeconds({
+                queuePosition: position,
+                inFlight: snapshot.inFlight,
+                avgSeconds: snapshot.avgSeconds,
+              })
+            : 0,
+        artUrl: card.imageUrl,
+      };
+    });
   }
 
   /** เข้าคิวให้ทุกการ์ดที่ยังไม่มีภาพและไม่มีงาน active (ใช้ตอน admin requeue) */
@@ -125,10 +227,10 @@ export class ImageService {
     });
     if (!eligible) return null;
 
-    // ล็อกงาน (กัน worker หลายตัวชนกัน)
+    // ล็อกงาน (กัน worker หลายตัวชนกัน) — บันทึกเวลาที่เริ่มลงมือ เพื่อคำนวณเวลาสร้างจริง
     const locked = await prisma.imageJob.updateMany({
       where: { id: eligible.id, status: 'PENDING' },
-      data: { status: 'PROCESSING' },
+      data: { status: 'PROCESSING', startedAt: now },
     });
     if (locked.count !== 1) return { jobId: eligible.id, status: 'SKIPPED' };
 
@@ -178,6 +280,8 @@ export class ImageService {
         where: { id: card.id },
         data: { imageUrl: resultUrl, imageStatus: 'READY' },
       });
+      // Phase 20: แจ้งเจ้าของการ์ดทุกคนว่าภาพเสร็จแล้ว (กลับมาดูภายหลังได้)
+      await NotificationService.notifyImageReady(card.id, card.nameTh ?? card.name).catch(() => 0);
       // Phase 8: แจ้งปลายทางเมื่องานเสร็จ (ไม่กระทบ flow แม้ webhook ล้มเหลว)
       await sendImageWebhook({
         event: 'image.completed',
@@ -206,6 +310,8 @@ export class ImageService {
           where: { id: card.id },
           data: { imageStatus: 'FAILED' },
         });
+        // Phase 20: แจ้งเจ้าของการ์ดว่าสร้างภาพไม่สำเร็จ (จะได้ไม่ต้องรอเก้อ)
+        await NotificationService.notifyImageFailed(card.id, card.nameTh ?? card.name).catch(() => 0);
         // Phase 8: แจ้งปลายทางเมื่องานล้มเหลวถาวร (ให้ ops ตรวจได้)
         await sendImageWebhook({
           event: 'image.failed',
