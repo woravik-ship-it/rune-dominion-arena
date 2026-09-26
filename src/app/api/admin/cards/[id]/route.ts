@@ -1,8 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { getAdminSession, auditAdminAction } from '@/lib/admin';
+import { checkStaffAbility } from '@/lib/admin-users';
 
 // PATCH /api/admin/cards/[id] — แก้ไขข้อมูลการ์ด (ชื่อ/คำอธิบาย/lore)
+//
+// Phase 30: ผู้ใช้สั่ง "ห้ามแตะเรื่องการ์ด" ⇒ **แอดมินเท่านั้น** ที่แก้ข้อมูลการ์ดได้
+// (ผู้ดูแล/โมเดอเรเตอร์ดูรายการได้ แต่แก้ไม่ได้)
 export async function PATCH(
   request: NextRequest,
   { params }: { params: { id: string } }
@@ -11,6 +15,10 @@ export async function PATCH(
     const session = getAdminSession(request);
     if (!session) {
       return NextResponse.json({ error: 'ต้องเป็นผู้ดูแลระบบ' }, { status: 403 });
+    }
+    const allowed = checkStaffAbility(session.role, 'cardEdit');
+    if (!allowed.ok) {
+      return NextResponse.json({ error: allowed.reason }, { status: 403 });
     }
 
     const body = await request.json().catch(() => ({}));

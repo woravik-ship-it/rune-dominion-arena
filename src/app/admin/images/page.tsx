@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { checkStaffAbility } from '@/lib/admin-users';
 
 interface ImageJob {
   id: string;
@@ -23,6 +24,8 @@ export default function AdminImagesPage() {
   const [msg, setMsg] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  /** Phase 30: "ห้ามแตะเรื่องการ์ด" ⇒ ผู้ดูแลดูได้อย่างเดียว (ซ่อนปุ่มสั่งสร้างภาพ) */
+  const [role, setRole] = useState<string | null>(null);
 
   const load = async () => {
     try {
@@ -35,7 +38,15 @@ export default function AdminImagesPage() {
     }
   };
 
-  useEffect(() => { load(); }, []);
+  useEffect(() => {
+    void load();
+    fetch('/api/auth/me')
+      .then((r) => (r.ok ? r.json() : null))
+      .then((me) => setRole(me?.data?.user?.role ?? null))
+      .catch(() => undefined);
+  }, []);
+
+  const canManageImages = checkStaffAbility(role, 'imageProcess').ok;
 
   const runAction = async (path: string, body: object, label: string) => {
     setMsg(null);
@@ -61,20 +72,30 @@ export default function AdminImagesPage() {
   return (
     <div>
       <div className="flex flex-wrap gap-2 mb-4">
-        <button
-          disabled={busy}
-          onClick={() => runAction('/api/admin/images/requeue', {}, 'Requeue การ์ดที่ไม่มีภาพ')}
-          className="btn-secondary text-sm"
-        >
-          🔄 Requeue การ์ดที่ยังไม่มีภาพ
-        </button>
-        <button
-          disabled={busy}
-          onClick={() => runAction('/api/admin/images/process', { max: 20 }, 'ประมวลผลคิวภาพ')}
-          className="btn-primary text-sm"
-        >
-          ▶️ ประมวลผลคิว (20 งาน)
-        </button>
+        {canManageImages ? (
+          <>
+            <button
+              data-admin-images-action="requeue"
+              disabled={busy}
+              onClick={() => runAction('/api/admin/images/requeue', {}, 'Requeue การ์ดที่ไม่มีภาพ')}
+              className="btn-secondary text-sm"
+            >
+              🔄 Requeue การ์ดที่ยังไม่มีภาพ
+            </button>
+            <button
+              data-admin-images-action="process"
+              disabled={busy}
+              onClick={() => runAction('/api/admin/images/process', { max: 20 }, 'ประมวลผลคิวภาพ')}
+              className="btn-primary text-sm"
+            >
+              ▶️ ประมวลผลคิว (20 งาน)
+            </button>
+          </>
+        ) : (
+          <p data-admin-images-readonly="true" className="text-xs text-gray-400">
+            👀 โหมดดูอย่างเดียว — สั่งสร้าง/จัดการภาพการ์ดได้เฉพาะแอดมิน
+          </p>
+        )}
       </div>
 
       {msg && <p className="text-green-400 text-sm mb-2">{msg}</p>}

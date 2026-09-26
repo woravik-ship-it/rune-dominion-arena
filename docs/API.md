@@ -370,6 +370,7 @@ npm run admin:grant -- woravik PLAYER          # ถอดสิทธิ์
 |---|---|
 | `GET /api/admin/analytics` | สถิติรวม (ผู้ใช้/การ์ด/การต่อสู้/งานภาพ/ความปลอดภัย) |
 | `GET /api/admin/cards` | รายการการ์ดทั้งหมด (`?page=&limit=&search=`) — `limit` สูงสุด **100**/หน้า · คืน `pagination { page, limit, total, totalPages, from, to }` · ขอหน้าเกินขอบ → ดึงกลับเป็นหน้าสุดท้าย (Phase 27) |
+| `PATCH /api/admin/cards/[id]` · `POST …/regenerate` · `POST /api/admin/images/{process,requeue}` | **แอดมินเท่านั้น** (Phase 30 — ผู้ดูแลดูได้อย่างเดียว · cron ใช้ `x-worker-token` ได้) |
 | `GET` · `PATCH /api/admin/cards/[id]` | ดู/แก้การ์ด (ชื่อ ภาพ สถานะ) |
 | `GET /api/admin/quests` · `PATCH /api/admin/quests/[id]` | ดู/แก้ภารกิจ |
 | `GET /api/admin/users` | รายการผู้เล่น (`?page=&limit=&search=`) — ใช้กติกาแบ่งหน้าชุดเดียวกับการ์ด (สูงสุด 100/หน้า) |

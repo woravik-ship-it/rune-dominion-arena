@@ -1,13 +1,30 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { ImageService } from '@/services/image';
 import { isPrivileged } from '@/lib/api-auth';
+import { getAdminSession } from '@/lib/admin';
+import { checkStaffAbility } from '@/lib/admin-users';
 
 // POST /api/admin/images/process — worker tick: ประมวลผลงานในคิวสูงสุด max งาน
 // body: { max? } (default 5) — เรียกจาก cron/scheduler ด้วย x-worker-token หรือ admin session
+//
+// Phase 30: ผู้ใช้สั่ง "ห้ามแตะเรื่องการ์ด เช่น Gen รูปใหม่"
+// ⇒ cron (worker token) ยังเรียกได้ · แต่ session ต้องเป็น **แอดมิน** เท่านั้น (ผู้ดูแลห้ามสั่งสร้างภาพ)
 export async function POST(request: NextRequest) {
   try {
-    if (!isPrivileged(request)) {
-      return NextResponse.json({ error: 'ต้องเป็นผู้ดูแลระบบหรือ worker' }, { status: 403 });
+    const workerToken = process.env.WORKER_TOKEN;
+    const isWorker = Boolean(workerToken) && request.headers.get('x-worker-token') === workerToken;
+    const session = getAdminSession(request);
+    if (!isWorker) {
+      if (!isPrivileged(request)) {
+        return NextResponse.json({ error: 'ต้องเป็นผู้ดูแลระบบหรือ worker' }, { status: 403 });
+      }
+      if (!session) {
+        return NextResponse.json({ error: 'ต้องเป็นผู้ดูแลระบบ' }, { status: 403 });
+      }
+      const allowed = checkStaffAbility(session.role, 'imageProcess');
+      if (!allowed.ok) {
+        return NextResponse.json({ error: allowed.reason }, { status: 403 });
+      }
     }
     const body = await request.json().catch(() => ({}));
     const { max } = body as { max?: number };

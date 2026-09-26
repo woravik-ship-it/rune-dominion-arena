@@ -315,7 +315,88 @@ try {
     [...actions].join(' · ')
   );
 
-  // ---- 9) เบราว์เซอร์จริง: เมนูจัดการผู้เล่นบนหน้า /admin/users ----
+  // ---- 9) Phase 30: "ห้ามแตะเรื่องการ์ด" — ผู้ดูแลแก้การ์ด/สั่ง Gen รูปใหม่ไม่ได้ ----
+  const tempCard = await prisma.cardDefinition.create({
+    data: {
+      canonicalSeedHash: `phase30-check-${Date.now()}`,
+      name: 'Phase30 Temp Card',
+      nameTh: 'การ์ดทดสอบ Phase 30',
+      element: 'VEILMARKED',
+      rarity: 'COMMON',
+      role: 'WARRIOR',
+      atk: 10, def: 10, hp: 10, spd: 10, manaCost: 1,
+    },
+    select: { id: true },
+  }).catch(() => null);
+  const tempCardId = tempCard?.id ?? null;
+  check('สร้างการ์ดทดสอบชั่วคราว (สำหรับตรวจสิทธิ์)', Boolean(tempCardId), String(tempCardId));
+
+  if (tempCardId) {
+    const modEdit = await api('PATCH', `/api/admin/cards/${tempCardId}`, {
+      cookie: moderatorCookie,
+      body: { nameTh: 'แก้โดยผู้ดูแล' },
+    });
+    check(
+      'ผู้ดูแล "แก้ไขข้อมูลการ์ด" ไม่ได้ (403 + เหตุผล)',
+      modEdit.status === 403 && /แอดมิน/.test(modEdit.json?.error ?? ''),
+      `HTTP ${modEdit.status} · ${modEdit.json?.error ?? ''}`
+    );
+
+    const modRegen = await api('POST', `/api/admin/cards/${tempCardId}/regenerate`, {
+      cookie: moderatorCookie,
+    });
+    check(
+      'ผู้ดูแล "Gen รูปใหม่" ไม่ได้ (403 + เหตุผล)',
+      modRegen.status === 403 && /แอดมิน/.test(modRegen.json?.error ?? ''),
+      `HTTP ${modRegen.status} · ${modRegen.json?.error ?? ''}`
+    );
+
+    const modProcess = await api('POST', '/api/admin/images/process', {
+      cookie: moderatorCookie,
+      body: { max: 1 },
+    });
+    check(
+      'ผู้ดูแลสั่ง "ประมวลผลคิวภาพ" ไม่ได้ (403)',
+      modProcess.status === 403 && /แอดมิน/.test(modProcess.json?.error ?? ''),
+      `HTTP ${modProcess.status}`
+    );
+
+    const modRequeue = await api('POST', '/api/admin/images/requeue', {
+      cookie: moderatorCookie,
+      body: { cardId: tempCardId },
+    });
+    check(
+      'ผู้ดูแลสั่ง "Requeue ภาพการ์ด" ไม่ได้ (403)',
+      modRequeue.status === 403 && /แอดมิน/.test(modRequeue.json?.error ?? ''),
+      `HTTP ${modRequeue.status}`
+    );
+
+    // แอดมินทำได้ (แก้ข้อมูล + สั่ง Gen รูปใหม่ = เข้าคิวเท่านั้น ไม่สร้างภาพจริงในสคริปต์)
+    const adminEdit = await api('PATCH', `/api/admin/cards/${tempCardId}`, {
+      cookie: adminCookie,
+      body: { nameTh: 'แก้โดยแอดมิน' },
+    });
+    const cardAfter = await prisma.cardDefinition.findUnique({
+      where: { id: tempCardId },
+      select: { nameTh: true },
+    });
+    check(
+      'แอดมินแก้ไขข้อมูลการ์ดได้',
+      adminEdit.status === 200 && cardAfter?.nameTh === 'แก้โดยแอดมิน',
+      `HTTP ${adminEdit.status} · nameTh=${cardAfter?.nameTh}`
+    );
+
+    const adminRegen = await api('POST', `/api/admin/cards/${tempCardId}/regenerate`, {
+      cookie: adminCookie,
+    });
+    check(
+      'แอดมินสั่ง Gen รูปใหม่ได้ (เข้าคิว)',
+      adminRegen.status === 200 && Boolean(adminRegen.json?.data?.jobId),
+      `HTTP ${adminRegen.status} · jobId=${adminRegen.json?.data?.jobId ?? '-'}`
+    );
+  }
+
+  // ---- 10) เบราว์เซอร์จริง: เมนูจัดการผู้เล่นบนหน้า /admin/users ----
   let targets = null;
   for (let i = 0; i < 60 && !targets; i += 1) {
     try {
@@ -404,6 +485,63 @@ try {
     JSON.stringify(modalFlow)
   );
 
+  // ---- 11) Phase 30 (UI): ผู้ดูแลเห็นหน้าแอดมินแบบ "ดูอย่างเดียว" ----
+  // สลับคุกกี้เป็นผู้ดูแล → เปิด /admin/cards + /admin/images
+  await send('Network.setCookie', {
+    name: 'rda_session',
+    value: moderatorCookie.replace('rda_session=', ''),
+    domain: 'localhost',
+    path: '/',
+  });
+  await send('Page.navigate', { url: `${BASE}/admin/cards` });
+  await sleep(4500);
+  const modCardsDom = await evaluate(`(() => ({
+    regenerate: document.querySelectorAll('[data-admin-card-regenerate]').length,
+    edit: document.querySelectorAll('[data-admin-card-edit]').length,
+    readonlyNote: Boolean(document.querySelector('[data-admin-cards-readonly]')),
+    rows: document.querySelectorAll('[data-admin-card]').length,
+  }))()`);
+  check(
+    'ผู้ดูแล: หน้าการ์ดไม่มีปุ่ม Gen รูปใหม่/แก้ไข + มีป้าย "ดูอย่างเดียว"',
+    modCardsDom?.regenerate === 0 && modCardsDom?.edit === 0 && modCardsDom?.readonlyNote === true,
+    JSON.stringify(modCardsDom)
+  );
+  check('ผู้ดูแลยังดูรายการการ์ดได้ (ดูได้แต่แตะไม่ได้)', (modCardsDom?.rows ?? 0) > 0, `rows=${modCardsDom?.rows}`);
+
+  await send('Page.navigate', { url: `${BASE}/admin/images` });
+  await sleep(4000);
+  const modImagesDom = await evaluate(`(() => ({
+    actions: document.querySelectorAll('[data-admin-images-action]').length,
+    readonlyNote: Boolean(document.querySelector('[data-admin-images-readonly]')),
+  }))()`);
+  check(
+    'ผู้ดูแล: หน้าภาพการ์ดไม่มีปุ่ม Requeue/ประมวลผลคิว + มีป้ายดูอย่างเดียว',
+    modImagesDom?.actions === 0 && modImagesDom?.readonlyNote === true,
+    JSON.stringify(modImagesDom)
+  );
+
+  // กลับเป็นแอดมิน → ปุ่มต้องกลับมา
+  await send('Network.setCookie', {
+    name: 'rda_session',
+    value: adminCookie.replace('rda_session=', ''),
+    domain: 'localhost',
+    path: '/',
+  });
+  await send('Page.navigate', { url: `${BASE}/admin/cards` });
+  await sleep(4500);
+  const adminCardsDom = await evaluate(`(() => ({
+    regenerate: document.querySelectorAll('[data-admin-card-regenerate]').length,
+    edit: document.querySelectorAll('[data-admin-card-edit]').length,
+    readonlyNote: Boolean(document.querySelector('[data-admin-cards-readonly]')),
+  }))()`);
+  check(
+    'แอดมิน: มีปุ่ม Gen รูปใหม่/แก้ไข ครบ (ไม่มีป้ายดูอย่างเดียว)',
+    (adminCardsDom?.regenerate ?? 0) >= 1 &&
+      (adminCardsDom?.edit ?? 0) >= 1 &&
+      adminCardsDom?.readonlyNote === false,
+    JSON.stringify(adminCardsDom)
+  );
+
   const shot = await send('Page.captureScreenshot', { format: 'png', captureBeyondViewport: true });
   writeFileSync(OUT, Buffer.from(shot.data, 'base64'));
   console.log(`📸 ภาพหน้าจอ: ${OUT}`);
@@ -414,6 +552,12 @@ try {
   chrome.kill('SIGKILL');
   if (prisma) {
     if (!KEEP) {
+      // ลบการ์ดทดสอบ + งานภาพของมัน (Phase 30)
+      if (typeof tempCardId === 'string') {
+        await prisma.imageJob.deleteMany({ where: { cardId: tempCardId } }).catch(() => undefined);
+        await prisma.cardDefinition.delete({ where: { id: tempCardId } }).catch(() => undefined);
+        console.log('🧹 ลบการ์ดทดสอบ Phase 30 แล้ว');
+      }
       // ลบผู้ใช้ทดสอบที่เหลือ (ยกเว้นผู้ที่ถูกลบไปแล้ว) + audit log ของการทดสอบ
       const keepIds = createdUserIds.filter(Boolean);
       await prisma.adminActionLog

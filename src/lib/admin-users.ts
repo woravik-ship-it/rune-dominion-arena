@@ -57,6 +57,62 @@ export interface ManageCheckResult {
 }
 
 /**
+ * ความสามารถระดับเจ้าหน้าที่ (Phase 30)
+ *
+ * ผู้ใช้สั่ง 2026-09-27: "ห้ามแตะเรื่องการ์ด เช่น Gen รูปใหม่"
+ * ⇒ ผู้ดูแล (MODERATOR) ห้ามแก้ข้อมูลการ์ด/สั่งสร้างภาพใหม่ (ดูได้อย่างเดียว)
+ *    ส่วนการแบน/ปลดแบนผู้เล่นยังทำได้ (Phase 29)
+ */
+export type StaffAbility =
+  | 'cardEdit'
+  | 'cardRegenerate'
+  | 'imageProcess'
+  | 'imageRequeue'
+  | 'userBan'
+  | 'userRoleChange'
+  | 'userDelete'
+  | 'announcement';
+
+export const ABILITY_LABEL_TH: Record<StaffAbility, string> = {
+  cardEdit: 'แก้ไขข้อมูลการ์ด',
+  cardRegenerate: 'สั่งสร้างภาพการ์ดใหม่',
+  imageProcess: 'ประมวลผลคิวภาพการ์ด',
+  imageRequeue: 'Requeue ภาพการ์ด',
+  userBan: 'แบน/ปลดแบนผู้เล่น',
+  userRoleChange: 'กำหนดสิทธิ์ผู้เล่น',
+  userDelete: 'ลบผู้เล่น',
+  announcement: 'ประกาศจากทีมงาน',
+};
+
+/** ความสามารถที่ "แอดมินเท่านั้น" (ผู้ดูแลดูได้แต่แตะไม่ได้) */
+export const ADMIN_ONLY_ABILITIES: StaffAbility[] = [
+  'cardEdit',
+  'cardRegenerate',
+  'imageProcess',
+  'imageRequeue',
+  'userRoleChange',
+  'userDelete',
+];
+
+export function isAdminOnlyAbility(ability: StaffAbility): boolean {
+  return ADMIN_ONLY_ABILITIES.includes(ability);
+}
+
+/** ตรวจสิทธิ์ระดับเจ้าหน้าที่ (ใช้ทั้ง API และ UI) */
+export function checkStaffAbility(actorRole: unknown, ability: StaffAbility): ManageCheckResult {
+  if (!isStaffRole(actorRole)) {
+    return { ok: false, reason: 'ต้องเป็นผู้ดูแลระบบ' };
+  }
+  if (isAdminOnlyAbility(ability) && !isAdminRole(actorRole)) {
+    return {
+      ok: false,
+      reason: `"${ABILITY_LABEL_TH[ability]}" ทำได้เฉพาะแอดมิน (ผู้ดูแลดูได้อย่างเดียว)`,
+    };
+  }
+  return { ok: true };
+}
+
+/**
  * กติกาการจัดการผู้เล่น (สรุป)
  *  - ห้ามจัดการ "ตัวเอง" ทุกกรณี (กันล็อกตัวเอง/ลบบัญชีตัวเอง)
  *  - แอดมิน: เปลี่ยนสิทธิ์ได้ (รวมถึงลดสิทธิ์แอดมินคนอื่น แต่ต้องเหลือแอดมิน ≥1 — ตรวจที่ route), แบน/ปลดแบนได้, ลบได้

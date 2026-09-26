@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import CardFace from '@/components/cards/CardFace';
 import { normalizeLimit, pageWindow, type PagerLimits } from '@/lib/pagination';
+import { checkStaffAbility } from '@/lib/admin-users';
 
 const CARD_PAGER: PagerLimits = { defaultLimit: 50, maxLimit: 100 };
 /** เพดานการกด "โหลดทั้งหมด" (กันดึงไม่จบเมื่อข้อมูลเยอะผิดปกติ) */
@@ -50,6 +51,8 @@ export default function AdminCardsPage() {
   });
   const [loadingAll, setLoadingAll] = useState(false);
   const [showAll, setShowAll] = useState(false);
+  /** Phase 30: "ห้ามแตะเรื่องการ์ด เช่น Gen รูปใหม่" ⇒ ผู้ดูแลดูได้อย่างเดียว */
+  const [role, setRole] = useState<string | null>(null);
   const [editing, setEditing] = useState<AdminCard | null>(null);
   const [editForm, setEditForm] = useState({ nameTh: '', loreTh: '' });
   const [msg, setMsg] = useState<string | null>(null);
@@ -151,6 +154,17 @@ export default function AdminCardsPage() {
 
   useEffect(() => { void load('', 1, CARD_PAGER.defaultLimit); /* eslint-disable-line react-hooks/exhaustive-deps */ }, []);
 
+  /** Phase 30: รู้สิทธิ์ตัวเองเพื่อซ่อนปุ่มที่แตะการ์ดไม่ได้ (เซิร์ฟเวอร์ยังกันซ้ำเสมอ) */
+  useEffect(() => {
+    fetch('/api/auth/me')
+      .then((r) => (r.ok ? r.json() : null))
+      .then((me) => setRole(me?.data?.user?.role ?? null))
+      .catch(() => undefined);
+  }, []);
+
+  const canEditCards = checkStaffAbility(role, 'cardEdit').ok;
+  const canRegenerate = checkStaffAbility(role, 'cardRegenerate').ok;
+
   const openEdit = async (card: AdminCard) => {
     setEditing(card);
     setMsg(null);
@@ -211,6 +225,11 @@ export default function AdminCardsPage() {
             ? ` · แสดงครบทั้ง ${cards.length} ใบ`
             : ` · กำลังแสดง ${pagination.from}–${pagination.to} · หน้า ${pagination.page}/${pagination.totalPages}`}
         </span>
+        {!canEditCards && (
+          <span data-admin-cards-readonly="true" className="rounded bg-white/5 px-2 py-0.5 text-[11px] text-gray-400">
+            👀 โหมดดูอย่างเดียว — แก้ไขการ์ด/สั่งสร้างภาพใหม่ได้เฉพาะแอดมิน
+          </span>
+        )}
 
         <label className="ml-auto flex items-center gap-1">
           ต่อหน้า
@@ -329,14 +348,27 @@ export default function AdminCardsPage() {
                   <td className="p-2 text-right">{c.discoveryCount}</td>
                   <td className="p-2 text-right">{c.ownerCount}</td>
                   <td className="p-2 text-center space-y-1">
-                    <button onClick={() => openEdit(c)} className="btn-secondary text-xs px-3 py-1">แก้ไข</button>
-                    <button
-                      onClick={() => regenerate(c)}
-                      disabled={regeneratingId === c.id}
-                      className="btn-primary text-xs px-3 py-1 disabled:opacity-50"
-                    >
-                      {regeneratingId === c.id ? 'กำลังสั่ง…' : '🔄 สร้างรูปใหม่'}
-                    </button>
+                    {canEditCards ? (
+                      <button
+                        data-admin-card-edit={c.id}
+                        onClick={() => openEdit(c)}
+                        className="btn-secondary text-xs px-3 py-1"
+                      >
+                        แก้ไข
+                      </button>
+                    ) : (
+                      <span className="text-[11px] text-gray-500">ดูอย่างเดียว</span>
+                    )}
+                    {canRegenerate && (
+                      <button
+                        data-admin-card-regenerate={c.id}
+                        onClick={() => regenerate(c)}
+                        disabled={regeneratingId === c.id}
+                        className="btn-primary text-xs px-3 py-1 disabled:opacity-50"
+                      >
+                        {regeneratingId === c.id ? 'กำลังสั่ง…' : '🔄 สร้างรูปใหม่'}
+                      </button>
+                    )}
                   </td>
                 </tr>
               ))}
@@ -410,16 +442,23 @@ export default function AdminCardsPage() {
             </div>
 
             <div className="mt-4 flex gap-2">
-              <button
-                onClick={async () => {
-                  await regenerate(viewing);
-                  setViewing({ ...viewing, imageStatus: 'PROCESSING' });
-                }}
-                disabled={regeneratingId === viewing.id}
-                className="btn-primary flex-1 text-sm disabled:opacity-50"
-              >
-                {regeneratingId === viewing.id ? 'กำลังสั่ง…' : '🔄 สร้างรูปใหม่'}
-              </button>
+              {canRegenerate ? (
+                <button
+                  data-admin-card-regenerate-modal={viewing.id}
+                  onClick={async () => {
+                    await regenerate(viewing);
+                    setViewing({ ...viewing, imageStatus: 'PROCESSING' });
+                  }}
+                  disabled={regeneratingId === viewing.id}
+                  className="btn-primary flex-1 text-sm disabled:opacity-50"
+                >
+                  {regeneratingId === viewing.id ? 'กำลังสั่ง…' : '🔄 สร้างรูปใหม่'}
+                </button>
+              ) : (
+                <p className="flex-1 text-center text-[11px] text-gray-500">
+                  👀 ดูอย่างเดียว — สั่งสร้างภาพใหม่ได้เฉพาะแอดมิน
+                </p>
+              )}
               <button onClick={() => setViewing(null)} className="btn-secondary text-sm px-4">ปิด</button>
             </div>
           </div>

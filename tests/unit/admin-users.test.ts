@@ -1,10 +1,14 @@
 // เทสต์กติกาการจัดการผู้เล่นของแอดมิน (Phase 29)
 // ผู้ใช้สั่ง 2026-09-27: "เมนูสำหรับจัดการผู้เล่น หรือกำหนดสิทธิ์ผู้เล่น แบนผู้เล่น หรือลบผู้เล่น"
 import {
+  ABILITY_LABEL_TH,
   ACTION_LABEL_TH,
+  ADMIN_ONLY_ABILITIES,
   ADMIN_ROLES,
   ROLE_LABEL_TH,
   checkManageUser,
+  checkStaffAbility,
+  isAdminOnlyAbility,
   isAdminRole,
   isStaffRole,
   normalizeAdminRole,
@@ -118,5 +122,56 @@ describe('กติกา: ใครทำอะไรได้', () => {
     expect(checkManageUser({ ...base, action: 'ban' }).ok).toBe(true);
     expect(checkManageUser({ ...base, action: 'unban' }).ok).toBe(true);
     expect(checkManageUser({ ...base, actorRole: 'MODERATOR', action: 'unban' }).ok).toBe(true);
+  });
+});
+
+// Phase 30 — ผู้ใช้สั่ง 2026-09-27: "ห้ามแตะเรื่องการ์ด เช่น Gen รูปใหม่"
+describe('ความสามารถระดับเจ้าหน้าที่ (ผู้ดูแล vs แอดมิน)', () => {
+  test('เรื่องการ์ด/ภาพ = แอดมินเท่านั้น', () => {
+    for (const ability of ['cardEdit', 'cardRegenerate', 'imageProcess', 'imageRequeue'] as const) {
+      expect(isAdminOnlyAbility(ability)).toBe(true);
+      expect(checkStaffAbility('ADMIN', ability).ok).toBe(true);
+
+      const moderator = checkStaffAbility('MODERATOR', ability);
+      expect(moderator.ok).toBe(false);
+      expect(moderator.reason).toContain('แอดมิน');
+
+      expect(checkStaffAbility('PLAYER', ability).ok).toBe(false);
+    }
+  });
+
+  test('ป้ายคำอธิบายบอกว่าเป็นงานของแอดมิน', () => {
+    expect(ABILITY_LABEL_TH.cardRegenerate).toContain('สร้างภาพ');
+    expect(checkStaffAbility('MODERATOR', 'cardRegenerate').reason).toContain('สร้างภาพการ์ดใหม่');
+    expect(checkStaffAbility('MODERATOR', 'cardRegenerate').reason).toContain('ดูได้อย่างเดียว');
+  });
+
+  test('แบนผู้เล่น/ประกาศ = ผู้ดูแลทำได้', () => {
+    expect(isAdminOnlyAbility('userBan')).toBe(false);
+    expect(checkStaffAbility('MODERATOR', 'userBan').ok).toBe(true);
+    expect(checkStaffAbility('MODERATOR', 'announcement').ok).toBe(true);
+    expect(checkStaffAbility('ADMIN', 'userBan').ok).toBe(true);
+  });
+
+  test('กำหนดสิทธิ์/ลบผู้เล่น = แอดมินเท่านั้น', () => {
+    for (const ability of ['userRoleChange', 'userDelete'] as const) {
+      expect(checkStaffAbility('MODERATOR', ability).ok).toBe(false);
+      expect(checkStaffAbility('ADMIN', ability).ok).toBe(true);
+    }
+  });
+
+  test('คนที่ไม่ใช่เจ้าหน้าที่ทำอะไรไม่ได้เลย', () => {
+    for (const ability of ['cardEdit', 'cardRegenerate', 'userBan', 'announcement'] as const) {
+      const verdict = checkStaffAbility('PLAYER', ability);
+      expect(verdict.ok).toBe(false);
+      expect(verdict.reason).toContain('ผู้ดูแลระบบ');
+      expect(checkStaffAbility(null, ability).ok).toBe(false);
+    }
+  });
+
+  test('รายการที่ต้องเป็นแอดมินมีครบตามที่ออกแบบ', () => {
+    expect([...ADMIN_ONLY_ABILITIES].sort()).toEqual(
+      ['cardEdit', 'cardRegenerate', 'imageProcess', 'imageRequeue', 'userDelete', 'userRoleChange'].sort()
+    );
   });
 });
