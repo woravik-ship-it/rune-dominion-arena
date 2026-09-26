@@ -373,6 +373,8 @@ npm run admin:grant -- woravik PLAYER          # ถอดสิทธิ์
 | `GET` · `PATCH /api/admin/cards/[id]` | ดู/แก้การ์ด (ชื่อ ภาพ สถานะ) |
 | `GET /api/admin/quests` · `PATCH /api/admin/quests/[id]` | ดู/แก้ภารกิจ |
 | `GET /api/admin/users` | รายการผู้เล่น (`?page=&limit=&search=`) — ใช้กติกาแบ่งหน้าชุดเดียวกับการ์ด (สูงสุด 100/หน้า) |
+| `PATCH /api/admin/users/[id]` | กำหนดสิทธิ์/แบน/ปลดแบน — `{ role?, isActive?, reason? }` (Phase 29 · ห้ามจัดการตัวเอง · ห้ามแตะบัญชีแอดมิน · ผู้ดูแลเปลี่ยนสิทธิ์/ลบไม่ได้) |
+| `DELETE /api/admin/users/[id]` | ลบผู้เล่น (แอดมินเท่านั้น) — `{ confirmUsername }` ต้องตรงชื่อผู้ใช้ · ข้อมูลลูกถูกลบตาม (cascade) |
 | `POST /api/admin/users/[id]/energy` | เติมพลังค้นหา (`mode: refill \| add \| set`, `amount`) |
 | `GET /api/admin/images` | สถานะคิวภาพ (group by status) |
 | `POST /api/admin/images/requeue` | นำงาน FAILED กลับเข้าคิว |

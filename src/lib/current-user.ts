@@ -35,7 +35,15 @@ export async function resolveRequestUserId(
   param?: string | null
 ): Promise<string | null> {
   const sessionUserId = getSessionUserId(request);
-  if (sessionUserId) return sessionUserId;
+  if (sessionUserId) {
+    // Phase 29: ตรวจสถานะบัญชีจริงทุกครั้ง — ผู้เล่นที่ถูก "แบน" (isActive = false)
+    // หรือ "ถูกลบ" ต้องใช้ session เดิมต่อไม่ได้ทันที (เดิมคุกกี้ยังใช้ได้จนหมดอายุ)
+    const account = await prisma.user.findUnique({
+      where: { id: sessionUserId },
+      select: { isActive: true },
+    });
+    return account?.isActive ? sessionUserId : null;
+  }
 
   const cleaned = param && param !== 'temp-user' ? param : null;
   if (cleaned) return resolveUserId(cleaned);

@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { ADMIN_ROLES, ROLE_LABEL_TH, checkManageUser, type ManagedAction } from '@/lib/admin-users';
 
 interface AdminUser {
   id: string;
@@ -24,6 +25,11 @@ export default function AdminUsersPage() {
   const [error, setError] = useState<string | null>(null);
   const [msg, setMsg] = useState<string | null>(null);
   const [refilling, setRefilling] = useState<string | null>(null);
+  /** Phase 29: จัดการผู้เล่น (สิทธิ์/แบน/ลบ) */
+  const [busyId, setBusyId] = useState<string | null>(null);
+  const [deleting, setDeleting] = useState<AdminUser | null>(null);
+  const [confirmName, setConfirmName] = useState('');
+  const [actor, setActor] = useState<{ id: string; role: string } | null>(null);
   /** Phase 27: แบ่งหน้า — เดิมขอครั้งเดียว 50 รายชื่อ ผู้เล่นเกิน 50 จึงไม่ครบ */
   const [limit, setLimit] = useState(50);
   const [pagination, setPagination] = useState({
@@ -79,6 +85,110 @@ export default function AdminUsersPage() {
   };
 
   useEffect(() => { void load('', 1, 50); /* eslint-disable-line react-hooks/exhaustive-deps */ }, []);
+
+  /** รู้ว่าตัวเองเป็นใคร/สิทธิ์อะไร → ใช้ซ่อนปุ่มที่กดไม่ได้ (เซิร์ฟเวอร์ยังตรวจซ้ำเสมอ) */
+  useEffect(() => {
+    fetch('/api/auth/me')
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data) => {
+        const user = data?.data?.user;
+        if (user?.id) setActor({ id: user.id, role: user.role ?? 'PLAYER' });
+      })
+      .catch(() => undefined);
+  }, []);
+
+  /** ตรวจสิทธิ์ฝั่ง UI ด้วยกติกาชุดเดียวกับเซิร์ฟเวอร์ */
+  const allowed = (action: ManagedAction, u: AdminUser, nextRole?: string): boolean => {
+    if (!actor) return false;
+    return checkManageUser({
+      actorId: actor.id,
+      actorRole: actor.role,
+      targetId: u.id,
+      targetRole: u.role,
+      action,
+      nextRole,
+    }).ok;
+  };
+
+  /** เปลี่ยนสิทธิ์ผู้เล่น */
+  const changeRole = async (u: AdminUser, role: string) => {
+    if (!allowed('changeRole', u, role)) return;
+    setBusyId(u.id);
+    setMsg(null);
+    setError(null);
+    try {
+      const res = await fetch(`/api/admin/users/${u.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ role }),
+      });
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        setError(data.error || 'เปลี่ยนสิทธิ์ไม่สำเร็จ');
+        return;
+      }
+      setMsg(data.message);
+      await load(search, pagination.page, limit);
+    } catch {
+      setError('เปลี่ยนสิทธิ์ไม่สำเร็จ');
+    } finally {
+      setBusyId(null);
+    }
+  };
+
+  /** แบน / ปลดแบน */
+  const setActive = async (u: AdminUser, isActive: boolean) => {
+    if (!allowed(isActive ? 'unban' : 'ban', u)) return;
+    setBusyId(u.id);
+    setMsg(null);
+    setError(null);
+    try {
+      const res = await fetch(`/api/admin/users/${u.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ isActive }),
+      });
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        setError(data.error || 'อัปเดตสถานะไม่สำเร็จ');
+        return;
+      }
+      setMsg(data.message);
+      await load(search, pagination.page, limit);
+    } catch {
+      setError('อัปเดตสถานะไม่สำเร็จ');
+    } finally {
+      setBusyId(null);
+    }
+  };
+
+  /** ลบผู้เล่น (ต้องพิมพ์ชื่อให้ตรง) */
+  const confirmDelete = async () => {
+    if (!deleting) return;
+    setBusyId(deleting.id);
+    setMsg(null);
+    setError(null);
+    try {
+      const res = await fetch(`/api/admin/users/${deleting.id}`, {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ confirmUsername: confirmName }),
+      });
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        setError(data.error || 'ลบผู้เล่นไม่สำเร็จ');
+        return;
+      }
+      setMsg(data.message);
+      setDeleting(null);
+      setConfirmName('');
+      await load(search, pagination.page, limit);
+    } catch {
+      setError('ลบผู้เล่นไม่สำเร็จ');
+    } finally {
+      setBusyId(null);
+    }
+  };
 
   return (
     <div>
@@ -161,13 +271,39 @@ export default function AdminUsersPage() {
             </thead>
             <tbody>
               {users.map((u) => (
-                <tr key={u.id} data-admin-user={u.id} className="border-t border-gray-700 text-gray-200">
+                <tr
+                  key={u.id}
+                  data-admin-user={u.id}
+                  data-admin-user-banned={u.isActive ? 'false' : 'true'}
+                  className={`border-t border-gray-700 ${u.isActive ? 'text-gray-200' : 'text-gray-500'}`}
+                >
                   <td className="p-2">
-                    <div className="font-bold">{u.username}</div>
+                    <div className="font-bold">
+                      {u.username} {!u.isActive && <span className="ml-1 text-[10px] text-red-400">🚫 ถูกแบน</span>}
+                    </div>
                     <div className="text-xs text-gray-500">{u.email}</div>
                   </td>
                   <td className="p-2">
-                    <span className={u.role === 'PLAYER' ? 'text-gray-400' : 'text-amber-400'}>{u.role}</span>
+                    {/* Phase 29: กำหนดสิทธิ์ผู้เล่น (แอดมินเท่านั้น · ซ่อนปุ่มที่กดไม่ได้) */}
+                    {allowed('changeRole', u, u.role === 'PLAYER' ? 'MODERATOR' : 'PLAYER') ? (
+                      <select
+                        data-admin-user-role={u.id}
+                        value={u.role}
+                        disabled={busyId === u.id}
+                        onChange={(e) => changeRole(u, e.target.value)}
+                        className="rounded border border-gray-600 bg-gray-900 px-2 py-1 text-xs text-white disabled:opacity-50"
+                      >
+                        {ADMIN_ROLES.map((role) => (
+                          <option key={role} value={role}>
+                            {ROLE_LABEL_TH[role]}
+                          </option>
+                        ))}
+                      </select>
+                    ) : (
+                      <span className={u.role === 'PLAYER' ? 'text-gray-400' : 'text-amber-400'}>
+                        {ROLE_LABEL_TH[u.role as keyof typeof ROLE_LABEL_TH] ?? u.role}
+                      </span>
+                    )}
                   </td>
                   <td className="p-2 text-right">{u.cardCount}</td>
                   <td className="p-2 text-right">{u.deckCount}</td>
@@ -203,13 +339,97 @@ export default function AdminUsersPage() {
                       )}
                     </div>
                   </td>
-                  <td className="p-2 text-center">
-                    {u.isActive ? '✅' : '🚫'}
+                  <td className="p-2">
+                    {/* Phase 29: แบน/ปลดแบน + ลบผู้เล่น */}
+                    <div className="flex flex-wrap items-center justify-center gap-1">
+                      <span data-admin-user-status={u.isActive ? 'active' : 'banned'}>
+                        {u.isActive ? '✅ ใช้งาน' : '🚫 ถูกแบน'}
+                      </span>
+                      {allowed(u.isActive ? 'ban' : 'unban', u) && (
+                        <button
+                          type="button"
+                          data-admin-user-ban={u.id}
+                          data-admin-user-ban-action={u.isActive ? 'ban' : 'unban'}
+                          disabled={busyId === u.id}
+                          onClick={() => setActive(u, !u.isActive)}
+                          className={`rounded px-2 py-1 text-xs transition-colors disabled:opacity-50 ${
+                            u.isActive
+                              ? 'bg-red-700/80 text-white hover:bg-red-600'
+                              : 'bg-emerald-700/80 text-white hover:bg-emerald-600'
+                          }`}
+                        >
+                          {busyId === u.id ? '...' : u.isActive ? '🚫 แบน' : '♻️ ปลดแบน'}
+                        </button>
+                      )}
+                      {allowed('delete', u) && (
+                        <button
+                          type="button"
+                          data-admin-user-delete={u.id}
+                          disabled={busyId === u.id}
+                          onClick={() => { setDeleting(u); setConfirmName(''); setMsg(null); setError(null); }}
+                          className="rounded bg-white/10 px-2 py-1 text-xs text-gray-200 transition-colors hover:bg-red-700/70 hover:text-white disabled:opacity-50"
+                        >
+                          🗑️ ลบ
+                        </button>
+                      )}
+                    </div>
                   </td>
                 </tr>
               ))}
             </tbody>
           </table>
+        </div>
+      )}
+
+      {/* Phase 29: ยืนยันการลบผู้เล่น — ต้องพิมพ์ชื่อผู้ใช้ให้ตรง */}
+      {deleting && (
+        <div
+          data-admin-user-delete-modal="true"
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4"
+          onClick={() => setDeleting(null)}
+        >
+          <div
+            className="w-full max-w-md rounded-xl border border-red-800 bg-gray-800 p-5"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <h3 className="mb-2 font-bold text-red-300">🗑️ ลบผู้เล่นถาวร</h3>
+            <p className="mb-2 text-sm text-gray-300">
+              กำลังจะลบ <b className="text-white">{deleting.username}</b> ({deleting.email})
+            </p>
+            <ul className="mb-3 list-inside list-disc text-xs text-gray-400">
+              <li>การ์ด {deleting.cardCount} · ทีม {deleting.deckCount} · ค้นพบ {deleting.discoveryCount} ครั้ง</li>
+              <li>Coin {deleting.coinBalance.toLocaleString('th-TH')} และของสะสมทั้งหมดจะหายไป</li>
+              <li className="text-red-400">ลบแล้วกู้คืนไม่ได้</li>
+            </ul>
+            <label className="mb-1 block text-xs text-gray-400">
+              พิมพ์ชื่อผู้ใช้ <b className="text-white">{deleting.username}</b> เพื่อยืนยัน
+            </label>
+            <input
+              data-admin-user-delete-confirm-input
+              value={confirmName}
+              onChange={(e) => setConfirmName(e.target.value)}
+              className="mb-3 w-full rounded-lg border border-gray-600 bg-gray-900 px-3 py-2 text-white"
+              placeholder={deleting.username}
+            />
+            <div className="flex gap-2">
+              <button
+                type="button"
+                data-admin-user-delete-confirm
+                disabled={busyId === deleting.id || confirmName.trim() !== deleting.username}
+                onClick={confirmDelete}
+                className="flex-1 rounded-lg bg-red-600 px-3 py-2 text-sm font-bold text-white hover:bg-red-500 disabled:opacity-40"
+              >
+                {busyId === deleting.id ? 'กำลังลบ…' : 'ยืนยันลบผู้เล่น'}
+              </button>
+              <button
+                type="button"
+                onClick={() => setDeleting(null)}
+                className="rounded-lg bg-white/10 px-4 py-2 text-sm text-gray-200 hover:bg-white/20"
+              >
+                ยกเลิก
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </div>

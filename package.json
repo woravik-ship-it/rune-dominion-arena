@@ -41,7 +41,8 @@
     "inspect:audio": "node scripts/inspect-audio.mjs",
     "inspect:profile": "node scripts/inspect-profile-avatar.mjs",
     "inspect:admin": "node scripts/inspect-admin-cards.mjs",
-    "inspect:ranking": "node scripts/inspect-ranking.mjs"
+    "inspect:ranking": "node scripts/inspect-ranking.mjs",
+    "inspect:admin-users": "node scripts/inspect-admin-users.mjs"
   },
   "dependencies": {
     "next": "^14.2.0",
