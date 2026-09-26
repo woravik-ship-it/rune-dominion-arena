@@ -1,5 +1,19 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
+import { ItemService } from '@/services/item';
+
+/** Phase 25: Status การ์ดในเด็ค = พื้นฐาน + Item ที่ใส่ (ช่องโจมตี/ป้องกัน/สนับสนุน) */
+function cardStatsWithItems(
+  card: { atk: number; def: number; hp: number; spd: number },
+  bonus?: { atk: number; def: number; hp: number; spd: number }
+): { atk: number; def: number; hp: number; spd: number } {
+  return {
+    atk: card.atk + (bonus?.atk ?? 0),
+    def: card.def + (bonus?.def ?? 0),
+    hp: card.hp + (bonus?.hp ?? 0),
+    spd: card.spd + (bonus?.spd ?? 0),
+  };
+}
 import { calculateTeamPower, validateDeck, validatePositions, formationFromSlots, skillsOf } from '@/services/deck';
 import { parseJsonBody, deckCreateSchema } from '@/lib/validation';
 import { enforceRateLimit } from '@/lib/api-guard';
@@ -24,6 +38,12 @@ export async function GET(request: NextRequest) {
       orderBy: { updatedAt: 'desc' },
     });
 
+    // Phase 25: Item ที่ใส่ไว้ในการ์ดของทุกเด็ค (หาทีเดียวทั้งชุด)
+    const itemStats = await ItemService.statsByCardIds(
+      userId,
+      decks.flatMap((deck) => deck.slots.map((slot) => slot.cardId))
+    );
+
     return NextResponse.json({
       success: true,
       data: decks.map((deck) => {
@@ -38,10 +58,7 @@ export async function GET(request: NextRequest) {
               element: s.card.element,
               rarity: s.card.rarity,
               role: s.card.role,
-              atk: s.card.atk,
-              def: s.card.def,
-              hp: s.card.hp,
-              spd: s.card.spd,
+              ...cardStatsWithItems(s.card, itemStats.get(s.cardId)),
               manaCost: s.card.manaCost,
               skill1Name: s.card.skill1Name,
               skill1ManaCost: s.card.skill1ManaCost,
@@ -60,10 +77,7 @@ export async function GET(request: NextRequest) {
             deck.slots.map((s) => ({
               cardId: s.cardId,
               element: s.card.element,
-              atk: s.card.atk,
-              def: s.card.def,
-              hp: s.card.hp,
-              spd: s.card.spd,
+              ...cardStatsWithItems(s.card, itemStats.get(s.cardId)),
             }))
           ),
           formationScore: {
@@ -84,10 +98,7 @@ export async function GET(request: NextRequest) {
             rarity: s.card.rarity,
             role: s.card.role,
             stats: {
-              atk: s.card.atk,
-              def: s.card.def,
-              hp: s.card.hp,
-              spd: s.card.spd,
+              ...cardStatsWithItems(s.card, itemStats.get(s.cardId)),
               manaCost: s.card.manaCost,
             },
             skills: skillsOf(s.card),

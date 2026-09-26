@@ -1,6 +1,7 @@
 'use client';
 
 import { apiFetch } from '@/lib/api-client';
+import { useAudio } from '@/components/providers/AudioProvider';
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
@@ -14,6 +15,7 @@ interface Deck {
 
 export default function BattleSetupPage() {
   const router = useRouter();
+  const { play } = useAudio();
   const [decks, setDecks] = useState<Deck[]>([]);
   const [selected, setSelected] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -36,6 +38,7 @@ export default function BattleSetupPage() {
   };
 
   const handleFightBot = async () => {
+    play('rune_discover');
     setError(null);
     if (!selected) { setError('เลือกเด็คก่อน (ต้องมี 5 ใบ)'); return; }
     setFighting(true);

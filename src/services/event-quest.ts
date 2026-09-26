@@ -3,6 +3,7 @@
 // หลักการ: งวดรายวัน/รายสัปดาห์ (period key เดียวกับ QuestService), idempotent, integer เท่านั้น
 import { prisma } from '@/lib/prisma';
 import { WalletService } from '@/services/wallet';
+import { VeilShardService } from '@/services/veil-shard';
 
 export interface EventQuestProgressView {
   questId: string;
@@ -187,18 +188,24 @@ export class EventQuestService {
       );
     }
 
-    // Veil Shards เข้า participation ของกิจกรรม
-    let veilShards = 0;
+    // Veil Shards เข้ากระเป๋ากลางของผู้เล่น (Phase 25) — และนับสถิติของกิจกรรมไว้ด้วย
+    let veilShards = await VeilShardService.balance(userId);
     if (quest.currencyReward > 0) {
+      const credited = await VeilShardService.credit({
+        userId,
+        amount: quest.currencyReward,
+        source: 'EVENT_QUEST',
+        description: `ภารกิจกิจกรรม: ${quest.nameTh}`,
+      });
+      veilShards = credited.balance;
       const part = await prisma.eventParticipation.findUnique({
         where: { eventId_userId: { eventId, userId } },
       });
       if (part) {
-        const updated = await prisma.eventParticipation.update({
+        await prisma.eventParticipation.update({
           where: { id: part.id },
           data: { currencyEarned: { increment: quest.currencyReward } },
         });
-        veilShards = updated.currencyEarned - updated.currencySpent;
       }
     }
 

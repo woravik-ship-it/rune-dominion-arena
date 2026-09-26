@@ -1,6 +1,7 @@
 'use client';
 
 import { apiFetch } from '@/lib/api-client';
+import { useAudio } from '@/components/providers/AudioProvider';
 import { useState, useEffect, useMemo } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
@@ -50,6 +51,7 @@ export default function ArenaRoomPage() {
   const router = useRouter();
   const roomId = params.id as string;
 
+  const { play } = useAudio();
   const [room, setRoom] = useState<RoomDetail | null>(null);
   const [decks, setDecks] = useState<DeckOption[]>([]);
   const [deckId, setDeckId] = useState<string | null>(null);
@@ -102,6 +104,7 @@ export default function ArenaRoomPage() {
     )) return;
     setBusy(true);
     try {
+      play('arena_join');
       const res = await apiFetch(`/api/arena/${roomId}/join`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },

@@ -1,6 +1,13 @@
 'use client';
 
 import { useRef, useEffect, useState, useCallback } from 'react';
+import { useI18n } from '@/components/providers/LocaleProvider';
+import {
+  RUNE_GRID_SIZE,
+  RUNE_VIEW_SIZE,
+  runeIndexAt,
+  wrapRuneOffset,
+} from '@/lib/rune-grid';
 
 interface RuneCanvasProps {
   onSelectionChange: (selectedRunes: number[]) => void;
@@ -13,10 +20,20 @@ interface RuneCanvasProps {
   resetSignal?: number;
 }
 
-const GRID_SIZE = 100;
-const VIEW = 10;
-const CELL_PX = 36;
-const MAX_VIEW = GRID_SIZE - VIEW; // 90 — largest top-left offset
+const GRID_SIZE = RUNE_GRID_SIZE;
+const VIEW = RUNE_VIEW_SIZE;
+/**
+ * ขนาดช่อง (px) — ปรับตามจอจริง (ผู้ใช้สั่ง 2026-09-20: "ปรับขนาดให้เหมาะสมกับจอ")
+ * เดิมตรึงไว้ 36px เท่ากันทุกจอ ⇒ บนจอใหญ่ตารางดูเล็ก และบนมือถือล้น/ถูกย่อจนกดยาก
+ */
+const CELL_MAX_PX = 60;
+const CELL_MIN_PX = 20;
+/** ความกว้างที่กันไว้ให้คอลัมน์ปุ่มลูกศรสองข้าง (รวมช่องว่าง) */
+const NAV_COLUMN_PX = 42;
+/**
+ * เลื่อนมุมมองแบบ "วนไม่สิ้นสุด" — ไม่มีขอบตัน จึงไม่มีค่า MAX offset ที่ต้องเช็ค
+ * (ดู `wrapRuneOffset` ใน `src/lib/rune-grid.ts`)
+ */
 const DRAG_THRESHOLD_PX = 6;
 
 function hashPos(i: number): number {
@@ -30,7 +47,76 @@ function hashPos(i: number): number {
 const clamp = (v: number, lo: number, hi: number): number =>
   Math.min(Math.max(v, lo), hi);
 
-const GLYPHS = ['ᚠ','ᚢ','ᚦ','ᚨ','ᚱ','ᚲ','ᚷ','ᚹ','ᚺ','ᚾ','ᛁ','ᛃ','ᛇ','ᛈ','ᛉ','ᛊ','ᛏ','ᛒ','ᛖ','ᛗ','ᛚ','ᛜ','ᛞ','ᛟ'];
+const GLYPH_ALPHA_MIN = 0.38;
+const GLYPH_ALPHA_MAX = 0.95;
+
+// ===== อักขระรูนของแต่ละช่อง (วาดเอง — ไม่ซ้ำกันทั้งกระดาน) =====
+//
+// เหตุผลที่เปลี่ยน (ผู้ใช้สั่ง 2026-09-26: "แก้ไขรูนให้มีอักขระ ไม่ซ้ำกัน"):
+// เดิมใช้ตัวอักษร 24 ตัววนซ้ำ (`GLYPHS[index % 24]`) → ทั้งกระดานเห็นอักขระเดิม ๆ
+// ซ้ำเป็นแพตเทิร์นชัดเจน ดูเป็นตารางตัวอักษร ไม่ใช่กระดานรูน
+//
+// วิธีใหม่ = วาดอักขระเองแบบกำหนดผลได้ และ **ไม่ซ้ำกันจริง** ด้วยการเข้ารหัสเลข index:
+//   index ของช่อง (0–9999) มี 4 หลักฐานสิบ → แต่ละหลักเลือก "รอย" 1 จาก 10 แบบ
+//   แล้ววาดรอยนั้นลงในช่องของตัวเอง (บน/ขวา/ล่าง/ซ้าย)
+//   ⇒ (หลักที่ 1..4, รอยที่เลือก) ต่างกันทุกช่อง = ไม่มีช่องไหนได้อักขระซ้ำกันเลย
+type RuneMark = (ctx: CanvasRenderingContext2D, x: number, y: number, s: number) => void;
+
+const RUNE_MARKS: readonly RuneMark[] = [
+  // 0 · ขีดตั้ง
+  (c, x, y, s) => { c.moveTo(x, y - s); c.lineTo(x, y + s); },
+  // 1 · ขีดนอน
+  (c, x, y, s) => { c.moveTo(x - s, y); c.lineTo(x + s, y); },
+  // 2 · เฉียง ↘
+  (c, x, y, s) => { c.moveTo(x - s, y - s); c.lineTo(x + s, y + s); },
+  // 3 · เฉียง ↗
+  (c, x, y, s) => { c.moveTo(x - s, y + s); c.lineTo(x + s, y - s); },
+  // 4 · จุดกลม
+  (c, x, y, s) => { c.moveTo(x + s * 0.32, y); c.arc(x, y, s * 0.32, 0, Math.PI * 2); },
+  // 5 · หลังคา ⌃
+  (c, x, y, s) => { c.moveTo(x - s, y + s * 0.6); c.lineTo(x, y - s * 0.6); c.lineTo(x + s, y + s * 0.6); },
+  // 6 · รางน้ำ ∨
+  (c, x, y, s) => { c.moveTo(x - s, y - s * 0.6); c.lineTo(x, y + s * 0.6); c.lineTo(x + s, y - s * 0.6); },
+  // 7 · สามเหลี่ยม
+  (c, x, y, s) => {
+    c.moveTo(x - s * 0.85, y + s * 0.7); c.lineTo(x, y - s * 0.8); c.lineTo(x + s * 0.85, y + s * 0.7);
+    c.closePath();
+  },
+  // 8 · ตะขอ
+  (c, x, y, s) => { c.moveTo(x, y - s); c.lineTo(x, y + s * 0.5); c.lineTo(x + s * 0.8, y + s * 0.5); },
+  // 9 · ข้าวหลามตัด
+  (c, x, y, s) => {
+    c.moveTo(x, y - s * 0.85); c.lineTo(x + s * 0.8, y); c.lineTo(x, y + s * 0.85); c.lineTo(x - s * 0.8, y);
+    c.closePath();
+  },
+];
+
+/** ตำแหน่งรอยทั้ง 4 ของอักขระ: บน · ขวา · ล่าง · ซ้าย */
+const RUNE_SLOTS: readonly (readonly [number, number])[] = [
+  [0, -1],
+  [1, 0],
+  [0, 1],
+  [-1, 0],
+];
+
+/**
+ * วาดอักขระรูนประจำช่อง index (0–9999) — deterministic + ไม่ซ้ำกัน
+ * ต้องเรียก ctx.beginPath() มาก่อน (ฟังก์ชันนี้ต่อ path ให้) แล้วค่อย ctx.stroke()
+ */
+function traceRuneGlyph(ctx: CanvasRenderingContext2D, cx: number, cy: number, size: number, index: number): void {
+  const digits = [
+    Math.floor(index / 1000) % 10,
+    Math.floor(index / 100) % 10,
+    Math.floor(index / 10) % 10,
+    index % 10,
+  ];
+  const markSize = size * 0.30;
+  const slotRadius = size * 0.26;
+  for (let k = 0; k < 4; k++) {
+    const [ux, uy] = RUNE_SLOTS[k];
+    RUNE_MARKS[digits[k]](ctx, cx + ux * slotRadius, cy + uy * slotRadius, markSize);
+  }
+}
 
 interface PanState {
   startX: number;
@@ -46,12 +132,40 @@ export default function RuneCanvas({
   maxRunes = 16,
   resetSignal
 }: RuneCanvasProps) {
+  const { t } = useI18n();
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const panRef = useRef<PanState | null>(null);
   const [selectedRunes, setSelectedRunes] = useState<number[]>([]);
   const [viewX, setViewX] = useState((GRID_SIZE - VIEW) / 2);
   const [viewY, setViewY] = useState((GRID_SIZE - VIEW) / 2);
-  const sizePx = VIEW * CELL_PX;
+  /** ขนาดช่องที่พอดีกับจอปัจจุบัน (คำนวณใหม่เมื่อหมุนจอ/เปลี่ยนขนาดหน้าต่าง) */
+  const [cellPx, setCellPx] = useState(CELL_MAX_PX);
+  const sizePx = VIEW * cellPx;
+
+  // ปรับขนาดตารางให้พอดีจอ: วัดระยะเหนือตารางจริง (หัวเว็บ/หัวข้อ) แล้วกันที่ว่างใต้ตารางไว้
+  useEffect(() => {
+    /** ที่ว่างใต้ตารางที่ต้องกัน: ▼ + แถวปุ่มสุ่ม/ล้าง (+ ระยะห่าง) */
+    const BELOW_CONTROLS_PX = 112;
+    const fitToScreen = () => {
+      const canvas = canvasRef.current;
+      // ระยะจากบนเอกสารถึงขอบบนของตาราง (ไม่ขึ้นกับ scroll และไม่ขึ้นกับขนาดตารางเอง)
+      const topDoc = (canvas?.getBoundingClientRect().top ?? 340) + window.scrollY;
+      // แถบเมนูล่างเป็น fixed — ต้องกันความสูงจริง ไม่งั้นปุ่มล่างจะถูกบัง
+      const bottomNav = document.querySelector<HTMLElement>('[data-bottom-nav="true"]');
+      const bottomNavPx = bottomNav?.getBoundingClientRect().height ?? 64;
+      const availW = window.innerWidth - 32 /* padding ของหน้า (p-4) */ - NAV_COLUMN_PX * 2;
+      const availH = window.innerHeight + window.scrollY - topDoc - BELOW_CONTROLS_PX - bottomNavPx;
+      const fitted = Math.floor(Math.min(availW, Math.max(availH, 240)) / VIEW);
+      setCellPx(clamp(fitted, CELL_MIN_PX, CELL_MAX_PX));
+    };
+    fitToScreen();
+    window.addEventListener('resize', fitToScreen);
+    window.addEventListener('orientationchange', fitToScreen);
+    return () => {
+      window.removeEventListener('resize', fitToScreen);
+      window.removeEventListener('orientationchange', fitToScreen);
+    };
+  }, []);
 
   // ล้างรูนที่เลือกเมื่อ parent สั่ง (หลังถอดรหัส) — ข้ามรอบแรกตอน mount
   const lastResetRef = useRef(resetSignal);
@@ -73,33 +187,30 @@ export default function RuneCanvas({
         const gy = viewY + vy;
         const index = gy * GRID_SIZE + gx;
         const isSelected = selectedRunes.includes(index);
-        const order = selectedRunes.indexOf(index);
         const h = hashPos(index);
         ctx.fillStyle = isSelected ? '#f59e0b' : '#2d2d44';
         ctx.shadowColor = '#f59e0b';
         ctx.shadowBlur = isSelected ? 12 : 0;
-        const pad = 2;
-        const cx = vx * CELL_PX + CELL_PX / 2;
-        const cy = vy * CELL_PX + CELL_PX / 2;
+        const pad = Math.max(1.5, cellPx * 0.055);
+        const cx = vx * cellPx + cellPx / 2;
+        const cy = vy * cellPx + cellPx / 2;
         ctx.beginPath();
-        ctx.roundRect(vx * CELL_PX + pad, vy * CELL_PX + pad, CELL_PX - pad * 2, CELL_PX - pad * 2, 8);
+        ctx.roundRect(vx * cellPx + pad, vy * cellPx + pad, cellPx - pad * 2, cellPx - pad * 2, cellPx * 0.22);
         ctx.fill();
         ctx.shadowBlur = 0;
-        ctx.fillStyle = isSelected ? '#1a1a2e' : `rgba(245,158,11,${0.35 + h * 0.55})`;
-        ctx.font = `${Math.floor(CELL_PX * 0.52)}px serif`;
-        ctx.fillText(GLYPHS[index % GLYPHS.length], cx, cy + 1);
-        if (isSelected) {
-          ctx.fillStyle = '#ef4444';
-          ctx.beginPath();
-          ctx.arc(vx * CELL_PX + CELL_PX - 9, vy * CELL_PX + 9, 9, 0, Math.PI * 2);
-          ctx.fill();
-          ctx.fillStyle = '#fff';
-          ctx.font = 'bold 11px sans-serif';
-          ctx.fillText(String(order + 1), vx * CELL_PX + CELL_PX - 9, vy * CELL_PX + 9.5);
-        }
+        // อักขระรูนของช่องนี้ (วาดเอง ไม่ซ้ำกันทั้งกระดาน — ดู traceRuneGlyph)
+        // + ความสว่างต่างกันเล็กน้อยตามตำแหน่ง เพื่อให้กระดานดูมีมิติ
+        const alpha = GLYPH_ALPHA_MIN + h * (GLYPH_ALPHA_MAX - GLYPH_ALPHA_MIN);
+        ctx.strokeStyle = isSelected ? '#1a1a2e' : `rgba(245,158,11,${alpha.toFixed(2)})`;
+        ctx.lineWidth = isSelected ? 2 : Math.max(1.2, cellPx * 0.045);
+        ctx.lineCap = 'round';
+        ctx.lineJoin = 'round';
+        ctx.beginPath();
+        traceRuneGlyph(ctx, cx, cy, cellPx * 0.6, index);
+        ctx.stroke();
       }
     }
-  }, [selectedRunes, viewX, viewY, sizePx]);
+  }, [selectedRunes, viewX, viewY, sizePx, cellPx]);
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -117,10 +228,10 @@ export default function RuneCanvas({
     const rect = canvas.getBoundingClientRect();
     const scaleX = canvas.width / rect.width;
     const scaleY = canvas.height / rect.height;
-    const vx = Math.floor(((clientX - rect.left) * scaleX) / CELL_PX);
-    const vy = Math.floor(((clientY - rect.top) * scaleY) / CELL_PX);
+    const vx = Math.floor(((clientX - rect.left) * scaleX) / cellPx);
+    const vy = Math.floor(((clientY - rect.top) * scaleY) / cellPx);
     if (vx < 0 || vx >= VIEW || vy < 0 || vy >= VIEW) return -1;
-    return (viewY + vy) * GRID_SIZE + (viewX + vx);
+    return runeIndexAt(viewX, viewY, vx, vy);
   };
 
   const toggleRune = (index: number) => {
@@ -152,8 +263,9 @@ export default function RuneCanvas({
     const dy = e.clientY - pan.startY;
     if (!pan.moved && Math.hypot(dx, dy) < DRAG_THRESHOLD_PX) return;
     pan.moved = true;
-    const nextX = clamp(pan.baseX - Math.round(dx / CELL_PX), 0, MAX_VIEW);
-    const nextY = clamp(pan.baseY - Math.round(dy / CELL_PX), 0, MAX_VIEW);
+    // ลากเลยขอบ = วนไปอีกฝั่ง (ไม่มีการหยุดที่ขอบ)
+    const nextX = wrapRuneOffset(pan.baseX - Math.round(dx / cellPx));
+    const nextY = wrapRuneOffset(pan.baseY - Math.round(dy / cellPx));
     if (nextX !== viewX) setViewX(nextX);
     if (nextY !== viewY) setViewY(nextY);
   };
@@ -175,8 +287,9 @@ export default function RuneCanvas({
   };
 
   const panView = (dx: number, dy: number) => {
-    setViewX(clamp(viewX + dx, 0, MAX_VIEW));
-    setViewY(clamp(viewY + dy, 0, MAX_VIEW));
+    // ใช้ฟังก์ชันอัปเดตแบบ functional ⇒ กดรัว ๆ ติดกันไม่ตกหล่น และวนไม่สิ้นสุด
+    setViewX((prev) => wrapRuneOffset(prev + dx));
+    setViewY((prev) => wrapRuneOffset(prev + dy));
   };
 
   const clearSelection = () => {
@@ -197,81 +310,104 @@ export default function RuneCanvas({
     // เลื่อนมุมมองไปจุดต่างๆที่สุ่มได้ได้บ้าง
     if (next.length > 0) {
       const first = next[0];
-      setViewX(clamp((first % GRID_SIZE) - VIEW / 2, 0, MAX_VIEW));
-      setViewY(clamp(Math.floor(first / GRID_SIZE) - VIEW / 2, 0, MAX_VIEW));
+      setViewX(wrapRuneOffset(first % GRID_SIZE - VIEW / 2));
+      setViewY(wrapRuneOffset(Math.floor(first / GRID_SIZE) - VIEW / 2));
     }
   };
 
-  const navBtn = 'flex-1 h-10 bg-gray-800 hover:bg-gray-700 rounded-lg text-gray-200 text-sm disabled:opacity-30';
+  // ปุ่มลูกศรสามเหลี่ยม (ผู้ใช้สั่ง 2026-09-20: ทำเป็นสามเหลี่ยม + ย้ายไปด้านข้าง/บน-ล่างของตาราง)
+  // ผู้ใช้สั่ง 2026-09-26: "ทำให้เวลากดมันวน เอามาต่อกัน ให้กดได้ไม่สิ้นสุด" ⇒ ไม่มี disabled ที่ขอบอีก
+  const navTriBtn =
+    'flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-gray-800 text-base leading-none text-amber-300 transition-colors hover:bg-gray-700 active:bg-gray-600';
+  const navBottomBtn = 'btn-secondary text-sm';
 
   return (
-    <div className="flex flex-col items-center gap-4">
+    <div className="flex flex-col items-center gap-3">
       <div className="text-center">
-        <p className="text-sm text-gray-400">
-          เลือกรูน {minRunes}-{maxRunes} ตำแหน่ง · ลากเพื่อเลื่อนแผน
-        </p>
+        <p className="text-sm text-gray-400">{t('discover.pickHint')}</p>
         <p className="text-lg font-bold text-amber-400">
-          เลือกแล้ว: {selectedRunes.length} / {maxRunes}
+          {t('discover.selected')}: {selectedRunes.length} / {maxRunes}
         </p>
       </div>
 
-      <canvas
-        ref={canvasRef}
-        width={sizePx}
-        height={sizePx}
-        className="max-w-full h-auto rounded-xl border border-gray-700 cursor-grab select-none"
-        style={{ touchAction: 'none' }}
-        onPointerDown={handlePointerDown}
-        onPointerMove={handlePointerMove}
-        onPointerUp={handlePointerUp}
-        onPointerCancel={handlePointerCancel}
-      />
+      {/* ▲ เหนือตาราง — กดวนขึ้นไม่สิ้นสุด (ขึ้นสุด → กลับไปล่างสุด) */}
+      <button
+        type="button"
+        data-rune-nav="up"
+        onClick={() => panView(0, -1)}
+        aria-label={t('discover.navUp')}
+        className={navTriBtn}
+      >
+        ▲
+      </button>
 
-      <div className="flex items-center gap-2 text-xs text-gray-500">
-        <span>พิกัด: ({viewX}, {viewY}) · {VIEW}×{VIEW}</span>
-        <button type="button" onClick={() => { setViewX((GRID_SIZE - VIEW) / 2); setViewY((GRID_SIZE - VIEW) / 2); }} className={navBtn}>
-          กลับกลาง
+      <div className="flex items-center gap-2">
+        {/* ◀ ซ้ายของตาราง */}
+        <button
+          type="button"
+          data-rune-nav="left"
+          onClick={() => panView(-1, 0)}
+          aria-label={t('discover.navLeft')}
+          className={navTriBtn}
+        >
+          ◀
+        </button>
+
+        <canvas
+          ref={canvasRef}
+          width={sizePx}
+          height={sizePx}
+          className="rounded-xl border border-gray-700 cursor-grab select-none"
+          style={{ width: sizePx, height: sizePx, touchAction: 'none' }}
+          onPointerDown={handlePointerDown}
+          onPointerMove={handlePointerMove}
+          onPointerUp={handlePointerUp}
+          onPointerCancel={handlePointerCancel}
+        />
+
+        {/* ▶ ขวาของตาราง */}
+        <button
+          type="button"
+          data-rune-nav="right"
+          onClick={() => panView(1, 0)}
+          aria-label={t('discover.navRight')}
+          className={navTriBtn}
+        >
+          ▶
         </button>
       </div>
 
-      <div className="flex flex-col items-center gap-1">
-        <button type="button" className={navBtn} onClick={() => panView(0, -1)}>↑</button>
-        <div className="flex gap-1">
-          <button type="button" className={navBtn} onClick={() => panView(-1, 0)}>←</button>
-          <span className="w-10" />
-          <button type="button" className={navBtn} onClick={() => panView(1, 0)}>→</button>
-        </div>
-        <button type="button" className={navBtn} onClick={() => panView(0, 1)}>↓</button>
-      </div>
+      {/* ▼ ใต้ตาราง — กดวนลงไม่สิ้นสุด (ลงสุด → กลับไปบนสุด) */}
+      <button
+        type="button"
+        data-rune-nav="down"
+        onClick={() => panView(0, 1)}
+        aria-label={t('discover.navDown')}
+        className={navTriBtn}
+      >
+        ▼
+      </button>
 
-      <div className="flex gap-2">
+      <div className="flex flex-wrap items-center justify-center gap-2">
         <button
           type="button"
           onClick={randomFill}
-          className="btn-secondary text-sm"
+          className={navBottomBtn}
         >
-          🎲 สุ่ม {maxRunes} จุด
+          {t('discover.random', { n: maxRunes })}
         </button>
         <button
           type="button"
           onClick={clearSelection}
-          className="btn-secondary text-sm"
+          className={navBottomBtn}
           disabled={selectedRunes.length === 0}
         >
-          ล้าง
+          {t('discover.clear')}
         </button>
-        <div className="text-sm text-gray-500 flex items-center">
-          {selectedRunes.length < minRunes && (
-            <span>ต้องเลือกอย่างน้อย {minRunes} จุด</span>
-          )}
-        </div>
+        {selectedRunes.length < minRunes && (
+          <span className="text-sm text-gray-500">{t('discover.needMore', { n: minRunes })}</span>
+        )}
       </div>
-
-      {selectedRunes.length > 0 && (
-        <div className="text-xs text-gray-500 text-center max-w-md break-words">
-          ลำดับรูน: {selectedRunes.join(', ')}
-        </div>
-      )}
     </div>
   );
 }

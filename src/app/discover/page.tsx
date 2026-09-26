@@ -1,6 +1,7 @@
 'use client';
 
 import { apiFetch } from '@/lib/api-client';
+import { useI18n } from '@/components/providers/LocaleProvider';
 import { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import RuneCanvas from '@/components/rune/RuneCanvas';
@@ -11,6 +12,7 @@ import { revealSfxFor } from '@/lib/sfx';
 
 export default function DiscoverPage() {
   const router = useRouter();
+  const { t } = useI18n();
   const [selectedRunes, setSelectedRunes] = useState<number[]>([]);
   const [isDiscovering, setIsDiscovering] = useState(false);
   const [revealedCard, setRevealedCard] = useState<CardDefinition | null>(null);
@@ -61,7 +63,7 @@ export default function DiscoverPage() {
     }
 
     if (energy <= 0) {
-      setError('พลังค้นหาไม่เพียงพอ');
+      setError(t('discover.noEnergy'));
       play('ui_error');
       return;
     }
@@ -162,7 +164,7 @@ export default function DiscoverPage() {
         <div className="flex justify-center mb-6">
           <div className="bg-gray-800 rounded-lg px-4 py-2 flex items-center gap-2">
             <span className="text-amber-400">⚡</span>
-            <span className="text-sm text-gray-300">พลังค้นหา:</span>
+            <span className="text-sm text-gray-300">{t('discover.energy')}:</span>
             <span className="text-lg font-bold text-amber-400">
               {isLoadingEnergy ? '...' : energy}
             </span>
@@ -197,17 +199,17 @@ export default function DiscoverPage() {
             {isDiscovering ? (
               <span className="flex items-center gap-2">
                 <span className="animate-spin">⏳</span>
-                กำลังอ่านบันทึกแห่งรูน...
+                {t('discover.decoding')}
               </span>
             ) : (
-              'ถอดรหัสรูน'
+              t('discover.decode')
             )}
           </button>
         </div>
 
         {/* Discovery Tips */}
         <div className="mt-8 text-center text-sm text-gray-500">
-          <p>💡 เคล็ดลับ: ลำดับรูนเดียวกันจะได้การ์ดเดียวกันเสมอ</p>
+          <p>{t('discover.tip')}</p>
         </div>
       </div>
 

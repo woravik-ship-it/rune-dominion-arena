@@ -4,6 +4,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { EventService } from '@/services/event';
 import { bossPhaseDef, bossPhaseForHp } from '@/services/event-boss';
+import { VeilShardService } from '@/services/veil-shard';
 import { resolveRequestUserId } from '@/lib/current-user';
 
 export async function GET(request: NextRequest) {
@@ -34,8 +35,10 @@ export async function GET(request: NextRequest) {
         where: { eventId_userId: { eventId: event.id, userId } },
       });
       const raidsToday = await EventService.countTodayRaids(userId, event.id);
+      // Phase 25: ยอด Veil Shards ที่ใช้ได้จริงอยู่ในกระเป๋าผู้เล่น (User.veilShards)
+      const veilShards = await VeilShardService.balance(userId);
       me = {
-        veilShards: participation ? participation.currencyEarned - participation.currencySpent : 0,
+        veilShards,
         eventPoints: participation?.eventPoints ?? 0,
         damageDealt: participation?.damageDealt ?? 0,
         raidsToday,

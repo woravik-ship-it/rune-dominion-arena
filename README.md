@@ -147,6 +147,7 @@ prisma/                    schema.prisma · migrations/0_init · seed.ts
 |---|---|
 | [`docs/API.md`](docs/API.md) | รายการ endpoint · rate limit · ตัวอย่าง curl |
 | [`docs/PLAYER_GUIDE_TH.md`](docs/PLAYER_GUIDE_TH.md) | คู่มือผู้เล่นภาษาไทย (เริ่มได้ใน 3 นาที) |
+| [`docs/manual/`](docs/manual) | **หนังสือคู่มือการเล่นฉบับสมบูรณ์** (PDF 77 หน้า A5 + ภาพประกอบจากเกมจริง) |
 | [`docs/DEPLOYMENT.md`](docs/DEPLOYMENT.md) | pipeline · env · runbook · rollback · backup · systemd · tunnel |
 | [`docs/ERROR_AND_LOADING.md`](docs/ERROR_AND_LOADING.md) | error boundary · skeleton · แนวทางแอนิเมชัน |
 | [`SECURITY.md`](SECURITY.md) | สถาปัตยกรรมความปลอดภัย 8 ชั้น + accepted risks |

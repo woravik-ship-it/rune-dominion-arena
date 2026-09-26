@@ -9,10 +9,18 @@ import {
   type CardStatRow,
   type CardStatSource,
 } from '@/services/deck';
+import { ItemService } from '@/services/item';
+import type { ItemStats } from '@/lib/item-definitions';
 import { resolveRequestUserId } from '@/lib/current-user';
 
-/** แปลงการ์ดจาก Prisma → แถวสำหรับสูตรคะแนน (ไม่ต้องเขียนฟิลด์ซ้ำหลายที่) */
-function statRow(slot: { cardId: string; card: CardStatSource }): CardStatRow {
+/**
+ * แปลงการ์ดจาก Prisma → แถวสำหรับสูตรคะแนน (ไม่ต้องเขียนฟิลด์ซ้ำหลายที่)
+ * Phase 25: `bonus` = Status จาก Item ที่ใส่ในการ์ดใบนั้น (บวกเข้าค่าจริง)
+ */
+function statRow(
+  slot: { cardId: string; card: CardStatSource },
+  bonus?: ItemStats
+): CardStatRow {
   return {
     cardId: slot.cardId,
     name: slot.card.name,
@@ -20,10 +28,10 @@ function statRow(slot: { cardId: string; card: CardStatSource }): CardStatRow {
     element: slot.card.element,
     rarity: slot.card.rarity,
     role: slot.card.role,
-    atk: slot.card.atk,
-    def: slot.card.def,
-    hp: slot.card.hp,
-    spd: slot.card.spd,
+    atk: slot.card.atk + (bonus?.atk ?? 0),
+    def: slot.card.def + (bonus?.def ?? 0),
+    hp: slot.card.hp + (bonus?.hp ?? 0),
+    spd: slot.card.spd + (bonus?.spd ?? 0),
     manaCost: slot.card.manaCost,
     skill1Name: slot.card.skill1Name,
     skill1ManaCost: slot.card.skill1ManaCost,
@@ -48,8 +56,15 @@ export async function GET(
       return NextResponse.json({ error: 'ไม่พบเด็ค' }, { status: 404 });
     }
 
-    const rows = deck.slots.map((s) => statRow(s));
-    const formation = formationFromSlots(deck.slots.map((s) => ({ position: s.position, card: statRow(s) })));
+    // Phase 25: Status จาก Item ของการ์ดในเด็ค (ของเจ้าของเด็ค — ไม่ขึ้นกับผู้เรียก)
+    const itemStats = await ItemService.statsByCardIds(
+      deck.userId,
+      deck.slots.map((s) => s.cardId)
+    );
+    const rows = deck.slots.map((s) => statRow(s, itemStats.get(s.cardId)));
+    const formation = formationFromSlots(
+      deck.slots.map((s) => ({ position: s.position, card: statRow(s, itemStats.get(s.cardId)) }))
+    );
 
     return NextResponse.json({
       success: true,
@@ -63,10 +78,10 @@ export async function GET(
           deck.slots.map((s) => ({
             cardId: s.cardId,
             element: s.card.element,
-            atk: s.card.atk,
-            def: s.card.def,
-            hp: s.card.hp,
-            spd: s.card.spd,
+            atk: (rows.find((row) => row.cardId === s.cardId)?.atk ?? s.card.atk),
+            def: (rows.find((row) => row.cardId === s.cardId)?.def ?? s.card.def),
+            hp: (rows.find((row) => row.cardId === s.cardId)?.hp ?? s.card.hp),
+            spd: (rows.find((row) => row.cardId === s.cardId)?.spd ?? s.card.spd),
           }))
         ),
         /** Phase 15: คะแนนตามบทบาทช่อง + แกน 6 เหลี่ยม (สูตรเดียวกับหน้าจัดทีม) */
@@ -92,10 +107,10 @@ export async function GET(
           rarity: s.card.rarity,
           role: s.card.role,
           stats: {
-            atk: s.card.atk,
-            def: s.card.def,
-            hp: s.card.hp,
-            spd: s.card.spd,
+            atk: rows[i]?.atk ?? s.card.atk,
+            def: rows[i]?.def ?? s.card.def,
+            hp: rows[i]?.hp ?? s.card.hp,
+            spd: rows[i]?.spd ?? s.card.spd,
             manaCost: s.card.manaCost,
           },
           /** สกิล (ใช้คิดโบนัสช่องสนับสนุนฝั่งเว็บ + แสดงในอนาคต) */

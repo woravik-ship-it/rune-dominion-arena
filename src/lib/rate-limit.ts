@@ -32,6 +32,8 @@ export const RATE_LIMITS = {
   QUEST_CLAIM: { limit: 30, windowMs: 60_000 },
   DECK_WRITE: { limit: 20, windowMs: 60_000 },
   CARD_FAVORITE: { limit: 60, windowMs: 60_000 },
+  // Phase 25: ร้านช่าง — ซื้อ/คราฟต์ Item · ขายการ์ดคืนร้าน · ใส่/ถอด Item
+  SHOP_WRITE: { limit: 30, windowMs: 60_000 },
   REPLAY: { limit: 60, windowMs: 60_000 },
 } as const;
 

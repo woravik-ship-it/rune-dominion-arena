@@ -1,7 +1,10 @@
 'use client';
 
+import { useEffect } from 'react';
 import { CardDefinition } from '@/types';
 import CardFace from '@/components/cards/CardFace';
+import { useAudio } from '@/components/providers/AudioProvider';
+import { revealSfxFor } from '@/lib/sfx';
 
 interface CardRevealModalProps {
   card: CardDefinition;
@@ -49,6 +52,12 @@ export default function CardRevealModal({
   onAddToDeck,
   onDiscoverAgain,
 }: CardRevealModalProps) {
+  // Phase 21: เสียงเปิดการ์ด — แยกตามระดับความหายาก (เดิมมีตารางเสียงแต่ไม่มีใครเรียก)
+  const { play } = useAudio();
+  useEffect(() => {
+    play(revealSfxFor(card.rarity));
+  }, [card.rarity, play]);
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
       <div className="bg-gray-900 rounded-2xl p-6 max-w-md w-full shadow-2xl">

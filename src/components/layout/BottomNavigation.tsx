@@ -3,32 +3,36 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useEffect, useMemo, useState } from 'react';
+import { useI18n } from '@/components/providers/LocaleProvider';
 
 interface NavItem {
   href: string;
-  label: string;
+  /** คีย์ในพจนานุกรม i18n (ป้ายเปลี่ยนตามภาษาที่ผู้เล่นเลือก) */
+  key: string;
   icon: string;
   adminOnly?: boolean;
 }
 
 /**
  * เมนูทั้งหมดของเกม (จอใหญ่แสดงในแถวล่างทั้งหมด)
- * ป้ายเป็นภาษาไทยสั้น เพื่อให้พอดีจอมือถือเล็ก (320-360px) โดยไม่ต้องเลื่อน
+ * ป้ายมาจาก i18n — ภาษาไทยใช้คำสั้น เพื่อให้พอดีจอมือถือเล็ก (320-360px)
  */
 const navItems: NavItem[] = [
-  { href: '/', label: 'หน้าแรก', icon: '🏠' },
-  { href: '/discover', label: 'ค้นรูน', icon: '🔮' },
-  { href: '/cards', label: 'การ์ด', icon: '🃏' },
-  { href: '/decks', label: 'จัดทีม', icon: '📋' },
-  { href: '/arena', label: 'ประลอง', icon: '⚔️' },
-  { href: '/battle', label: 'ทดสอบเด็ค', icon: '🎯' },
-  { href: '/wallet', label: 'Coin', icon: '💰' },
-  { href: '/quests', label: 'ภารกิจ', icon: '📜' },
-  { href: '/events', label: 'กิจกรรม', icon: '🌙' },
-  { href: '/inventory', label: 'คลัง', icon: '🎒' },
-  { href: '/settings', label: 'ตั้งค่า', icon: '⚙️' },
-  { href: '/profile', label: 'โปรไฟล์', icon: '👤' },
-  { href: '/admin', label: 'แอดมิน', icon: '🛡️', adminOnly: true },
+  { href: '/', key: 'nav.home', icon: '🏠' },
+  { href: '/discover', key: 'nav.discover', icon: '🔮' },
+  { href: '/cards', key: 'nav.cards', icon: '🃏' },
+  { href: '/decks', key: 'nav.decks', icon: '📋' },
+  { href: '/arena', key: 'nav.arena', icon: '⚔️' },
+  { href: '/battle', key: 'nav.battle', icon: '🎯' },
+  { href: '/items', key: 'nav.items', icon: '🛠️' },
+  { href: '/notifications', key: 'nav.notifications', icon: '🔔' },
+  { href: '/wallet', key: 'nav.wallet', icon: '💰' },
+  { href: '/quests', key: 'nav.quests', icon: '📜' },
+  { href: '/events', key: 'nav.events', icon: '🌙' },
+  { href: '/inventory', key: 'nav.inventory', icon: '🎒' },
+  { href: '/settings', key: 'nav.settings', icon: '⚙️' },
+  { href: '/profile', key: 'nav.profile', icon: '👤' },
+  { href: '/admin', key: 'nav.admin', icon: '🛡️', adminOnly: true },
 ];
 
 /**
@@ -46,6 +50,7 @@ function itemClass(active: boolean): string {
 
 export default function BottomNavigation() {
   const pathname = usePathname();
+  const { t } = useI18n();
   const [isAdmin, setIsAdmin] = useState(false);
   const [sheetOpen, setSheetOpen] = useState(false);
 
@@ -81,14 +86,14 @@ export default function BottomNavigation() {
             onClick={(e) => e.stopPropagation()}
           >
             <div className="mb-2 flex items-center justify-between">
-              <p className="text-sm font-bold text-gray-200">เมนูเพิ่มเติม</p>
+              <p className="text-sm font-bold text-gray-200">{t('nav.moreTitle')}</p>
               <button
                 type="button"
                 onClick={() => setSheetOpen(false)}
                 className="rounded-lg bg-white/10 px-2 py-1 text-xs text-gray-200"
-                aria-label="ปิดเมนู"
+                aria-label={t('nav.close')}
               >
-                ปิด ✕
+                {t('nav.close')} ✕
               </button>
             </div>
             <div className="grid grid-cols-3 gap-2">
@@ -104,7 +109,7 @@ export default function BottomNavigation() {
                   }`}
                 >
                   <span className="text-xl leading-none">{item.icon}</span>
-                  <span className="text-[11px] leading-tight">{item.label}</span>
+                  <span className="text-[11px] leading-tight">{t(item.key)}</span>
                 </Link>
               ))}
             </div>
@@ -121,7 +126,7 @@ export default function BottomNavigation() {
           {primary.map((item) => (
             <Link key={item.href} href={item.href} data-nav-item={item.href} className={itemClass(pathname === item.href)}>
               <span className="text-lg leading-none">{item.icon}</span>
-              <span className="text-[10px] leading-none">{item.label}</span>
+              <span className="text-[10px] leading-none">{t(item.key)}</span>
             </Link>
           ))}
           <button
@@ -132,7 +137,7 @@ export default function BottomNavigation() {
             className={itemClass(inOthers || sheetOpen)}
           >
             <span className="text-lg leading-none">☰</span>
-            <span className="text-[10px] leading-none">เพิ่มเติม</span>
+            <span className="text-[10px] leading-none">{t('nav.more')}</span>
           </button>
         </div>
 
@@ -146,7 +151,7 @@ export default function BottomNavigation() {
               className={`${itemClass(pathname === item.href)} shrink-0 px-2.5`}
             >
               <span className="text-lg leading-none">{item.icon}</span>
-              <span className="text-[10px] leading-none">{item.label}</span>
+              <span className="text-[10px] leading-none">{t(item.key)}</span>
             </Link>
           ))}
         </div>

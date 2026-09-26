@@ -7,6 +7,7 @@ import { QuestService } from '@/services/quest';
 import { parseJsonBody, battleSimulateSchema } from '@/lib/validation';
 import { enforceRateLimit } from '@/lib/api-guard';
 import { resolveRequestUserId } from '@/lib/current-user';
+import { NotificationService } from '@/services/notification';
 
 // POST /api/battle/simulate — ทดสอบเด็ค (สู้กับบอทหรือเด็คอื่น)
 // body: { userId, attackerDeckId, defenderDeckId?, bot?: boolean }
@@ -110,6 +111,17 @@ export async function POST(request: NextRequest) {
     } catch (questError) {
       console.error('Quest BATTLE hook error:', questError);
     }
+
+    // Phase 20: แจ้งเตือนผลการต่อสู้ให้ทั้งผู้โจมตี (และผู้ป้องกัน ถ้าเป็นการท้าจริง)
+    await NotificationService.notifyBattleResult({
+      attackerId: userId,
+      defenderId: defenderUserId,
+      winnerId,
+      roundsPlayed: result.roundsPlayed,
+      hpRemaining: result.teamAHpRemaining,
+      rewardCoins: 0,
+      battleId: saved.id,
+    }).catch(() => undefined);
 
     return NextResponse.json({
       success: true,

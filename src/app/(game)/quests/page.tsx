@@ -1,6 +1,7 @@
 'use client';
 
 import { apiFetch } from '@/lib/api-client';
+import { useAudio } from '@/components/providers/AudioProvider';
 import { useState, useEffect, useCallback } from 'react';
 
 interface QuestView {
@@ -97,6 +98,7 @@ export default function QuestsPage() {
   const [board, setBoard] = useState<QuestBoard | null>(null);
   const [loading, setLoading] = useState(true);
   const [claimingId, setClaimingId] = useState<string | null>(null);
+  const { play } = useAudio();
   const [toast, setToast] = useState<string | null>(null);
 
   const load = useCallback(async () => {
@@ -117,6 +119,7 @@ export default function QuestsPage() {
   }, [load]);
 
   const claim = async (questId: string) => {
+    play('reward_claim');
     setClaimingId(questId);
     try {
       const res = await apiFetch(`/api/quests/${questId}/claim`, {

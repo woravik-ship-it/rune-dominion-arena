@@ -4,6 +4,7 @@ import { apiFetch } from '@/lib/api-client';
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import CardFace from '@/components/cards/CardFace';
+import CardArtStatus from '@/components/cards/CardArtStatus';
 
 interface Card {
   id: string;
@@ -195,6 +196,8 @@ export default function CardsPage() {
                       <span className="text-xs text-amber-400">⚡ {userCard.stats.manaCost}</span>
                       <span className="text-xs text-gray-500">{userCard.rarity}</span>
                     </div>
+                    {/* สถานะการสร้างภาพ + เวลาที่ต้องรอ (Phase 20) */}
+                    {!userCard.imageUrl && <CardArtStatus cardId={userCard.cardId} compact />}
                   </div>
                 </Link>
               ))}

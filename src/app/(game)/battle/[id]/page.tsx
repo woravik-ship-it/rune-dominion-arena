@@ -1,6 +1,8 @@
 'use client';
 
 import { apiFetch } from '@/lib/api-client';
+import { useAudio } from '@/components/providers/AudioProvider';
+import { battleSfxFor } from '@/lib/sfx';
 import { useState, useEffect, useRef, useMemo } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
@@ -36,6 +38,12 @@ interface BattleData {
 const SPEEDS = [1, 4, 8] as const;
 const STEP_MS: Record<number, number> = { 1: 900, 4: 220, 8: 90 };
 
+/**
+ * ระยะห่างขั้นต่ำระหว่างเสียงต่อสู้ (มิลลิวินาที) — Phase 22
+ * ที่ความเร็ว x8 เหตุการณ์เกิดทุก 90ms ⇒ ถ้าไม่กันไว้ เสียงจะซ้อนกันจนเป็นเสียงตื๊ดเดียว
+ */
+const BATTLE_SFX_MIN_GAP_MS = 60;
+
 const ELEMENT_BORDER: Record<string, string> = {
   EMBERBOUND: '#f97316',
   TIDEBORN: '#38bdf8',
@@ -63,6 +71,13 @@ export default function BattleViewerPage() {
   /** สถานะของปุ่ม "ต่อสู้อีกครั้ง" (กำลังสร้างศึกใหม่) + ข้อความผิดพลาด */
   const [refighting, setRefighting] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
+  const { play } = useAudio();
+  // Phase 21: เสียงผลการต่อสู้ — เล่นครั้งเดียวตอนเทปจบ
+  const resultSfxRef = useRef(false);
+  // Phase 22: เวลาเล่นเสียงต่อสู้ครั้งล่าสุด (กันเสียงซ้อนกันที่ความเร็วสูง)
+  const lastBattleSfxAt = useRef(0);
+  /** Phase 24.2: นับครั้งที่โจมตีในเทป — ใช้สลับเสียง ดาบ/ดาบกระทบดาบ ไม่ให้ซ้ำเสียงเดิม */
+  const attackIndex = useRef(0);
   const timer = useRef<ReturnType<typeof setInterval> | null>(null);
 
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -126,12 +141,14 @@ export default function BattleViewerPage() {
   const restart = () => {
     pausePlay();
     setVisibleCount(0);
+    attackIndex.current = 0; // เริ่มเทปใหม่ → เริ่มนับการโจมตีใหม่ (เสียงดาบ/ชนดาบสลับเหมือนเดิม)
   };
 
   /** "ดู Replay" — ย้อนไปเฟรมแรกแล้วเล่นใหม่ทันที (ใช้เมื่อศึกจบแล้ว) */
   const replayFromStart = () => {
     pausePlay();
     setVisibleCount(0);
+    attackIndex.current = 0;
     // ให้ state รีเซ็ตก่อน แล้วค่อยเริ่ม interval (ไม่งั้นเฟรมแรกจะถูกข้าม)
     setTimeout(() => startPlay(), 0);
   };
@@ -175,6 +192,36 @@ export default function BattleViewerPage() {
     () => (battle ? battle.log.slice(0, visibleCount).reverse() : []),
     [battle, visibleCount]
   );
+
+  // Phase 22: เสียงประกอบตามเหตุการณ์ที่เพิ่งปรากฏในเทป
+  // ผู้ใช้สั่ง 2026-09-20: "เสียงตอนต่อสู้ก็ไม่มี ทำเป็นเสียงดาบ เสียงปล่อยสกอล หน่อย"
+  //   attack → ฟันดาบ · skill → ปล่อยสกอล (โล่ = กางโล่) · burn/heal/faint → เสียงเฉพาะ
+  useEffect(() => {
+    if (!battle || visibleCount === 0) return;
+    const entry = battle.log[visibleCount - 1];
+    if (!entry) return;
+    const now = Date.now();
+    if (now - lastBattleSfxAt.current < BATTLE_SFX_MIN_GAP_MS) return;
+    // Phase 24.2: สลับ "ฟันดาบ" กับ "ดาบกระทบดาบ" (ทุกครั้งที่ 3) — เล่นเสียงเดิมซ้ำทุกครั้งฟังไม่สมจริง
+    const soundIndex = entry.action === 'attack' ? attackIndex.current : 0;
+    const name = battleSfxFor(entry.action, entry.statusApplied, soundIndex);
+    if (!name) return;
+    attackIndex.current = soundIndex + 1;
+    lastBattleSfxAt.current = now;
+    play(name);
+  }, [battle, visibleCount, play]);
+
+  // Phase 21: เล่นเสียงตอนเทปจบ (ชนะ/แพ้/เสมอ) — ครั้งเดียวต่อศึก
+  useEffect(() => {
+    if (!battle) return;
+    const isFinished = visibleCount >= battle.log.length;
+    if (!isFinished || resultSfxRef.current) return;
+    resultSfxRef.current = true;
+    if (battle.winner === 'A') play('battle_win');
+    else if (battle.winner === 'B') play('battle_lose');
+    else play('ui_back');
+  }, [battle, visibleCount, play]);
+
 
   if (loading) {
     return (

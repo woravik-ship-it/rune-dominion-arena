@@ -10,6 +10,7 @@ import {
 import { WalletService } from '@/services/wallet';
 import { parseJsonBody, arenaChallengeSchema } from '@/lib/validation';
 import { enforceRateLimit } from '@/lib/api-guard';
+import { NotificationService } from '@/services/notification';
 import { resolveRequestUserId } from '@/lib/current-user';
 
 // POST /api/arena/:id/join — ส่งทีมเข้าห้อง (10 Coin)
@@ -131,6 +132,20 @@ export async function POST(
           defenderDeckId: room.championDeckId ?? deckId,
           idempotencyKey: `join:${idempotencyKey}`,
         },
+      }).catch(() => undefined);
+    }
+
+    // Phase 20: แจ้งเจ้าของห้องว่ามีผู้เล่นส่งทีมเข้าห้อง (ผู้ท้าคนละคนกับเจ้าของห้องเท่านั้น)
+    if (room.hostId !== userId) {
+      const challenger = await prisma.user.findUnique({
+        where: { id: userId },
+        select: { username: true, displayName: true },
+      });
+      await NotificationService.notifyArenaChallenge({
+        hostId: room.hostId,
+        challengerName: challenger?.displayName || challenger?.username || 'ผู้เล่น',
+        roomName: room.name,
+        roomId: room.id,
       }).catch(() => undefined);
     }
 

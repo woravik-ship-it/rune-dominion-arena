@@ -3,6 +3,7 @@
 // Raid: ค่าเข้า 10 Veil Shards / cap 10 ครั้งต่อวัน / แพ้ได้ participation / ชนะได้ clear bonus
 import { prisma } from '@/lib/prisma';
 import { WalletService } from '@/services/wallet';
+import { VeilShardService } from '@/services/veil-shard';
 import { InventoryService } from '@/services/inventory';
 import {
   EVENT_GRACE_HOURS,
@@ -190,9 +191,13 @@ export class EventService {
     }
 
     const shardsAvailable = participation.currencyEarned - participation.currencySpent;
-    if (shardsAvailable < RAID_ENTRY_COST) {
-      throw new Error(`Veil Shards ไม่พอ (ต้องใช้ ${RAID_ENTRY_COST} ชิ้น)`);
+    // Phase 25: ค่าเข้าใช้จาก "กระเป๋า Veil Shards" ของผู้เล่น (ได้จากการขายการ์ดคืนร้าน + กิจกรรม)
+    // — ถ้าผู้เล่นยังไม่เคยมีกิจกรรม ยอดใน participation จะเป็น 0 แต่กระเป๋ากลางอาจมีอยู่แล้ว
+    const walletBalance = await VeilShardService.balance(params.userId);
+    if (walletBalance < RAID_ENTRY_COST) {
+      throw new Error(`Veil Shards ไม่พอ (ต้องใช้ ${RAID_ENTRY_COST} ชิ้น · มี ${walletBalance})`);
     }
+    void shardsAvailable;
 
     const phaseBefore = bossPhaseForHp(boss.currentHp, boss.maxHp);
     const { damage, effects } = applyBossMechanics({
@@ -251,6 +256,20 @@ export class EventService {
       },
     });
 
+    // Phase 25: หักค่าเข้า + จ่ายรางวัลจากกระเป๋า Veil Shards จริง (ledger แยกให้เห็นที่มา)
+    await VeilShardService.debit({
+      userId: params.userId,
+      amount: RAID_ENTRY_COST,
+      source: 'EVENT_RAID',
+      description: `ค่าเข้า Boss Raid: ${boss.nameTh}`,
+    });
+    const wallet = await VeilShardService.credit({
+      userId: params.userId,
+      amount: shardsEarned,
+      source: 'EVENT_RAID',
+      description: `รางวัล Boss Raid: ${boss.nameTh}${params.won ? ' (ชนะ)' : ''}`,
+    });
+
     await prisma.eventCommunityProgress.upsert({
       where: { eventId: params.eventId },
       create: { eventId: params.eventId, totalDamage: damage, totalPoints: eventPoints, raidCount: 1 },
@@ -279,7 +298,8 @@ export class EventService {
         isDefeated: defeated,
       },
       participation: {
-        veilShards: updatedPart.currencyEarned - updatedPart.currencySpent,
+        /** Phase 25: ยอดจากกระเป๋ากลาง (ใช้ได้ทั้งร้านช่าง/ร้านกิจกรรม) */
+        veilShards: wallet.balance,
         eventPoints: updatedPart.eventPoints,
         damageDealt: updatedPart.damageDealt,
       },
@@ -382,6 +402,16 @@ export class EventService {
       });
     }
 
+    // Phase 25: รางวัล Veil Shards เข้ากระเป๋ากลางของผู้เล่น (ไม่ใช่ยอดของกิจกรรมเท่านั้น)
+    if (milestone.rewardType === 'VEIL_SHARDS' && milestone.rewardAmount > 0) {
+      await VeilShardService.credit({
+        userId: params.userId,
+        amount: milestone.rewardAmount,
+        source: 'EVENT_MILESTONE',
+        description: `Milestone: ${milestone.titleTh}`,
+      });
+    }
+
     await prisma.eventParticipation.update({
       where: { id: participation.id },
       data: {
@@ -436,11 +466,11 @@ export class EventService {
       return { success: false, message: 'ต้องเข้าร่วมกิจกรรมก่อน', veilShards: 0 };
     }
 
-    const shards = participation.currencyEarned - participation.currencySpent;
+    const shards = await VeilShardService.balance(params.userId);
     if (shards < item.price) {
       return {
         success: false,
-        message: `Veil Shards ไม่พอ (ต้องใช้ ${item.price} ชิ้น)`,
+        message: `Veil Shards ไม่พอ (ต้องใช้ ${item.price} ชิ้น · มี ${shards})`,
         veilShards: shards,
       };
     }
@@ -495,10 +525,18 @@ export class EventService {
       data: { currencySpent: { increment: item.price } },
     });
 
+    // Phase 25: หักจากกระเป๋า Veil Shards จริง (ledger เห็นที่มา)
+    const paid = await VeilShardService.debit({
+      userId: params.userId,
+      amount: item.price,
+      source: 'EVENT_QUEST',
+      description: `ร้านค้ากิจกรรม: ${item.nameTh}`,
+    });
+
     return {
       success: true,
       message: `ซื้อ "${item.nameTh}" สำเร็จ`,
-      veilShards: updated.currencyEarned - updated.currencySpent,
+      veilShards: paid.balance ?? (updated.currencyEarned - updated.currencySpent),
     };
   }
 

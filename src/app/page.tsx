@@ -20,7 +20,7 @@ export default function HomePage() {
           </a>
         </div>
         <p className="text-sm text-gray-500 pt-4">
-          Phase 7 — Quest & Mission System เสร็จสมบูรณ์
+          ค้นพบการ์ดด้วยรูน · จัดทีม 5 ใบ · ต่อสู้อัตโนมัติ · แข่งขันในอารีน่า
         </p>
       </div>
     </main>

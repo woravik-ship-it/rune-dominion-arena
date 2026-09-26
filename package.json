@@ -35,7 +35,12 @@
     "inspect:battle": "node scripts/inspect-battle-field.mjs",
     "inspect:arena": "node scripts/inspect-arena-room.mjs",
     "inspect:mobile": "node scripts/inspect-mobile-overflow.mjs",
-    "shoot:aura": "node scripts/shoot-aura-preview.mjs"
+    "inspect:notif-read": "node scripts/inspect-notification-read.mjs",
+    "inspect:items": "node scripts/inspect-item-workshop.mjs",
+    "shoot:aura": "node scripts/shoot-aura-preview.mjs",
+    "inspect:audio": "node scripts/inspect-audio.mjs",
+    "inspect:profile": "node scripts/inspect-profile-avatar.mjs",
+    "inspect:admin": "node scripts/inspect-admin-cards.mjs"
   },
   "dependencies": {
     "next": "^14.2.0",

@@ -2,23 +2,42 @@ import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { buildBattleSeed, battlePrng, CombatCard } from '@/services/combat';
 import { simulateBattle as runBattle } from '@/services/combat-engine';
+import { ItemService } from '@/services/item';
 
+/**
+ * การ์ดในเด็ค → การ์ดสำหรับเข้าสู่ระบบต่อสู้
+ *
+ * Phase 25: บวก Status จาก Item ที่ใส่ไว้ (ช่องโจมตี/ป้องกัน/สนับสนุน) ด้วย
+ * ⇒ Item มีผลจริงตอนต่อสู้ ไม่ใช่แค่ตัวเลขโชว์ในหน้าเว็บ
+ */
 export async function deckToCombatCards(deckId: string): Promise<CombatCard[] | null> {
   const deck = await prisma.deck.findUnique({
     where: { id: deckId },
     include: { slots: { include: { card: true }, orderBy: { position: 'asc' } } },
   });
   if (!deck || deck.slots.length !== 5) return null;
-  return deck.slots.map((s) => ({
-    cardId: s.cardId,
-    name: s.card.name,
-    nameTh: s.card.nameTh,
-    element: s.card.element,
-    atk: s.card.atk,
-    def: s.card.def,
-    hp: s.card.hp,
-    spd: s.card.spd,
-  }));
+
+  const itemStats = await ItemService.statsByCardIds(
+    deck.userId,
+    deck.slots.map((slot) => slot.cardId)
+  );
+
+  return deck.slots.map((s) => {
+    const stats = ItemService.mergeStats(
+      { atk: s.card.atk, def: s.card.def, hp: s.card.hp, spd: s.card.spd },
+      itemStats.get(s.cardId)
+    );
+    return {
+      cardId: s.cardId,
+      name: s.card.name,
+      nameTh: s.card.nameTh,
+      element: s.card.element,
+      atk: stats.atk,
+      def: stats.def,
+      hp: stats.hp,
+      spd: stats.spd,
+    };
+  });
 }
 
 export async function resolveBattleUserId(userIdParam: string): Promise<string | null> {
