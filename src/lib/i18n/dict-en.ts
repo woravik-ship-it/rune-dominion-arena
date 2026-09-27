@@ -160,6 +160,10 @@ export const EN: Record<string, string> = {
   'notify.battleDrawTitle': '🤝 Draw',
   'notify.battleBody': 'Finished in {rounds} rounds · HP left {hp} · earned {coins} Coin',
   'notify.battleDefenderBody': 'Someone challenged your team — result: {result}',
+  'notif.dungeonTitle': '🏰 Dungeon result',
+  'notif.dungeonBody': '{dungeon} floor {floor}: {result} · +{dust} dust',
+  'notif.dungeonBodyNoReward': '{dungeon} floor {floor}: {result} · no reward (win to earn)',
+  'notif.dungeonBodyReplay': '{dungeon} floor {floor}: {result} · floor already cleared, no reward',
   'notify.arenaChallengeTitle': '🏟️ Your team was challenged',
   'notify.arenaChallengeBody': '{name} entered room “{room}”',
   'notify.arenaChampionTitle': '🏆 You are the arena champion!',
@@ -169,6 +173,7 @@ export const EN: Record<string, string> = {
 
   // Workshop + item slots (Phase 25)
   'nav.items': 'Workshop',
+  'nav.dungeons': 'Dungeons',
   'header.veilShards': 'Veil Shards',
   'item.title': 'Workshop',
   'item.subtitle': 'Buy or craft items and equip them into 3 card slots',

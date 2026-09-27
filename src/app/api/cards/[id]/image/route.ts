@@ -1,12 +1,49 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { generatePlaceholderSvg } from '@/lib/image-placeholder';
+import { findDungeon } from '@/lib/dungeon-definitions';
+import { dungeonEnemyInfo, parseDungeonCardId, stableHash } from '@/lib/dungeon-art';
 
 // GET /api/cards/[id]/image — การ์ดทั้งใบ (กรอบ/ชื่อ/ดาว/กล่องคำบรรยาย/สเตตัส)
 // - ค่าเริ่มต้น: วาดฉากเองทั้งใบ (deterministic SVG)
 // - ?mode=overlay: วาดเฉพาะกรอบ/ข้อความ เว้นช่องภาพโปร่งใส → ใช้ซ้อนทับภาพ AI ของการ์ด
+//
+// Phase 31.1: การ์ดศัตรูดันเจี้ยน (dungeon:<CODE>:f<ชั้น>:boss|minion<K>) ไม่มีใน CardDefinition
+//   → เดิมตกเป็น placeholder "???" (404) ทำให้ฝั่งศัตรูบนหน้าสนามรบพังทั้งแถว
+//   ⇒ ตอนนี้สร้างกรอบจากนิยามดันเจี้ยน (ชื่อ/ธาตุ/status เดียวกับที่ใช้ต่อสู้จริง)
 export async function GET(request: NextRequest, { params }: { params: { id: string } }) {
   const mode = request.nextUrl.searchParams.get('mode') === 'overlay' ? 'overlay' : 'full';
+
+  // การ์ดศัตรูดันเจี้ยน — วาดจากนิยามดันเจี้ยน
+  const dungeonRef = parseDungeonCardId(params.id);
+  if (dungeonRef) {
+    const dungeon = findDungeon(dungeonRef.dungeonCode);
+    const info = dungeon ? dungeonEnemyInfo(dungeon, dungeonRef) : null;
+    if (info) {
+      const svg = generatePlaceholderSvg(
+        {
+          cardId: info.cardId,
+          name: info.name,
+          nameTh: info.nameTh,
+          element: info.element,
+          rarity: info.rarity,
+          role: info.role,
+          canonicalSeedHash: stableHash(info.cardId).toString(16).padStart(8, '0'),
+          stats: { ...info.stats, manaCost: info.manaCost },
+          descriptionTh: info.descriptionTh,
+        },
+        { mode }
+      );
+      return new NextResponse(svg, {
+        status: 200,
+        headers: {
+          'Content-Type': 'image/svg+xml; charset=utf-8',
+          'Cache-Control': 'public, max-age=300, stale-while-revalidate=3600',
+        },
+      });
+    }
+  }
+
   const card = await prisma.cardDefinition.findUnique({
     where: { id: params.id },
     select: {

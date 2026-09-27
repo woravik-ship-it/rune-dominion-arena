@@ -8,6 +8,7 @@ import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import type { BattleLogEntry, CombatCard } from '@/services/combat';
 import { BATTLE_ACTION_ICON, buildReplayFrames, cardStatuses } from '@/services/battle-replay';
+import { battleLogUrl, parseBattleRouteId } from '@/lib/battle-route';
 import type { BattleCardMeta } from '@/services/battle-display';
 import { refightBody } from '@/services/battle-display';
 import CardFace from '@/components/cards/CardFace';
@@ -29,9 +30,13 @@ interface BattleData {
   teamNames: { A: string; B: string };
   /** ข้อมูลการ์ดสำหรับวาดการ์ดเต็มใบ (key = cardId) */
   cardMeta: Record<string, BattleCardMeta>;
-  /** เด็คของสองฝ่าย (ฝ่าย B เป็น null เมื่อสู้กับบอท) */
+  /** เด็คของสองฝ่าย (ฝ่าย B เป็น null เมื่อสู้กับบอท/ดันเจี้ยน) */
   decks: { A: BattleDeckRef | null; B: BattleDeckRef | null };
   isBotBattle: boolean;
+  /** ศึกดันเจี้ยน: ซ่อนปุ่มต่อสู้อีกครั้งแบบ PvP แล้วโชว์ปุ่มลุยชั้นถัดไปแทน */
+  isDungeon?: boolean;
+  dungeon?: { code: string; nameTh: string; floor: number; icon: string } | null;
+  reward?: { dust: number; shards: number; itemDropped: string | null; itemNameTh: string | null; eligible?: boolean } | null;
 }
 
 // ความเร็วตามคำสั่งผู้ใช้: x1 ดูออก (ไม่เร่งใส) · x4/x8 เร็วขึ้น · ข้าม = รู้ผลเลย
@@ -62,7 +67,12 @@ function barColor(pct: number): string {
 export default function BattleViewerPage() {
   const params = useParams();
   const router = useRouter();
-  const battleId = params.id as string;
+  /**
+   * id ของศึกจาก URL — อาจเป็น `dungeon-run:<runId>` (ดันเจี้ยน) หรือ battleId ปกติ
+   * ⚠️ Next ส่งค่าที่ percent-encode มาได้ → ต้องถอดรหัสก่อนใช้ (ดู lib/battle-route)
+   */
+  const battleId = String(params.id ?? '');
+  const routeRef = useMemo(() => parseBattleRouteId(battleId), [battleId]);
   const [battle, setBattle] = useState<BattleData | null>(null);
   const [loading, setLoading] = useState(true);
   const [visibleCount, setVisibleCount] = useState(0);
@@ -91,7 +101,9 @@ export default function BattleViewerPage() {
 
   const loadBattle = async () => {
     try {
-      const res = await apiFetch(`/api/battle/${battleId}/log`);
+      // ดันเจี้ยนใช้ runId แทน battleId (dungeon-run:<runId>) → ดึงจาก API ดันเจี้ยน
+      // ⚠️ id ที่ได้จาก URL อาจถูก percent-encode (มี ':' ในรหัส) — ถอดรหัส/ประกอบ URL ใน lib/battle-route
+      const res = await apiFetch(battleLogUrl(routeRef));
       const data = await res.json();
       if (res.ok) {
         const bd = data.data.battleData;
@@ -106,6 +118,9 @@ export default function BattleViewerPage() {
           cardMeta: data.data.cardMeta ?? {},
           decks: data.data.decks ?? { A: null, B: null },
           isBotBattle: Boolean(data.data.isBotBattle),
+          isDungeon: Boolean(data.data.isDungeon),
+          dungeon: data.data.dungeon ?? null,
+          reward: data.data.reward ?? null,
         });
       }
     } catch (e) { console.error(e); }
@@ -160,7 +175,7 @@ export default function BattleViewerPage() {
   const refight = async () => {
     const body = refightBody(battle?.decks.A?.id, battle?.decks.B?.id);
     if (!body) {
-      setActionError('ศึกนี้ไม่มีข้อมูลเด็ค (เก่ากว่าที่ระบบเก็บ snapshot) — เริ่มศึกใหม่ได้ที่หน้า Battle');
+      setActionError('ศึกนี้ไม่ได้เก็บทีมไว้ — เริ่มศึกใหม่ได้ที่หน้าต่อสู้');
       return;
     }
     setActionError(null);
@@ -358,7 +373,7 @@ export default function BattleViewerPage() {
   return (
     <main className="min-h-screen p-4">
       <div className="mx-auto max-w-3xl">
-        <h1 className="text-2xl font-bold text-center mb-1">สนามรบ</h1>
+        <h1 className="text-2xl font-bold text-center mb-1">{battle.isDungeon && battle.dungeon ? `${battle.dungeon.icon} ${battle.dungeon.nameTh} ชั้น ${battle.dungeon.floor}` : 'สนามรบ'}</h1>
         {/* ชื่อทีม = ชื่อ Deck จริงของแต่ละฝ่าย (ผู้ใช้สั่ง) */}
         <p className="text-center text-gray-400 text-sm mb-4">
           <span data-team-name="A" className="text-blue-300 font-bold">{battle.teamNames.A}</span>
@@ -375,14 +390,31 @@ export default function BattleViewerPage() {
               <button data-battle-replay onClick={replayFromStart} className="btn-primary flex-1 text-sm">
                 🔁 ดู Replay
               </button>
-              <button
-                data-battle-refight
-                onClick={refight}
-                disabled={refighting}
-                className="btn-secondary flex-1 text-sm disabled:opacity-50"
-              >
-                {refighting ? 'กำลังเริ่มศึกใหม่...' : '⚔️ ต่อสู้อีกครั้ง'}
-              </button>
+              {battle.isDungeon ? (
+                <Link
+                  data-dungeon-next={battle.dungeon?.code ?? 'dungeon'}
+                  href="/dungeons"
+                  className="btn-secondary flex-1 text-center text-sm"
+                >
+                  🏰 กลับดันเจี้ยน
+                  {battle.reward && battle.reward.eligible === false
+                    ? ' · รอบซ้อม (ชั้นนี้ผ่านแล้ว ไม่มีรางวัล)'
+                    : battle.reward && battle.reward.dust > 0
+                      ? ` · ✨ +${battle.reward.dust}${battle.reward.itemDropped ? ` · 🎁 ${battle.reward.itemNameTh}` : ''}`
+                      : battle.reward
+                        ? ' · รอบนี้ยังไม่ได้รางวัล (ชนะเท่านั้น)'
+                        : ''}
+                </Link>
+              ) : (
+                <button
+                  data-battle-refight
+                  onClick={refight}
+                  disabled={refighting}
+                  className="btn-secondary flex-1 text-sm disabled:opacity-50"
+                >
+                  {refighting ? 'กำลังเริ่มศึกใหม่...' : '⚔️ ต่อสู้อีกครั้ง'}
+                </button>
+              )}
             </div>
             <p className="mt-2 text-center text-[11px] text-gray-400">
               ต่อสู้อีกครั้ง = ศึกใหม่ด้วยทีมเดิม {battle.isBotBattle ? '(คู่ต่อสู้เป็นบอท)' : `(คู่ต่อสู้ ${battle.decks.B?.name ?? '-'})`}
@@ -430,7 +462,7 @@ export default function BattleViewerPage() {
           </div>
         ) : (
           <p className="mb-3 rounded-xl bg-gray-800 p-3 text-center text-xs text-gray-400">
-            การต่อสู้นี้เก่า (ไม่มีภาพทีม) — ดูได้เฉพาะข้อความ log
+            ศึกนี้ไม่มีการ์ดให้แสดง — ดูได้เฉพาะลำดับเหตุการณ์
           </p>
         )}
 

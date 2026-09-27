@@ -63,6 +63,8 @@ export default function CardFace({
   useEffect(() => {
     if (artSrc) return;
     if (imageStatus === 'FAILED') return;
+    // READY = สถานะบอกว่าภาพพร้อมแล้ว → ถ้าโหลดไม่ได้ก็ไม่ต้อง poll (กันหมุนค้างไม่รู้จบ)
+    if (imageStatus === 'READY') return;
 
     let cancelled = false;
     const timer = setInterval(async () => {
@@ -94,6 +96,15 @@ export default function CardFace({
       {artSrc ? (
         // ภาพ AI ในช่องภาพ (ตำแหน่งตรงกับช่องภาพในการ์ด 420×600)
         <img src={artSrc} alt="" aria-hidden className="absolute object-cover" style={artWindow} />
+      ) : imageStatus === 'READY' ? (
+        // สถานะบอกว่าภาพพร้อม แต่โหลดไม่ได้ (ไฟล์หาย/URL ผิด) → บอกสั้น ๆ ไม่หมุนค้าง
+        <div
+          className="absolute flex flex-col items-center justify-center gap-1 bg-slate-900 text-center"
+          style={artWindow}
+        >
+          <span className="text-lg">🖼️</span>
+          <span className="text-[10px] leading-tight text-gray-400">ไม่พบภาพการ์ดใบนี้</span>
+        </div>
       ) : imageStatus === 'FAILED' ? (
         <div
           className="absolute flex flex-col items-center justify-center gap-1 bg-slate-900 text-center"

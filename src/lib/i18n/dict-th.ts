@@ -160,6 +160,10 @@ export const TH: Record<string, string> = {
   'notify.battleDrawTitle': '🤝 เสมอกัน',
   'notify.battleBody': 'จบใน {rounds} รอบ · HP เหลือ {hp} · ได้ {coins} Coin',
   'notify.battleDefenderBody': 'มีคนส่งทีมมาท้าทีมของคุณ — ผลลัพธ์: {result}',
+  'notif.dungeonTitle': '🏰 ผลลุยดันเจี้ยน',
+  'notif.dungeonBody': '{dungeon} ชั้น {floor}: {result} · ได้ฝุ่นเวท {dust}',
+  'notif.dungeonBodyNoReward': '{dungeon} ชั้น {floor}: {result} · ยังไม่ได้รางวัล (ต้องชนะถึงจะได้)',
+  'notif.dungeonBodyReplay': '{dungeon} ชั้น {floor}: {result} · ชั้นนี้ผ่านแล้ว ลุยซ้ำไม่มีรางวัล',
   'notify.arenaChallengeTitle': '🏟️ มีคนท้าทายทีมของคุณ',
   'notify.arenaChallengeBody': '{name} ส่งทีมเข้าห้อง “{room}”',
   'notify.arenaChampionTitle': '🏆 คุณได้เป็นแชมป์อารีน่า!',
@@ -169,6 +173,7 @@ export const TH: Record<string, string> = {
 
   // ร้านช่าง + ช่องใส่ Item (Phase 25)
   'nav.items': 'ร้านช่าง',
+  'nav.dungeons': 'ดันเจี้ยน',
   'header.veilShards': 'Veil Shards',
   'item.title': 'ร้านช่าง',
   'item.subtitle': 'ซื้อหรือคราฟต์ Item แล้วใส่ให้การ์ดได้ 3 ช่อง',

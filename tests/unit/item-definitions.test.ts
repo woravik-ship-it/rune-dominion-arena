@@ -63,6 +63,30 @@ describe('แคตตาล็อก Item', () => {
     expect(findItemDef('ATK_MOONLESS_BLADE')?.buyCost).toBeNull();
     expect(findItemDef('SUP_SELENE_SIGIL')?.buyCost).toBeNull();
   });
+
+  test('มีของให้คราฟต์หลากหลายครบทุกระดับ (Phase 31.4: เพิ่มของอีก 6 ชิ้น)', () => {
+    // อย่างน้อย 6 ชิ้นต่อช่อง (2 ระดับพื้นฐาน + 2 กลาง + 2 สูง)
+    for (const slot of ITEM_SLOTS) {
+      expect(itemsForSlot(slot).length).toBeGreaterThanOrEqual(6);
+    }
+    expect(ITEM_CATALOG.length).toBeGreaterThanOrEqual(18);
+    // ระดับสูงสุด (MYTHIC) ต้องมีจริง ครบ 3 ช่อง และคราฟต์เท่านั้น
+    const mythic = ITEM_CATALOG.filter((item) => item.rarity === 'MYTHIC');
+    expect(new Set(mythic.map((item) => item.slot)).size).toBe(3);
+    for (const item of mythic) {
+      expect(item.buyCost).toBeNull();
+      expect(item.dustCost).toBeGreaterThanOrEqual(200);
+    }
+  });
+
+  test('ของคราฟต์ใหม่ใช้งานได้ (มี code เฉพาะ + status ตรงช่อง)', () => {
+    for (const code of ['ATK_ASHEN_SPIKE', 'DEF_IRONWEAVE', 'SUP_DUSKVEIL', 'ATK_STORMFANG', 'DEF_TITANHEART', 'SUP_WORLDSEED']) {
+      const item = findItemDef(code);
+      expect(item).not.toBeNull();
+      expect(item!.craftCost).toBeGreaterThan(0);
+      expect(item!.dustCost).toBeGreaterThan(0);
+    }
+  });
 });
 
 describe('Status จาก Item (บวกเข้าการ์ดจริง)', () => {

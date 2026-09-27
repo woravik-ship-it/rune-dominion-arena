@@ -44,6 +44,17 @@ export function inventoryCode(code: string): string {
   return slug;
 }
 
+/**
+ * รหัส/ชื่อกลางของ "ฝุ่นเวท" (Phase 31.1)
+ *
+ * ผู้ใช้แจ้ง 2026-09-27: *"ฝุ่นเวทที่ได้จากดันเจี้ยนมีสัญลักษณ์ไม่เหมือนที่เคยทำไว้
+ * จะทำให้คนเล่นสับสนว่าเป็นคนละ item"*
+ * → เดิมแต่ละแหล่งที่มาใช้รหัสของตัวเอง (เช่น `DUNGEON_EMBER_CRYPT_F1` ชื่อ 'ฝุ่นเวท (สุสานเพลิง ชั้น 1)')
+ *   ทำให้กระเป๋าแสดงเป็นหลายแถว/คนละไอเทม ⇒ ทุกที่ที่แจกฝุ่นเวทต้องใช้ค่าคู่นี้เท่านั้น
+ */
+export const CRAFTING_DUST_NAME_TH = 'ฝุ่นเวท';
+export const CRAFTING_DUST_CODE = inventoryCode(CRAFTING_DUST_NAME_TH);
+
 export class InventoryService {
   /** เพิ่มของเข้าคลัง (idempotent — มีอยู่แล้วบวกจำนวน) */
   static async grant(params: {
@@ -110,17 +121,22 @@ export class InventoryService {
       ? Math.max(1, Math.trunc(params.rewardAmount))
       : 1;
 
+    // ฝุ่นเวท: ใช้รหัส/ชื่อกลางเสมอ (ทุกแหล่งที่มา = ไอเทมเดียวกันในกระเป๋า)
+    const dust = params.rewardType === 'CRAFTING_DUST';
+    const code = dust ? CRAFTING_DUST_CODE : label;
+    const nameTh = dust ? CRAFTING_DUST_NAME_TH : label;
+
     const result = await this.grant({
       userId: params.userId,
       itemType,
-      code: label,
-      nameTh: label,
+      code,
+      nameTh,
       quantity,
       source: params.source,
       eventId: params.eventId,
     });
 
-    return { granted: true, itemType, code: inventoryCode(label), quantity: result.quantity };
+    return { granted: true, itemType, code: inventoryCode(code), quantity: result.quantity };
   }
 
   /** รายการของสะสมของผู้เล่น (แบ่งกลุ่มตามประเภท) */

@@ -11,6 +11,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { apiFetch } from '@/lib/api-client';
 import { useI18n } from '@/components/providers/LocaleProvider';
 import { formatNumber } from '@/lib/i18n';
+import { sourceLabelTh } from '@/lib/inventory-display';
 
 interface InventoryItem {
   id: string;
@@ -39,9 +40,11 @@ interface WorkshopItem {
 
 const TYPE_LABEL: Record<InventoryItem['itemType'], { label: string; icon: string }> = {
   CARD: { label: 'การ์ดพิเศษ', icon: '🎴' },
-  COSMETIC: { label: 'เครื่องประดับ', icon: '✨' },
+  COSMETIC: { label: 'เครื่องประดับ', icon: '🎀' },
   TITLE: { label: 'ฉายา', icon: '🏅' },
-  CRAFTING_DUST: { label: 'วัตถุดิบ', icon: '🌫️' },
+  // ฝุ่นเวทต้องใช้สัญลักษณ์/ชื่อเดียวกับยอดเงินในกระเป๋า (✨ ฝุ่นเวท)
+  // — เดิมใช้ 🌫️ 'วัตถุดิบ' ทำให้ผู้เล่นคิดว่าเป็นคนละไอเทม (ผู้ใช้แจ้ง 2026-09-27)
+  CRAFTING_DUST: { label: 'ฝุ่นเวท', icon: '✨' },
   STORY_CHAPTER: { label: 'บทเนื้อเรื่อง', icon: '📖' },
 };
 
@@ -221,7 +224,10 @@ export default function InventoryPage() {
                             >
                               <div>
                                 <p className="text-white">{item.nameTh}</p>
-                                <p className="text-xs text-gray-500">{item.source ?? '-'}</p>
+                                {/* ที่มา: แปลงรหัสหลังบ้านเป็นข้อความผู้เล่น · ไม่รู้จัก = ไม่แสดง (ผู้ใช้สั่ง) */}
+                                {sourceLabelTh(item.source) && (
+                                  <p className="text-xs text-gray-500">{sourceLabelTh(item.source)}</p>
+                                )}
                               </div>
                               <span className="font-bold text-amber-400">×{item.quantity}</span>
                             </div>

@@ -41,6 +41,11 @@ export const ITEM_CATALOG: ItemDef[] = [
     atk: 6, def: 0, hp: 0, spd: 0, icon: '🗡️', craftCost: 6, dustCost: 5, buyCost: 12,
   },
   {
+    code: 'ATK_ASHEN_SPIKE', name: 'Ashen Spike', nameTh: 'หนามเถ้าถ่าน',
+    descriptionTh: 'หนามที่หล่อจากเถ้าภูเขาไฟ — เพิ่มพลังโจมตีระดับกลาง', slot: 'ATTACK', rarity: 'UNCOMMON',
+    atk: 11, def: 0, hp: 0, spd: 1, icon: '🪓', craftCost: 12, dustCost: 12, buyCost: 26,
+  },
+  {
     code: 'ATK_EMBER_FANG', name: 'Ember Fang', nameTh: 'เขี้ยวเพลิง',
     descriptionTh: 'คมเขี้ยวที่ยังอุ่นจากเตาหลอม — เพิ่มพลังโจมตีชัดเจน', slot: 'ATTACK', rarity: 'RARE',
     atk: 16, def: 0, hp: 0, spd: 0, icon: '🔥', craftCost: 20, dustCost: 25, buyCost: 45,
@@ -56,11 +61,22 @@ export const ITEM_CATALOG: ItemDef[] = [
     atk: 60, def: 0, hp: 20, spd: 0, icon: '⚔️', craftCost: 160, dustCost: 150, buyCost: null,
   },
 
+  {
+    code: 'ATK_STORMFANG', name: 'Stormfang', nameTh: 'เขี้ยวพายุ',
+    descriptionTh: 'อาวุธในตำนานจากยอดหอพายุ — โจมตีสูงที่สุดและออกตัวไวขึ้น', slot: 'ATTACK', rarity: 'MYTHIC',
+    atk: 85, def: 0, hp: 30, spd: 6, icon: '⚡', craftCost: 240, dustCost: 220, buyCost: null,
+  },
+
   // ---------- ช่องป้องกัน ----------
   {
     code: 'DEF_OAK_BUCKLER', name: 'Oak Buckler', nameTh: 'โล่ไม้โอ๊ก',
     descriptionTh: 'โล่เล็กที่ช่างทุกคนทำได้ — เพิ่มป้องกันและ HP', slot: 'DEFENSE', rarity: 'COMMON',
     atk: 0, def: 6, hp: 10, spd: 0, icon: '🛡️', craftCost: 6, dustCost: 5, buyCost: 12,
+  },
+  {
+    code: 'DEF_IRONWEAVE', name: 'Ironweave Guard', nameTh: 'เกราะผ้าถักเหล็ก',
+    descriptionTh: 'เกราะถักที่ช่างฝีมือทำได้ — ป้องกันและ HP ระดับกลาง', slot: 'DEFENSE', rarity: 'UNCOMMON',
+    atk: 0, def: 11, hp: 18, spd: 0, icon: '🪖', craftCost: 12, dustCost: 12, buyCost: 26,
   },
   {
     code: 'DEF_TIDEWALL', name: 'Tidewall Shield', nameTh: 'โล่กำแพงน้ำ',
@@ -78,11 +94,22 @@ export const ITEM_CATALOG: ItemDef[] = [
     atk: 0, def: 55, hp: 95, spd: 3, icon: '🏰', craftCost: 160, dustCost: 150, buyCost: null,
   },
 
+  {
+    code: 'DEF_TITANHEART', name: 'Titanheart Aegis', nameTh: 'โล่หัวใจไททัน',
+    descriptionTh: 'โล่ในตำนานที่ต้านได้ทุกธาตุ — ป้องกันและ HP สูงที่สุดในเกม', slot: 'DEFENSE', rarity: 'MYTHIC',
+    atk: 0, def: 75, hp: 135, spd: 4, icon: '🗿', craftCost: 240, dustCost: 220, buyCost: null,
+  },
+
   // ---------- ช่องสนับสนุน ----------
   {
     code: 'SUP_SWIFT_CHARM', name: 'Swift Charm', nameTh: 'เครื่องรางว่องไว',
     descriptionTh: 'เครื่องรางเล็กที่ทำให้ออกตัวเร็วขึ้น', slot: 'SUPPORT', rarity: 'COMMON',
     atk: 0, def: 0, hp: 4, spd: 5, icon: '🪶', craftCost: 6, dustCost: 5, buyCost: 12,
+  },
+  {
+    code: 'SUP_DUSKVEIL', name: 'Duskveil Charm', nameTh: 'เครื่องรางม่านสนธยา',
+    descriptionTh: 'เครื่องรางที่ทำให้ทีมออกตัวไวขึ้นเล็กน้อย', slot: 'SUPPORT', rarity: 'UNCOMMON',
+    atk: 0, def: 0, hp: 9, spd: 8, icon: '🕯️', craftCost: 12, dustCost: 12, buyCost: 26,
   },
   {
     code: 'SUP_MOONLIT_TONIC', name: 'Moonlit Tonic', nameTh: 'น้ำยาจันทร์',
@@ -98,6 +125,11 @@ export const ITEM_CATALOG: ItemDef[] = [
     code: 'SUP_SELENE_SIGIL', name: "Selene's Sigil", nameTh: 'ตราเซลิน',
     descriptionTh: 'ตราของเซลิน ผู้ผนึกอรุณ — เพิ่มทุก Status', slot: 'SUPPORT', rarity: 'LEGENDARY',
     atk: 10, def: 10, hp: 40, spd: 40, icon: '🌕', craftCost: 160, dustCost: 150, buyCost: null,
+  },
+  {
+    code: 'SUP_WORLDSEED', name: 'Worldseed Relic', nameTh: 'เมล็ดพันธุ์โลก',
+    descriptionTh: 'ของในตำนานที่เพิ่มทุก Status ของการ์ด — ของคราฟต์สูงสุดในเกม', slot: 'SUPPORT', rarity: 'MYTHIC',
+    atk: 14, def: 14, hp: 60, spd: 55, icon: '🌱', craftCost: 240, dustCost: 220, buyCost: null,
   },
 ];
 

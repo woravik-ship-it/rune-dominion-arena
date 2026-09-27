@@ -104,6 +104,9 @@ model User {
   // Phase 25: ไอเทมที่ถือ + ประวัติการได้/ใช้ Veil Shards
   items               UserItem[]
   veilShardTx         VeilShardTransaction[]
+  // Phase 31: ดันเจี้ยน (ความคืบหน้า + ประวัติการลุย)
+  dungeonProgress     DungeonProgress[]
+  dungeonRuns         DungeonRun[]
 
   // Phase 12: index สำหรับ fingerprint lookup (ทุกครั้งที่สมัคร/ล็อกอิน) + admin filter
   @@index([signupDeviceId])
@@ -1016,4 +1019,53 @@ model VeilShardTransaction {
 
   @@index([userId, createdAt])
   @@map("veil_shard_transactions")
+}
+
+// ===== PHASE 31: DUNGEON — ดันเจี้ยนหาวัตถุดิบคราฟต์ =====
+//
+// ผู้ใช้สั่ง 2026-09-27: ดันฟรีตลอด/ฟรีตามเวลา/ใช้เหรียญ · หลายชั้นยากขึ้นเรื่อยๆ
+// ทีมศัตรูพิเศษ (บอส 1 + ลูกน้อง, 5-8 ใบ) — status อยู่ในโค้ด (dungeon-definitions.ts)
+// ไม่ผูก CardDefinition จึงไม่ต้อง Gen รูปเพิ่ม (reuse art ตาม artRefs)
+
+/// ความคืบหน้าต่อผู้เล่นต่อดัน (ชั้นสูงสุดที่เคยชนะ — ใช้ปลดล็อกชั้นถัดไป)
+model DungeonProgress {
+  id          String   @id @default(cuid())
+  userId      String   @map("user_id")
+  dungeonCode String   @map("dungeon_code")
+  bestFloor   Int      @default(0) @map("best_floor")
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, dungeonCode])
+  @@index([userId])
+  @@map("dungeon_progress")
+}
+
+/// ประวัติการลุย 1 ครั้ง (idempotent ด้วย runId)
+model DungeonRun {
+  id               String   @id @default(cuid())
+  runId            String   @unique @map("run_id")
+  userId           String   @map("user_id")
+  dungeonCode      String   @map("dungeon_code")
+  floor            Int
+  deckId           String   @map("deck_id")
+  won              Boolean  @default(false)
+  roundsPlayed     Int      @default(0) @map("rounds_played")
+  teamHpRemaining  Int      @default(0) @map("team_hp_remaining")
+  enemyHpRemaining Int      @default(0) @map("enemy_hp_remaining")
+  dustEarned       Int      @default(0) @map("dust_earned")
+  shardsEarned     Int      @default(0) @map("shards_earned")
+  itemDropped      String?  @map("item_dropped")
+  itemNameTh       String?  @map("item_name_th")
+  coinsSpent       Int      @default(0) @map("coins_spent")
+  battleData       Json?    @map("battle_data")
+  createdAt        DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, dungeonCode])
+  @@index([createdAt])
+  @@map("dungeon_runs")
 }
