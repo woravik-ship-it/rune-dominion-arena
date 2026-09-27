@@ -12,6 +12,7 @@ import { apiFetch } from '@/lib/api-client';
 import { useI18n } from '@/components/providers/LocaleProvider';
 import { useAudio } from '@/components/providers/AudioProvider';
 import { emitVeilShardsChanged } from '@/lib/veil-shard-events';
+import { sellQuote } from '@/lib/item-definitions';
 
 type SlotKey = 'ATTACK' | 'DEFENSE' | 'SUPPORT';
 
@@ -135,6 +136,44 @@ export default function ItemsPage() {
     }
   };
 
+  /**
+   * ขาย Item คืนร้าน (Phase 32) — ได้วัตถุดิบกลับมา 50% (Veil Shards + ฝุ่นเวท)
+   * ขายได้เฉพาะ "ชิ้นที่ยังไม่ใส่อยู่บนการ์ด" (owned − equippedCount)
+   */
+  const sell = async (code: string, nameTh: string) => {
+    setBusy(`sell:${code}`);
+    setMessage('');
+    setError('');
+    try {
+      const res = await apiFetch('/api/items/sell', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ code, quantity: 1 }),
+      });
+      const json = await res.json().catch(() => null);
+      if (!res.ok || !json?.success) {
+        setError(json?.error ?? t('common.error'));
+        return;
+      }
+      const data = json.data ?? {};
+      play('coin');
+      setMessage(
+        t('item.sellItemDone', {
+          name: nameTh,
+          n: Number(data.sold ?? 1),
+          shards: Number(data.refundShards ?? 0),
+          dust: Number(data.refundDust ?? 0),
+        })
+      );
+      emitVeilShardsChanged(Number(data.balance));
+      await load();
+    } catch {
+      setError(t('common.error'));
+    } finally {
+      setBusy('');
+    }
+  };
+
   return (
     <main className="min-h-screen p-4 pb-24">
       <div className="mx-auto max-w-3xl">
@@ -164,7 +203,11 @@ export default function ItemsPage() {
             <div className="grid gap-2 sm:grid-cols-2">
               {rows
                 .filter((row) => row.slot === slot)
-                .map((row) => (
+                .map((row) => {
+                  // ขายได้เฉพาะชิ้นที่ยังไม่ใส่อยู่บนการ์ด (ผู้ใช้สั่ง: ขายคืนวัตถุดิบ 50%)
+                  const sellable = Math.max(0, row.owned - row.equippedCount);
+                  const refund = sellQuote(row, 1);
+                  return (
                   <div
                     key={row.code}
                     data-item-card={row.code}
@@ -231,9 +274,27 @@ export default function ItemsPage() {
                           {t('item.buy')}
                         </button>
                       )}
+                      {sellable > 0 && (
+                        <button
+                          type="button"
+                          data-item-sell={row.code}
+                          onClick={() => sell(row.code, row.nameTh)}
+                          disabled={busy === `sell:${row.code}`}
+                          className="rounded-lg bg-emerald-600/80 px-3 py-1.5 text-xs font-bold text-white hover:bg-emerald-500 disabled:opacity-40"
+                          title={t('item.sellItemHint', { shards: refund.shards, dust: refund.dust })}
+                        >
+                          {t('item.sellItemButton')} (💠{refund.shards} + ✨{refund.dust})
+                        </button>
+                      )}
+                      {row.owned > 0 && sellable === 0 && (
+                        <span className="rounded bg-white/5 px-2 py-1 text-[11px] text-gray-400">
+                          {t('item.sellItemBlocked')}
+                        </span>
+                      )}
                     </div>
                   </div>
-                ))}
+                  );
+                })}
             </div>
           </section>
         ))}

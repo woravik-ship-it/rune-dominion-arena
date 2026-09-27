@@ -350,6 +350,75 @@ try {
     `${beforeShards} → ${afterSellShards}`
   );
 
+  // ---- 12) ขาย Item คืนร้าน → ได้วัตถุดิบกลับมา 50% (Phase 32) ----
+  const sellGuard = await api('POST', '/api/items/sell', { cookie, body: { code: buyable.code, quantity: 1 } });
+  check(
+    'ขาย Item ที่ใส่อยู่บนการ์ด → ปฏิเสธ (400 + เหตุผล)',
+    sellGuard.status === 400 && /ถอดออกก่อน/.test(sellGuard.json?.error ?? ''),
+    sellGuard.json?.error ?? String(sellGuard.status)
+  );
+
+  const beforeSell = await api('GET', '/api/items', { cookie });
+  const beforeSellShards = beforeSell.json?.data?.veilShards ?? 0;
+  const beforeSellDust = beforeSell.json?.data?.dust ?? 0;
+  const sellTarget = rows.find((row) => row.code === craftable?.code) ?? rows.find((row) => row.owned > 0 && row.buyCost === null);
+  const soldItem = sellTarget
+    ? await api('POST', '/api/items/sell', { cookie, body: { code: sellTarget.code, quantity: 1 } })
+    : { status: 0, json: null };
+  const refund = sellTarget
+    ? { shards: Math.floor(sellTarget.craftCost / 2), dust: Math.floor(sellTarget.dustCost / 2) }
+    : { shards: 0, dust: 0 };
+  check(
+    `ขาย ${sellTarget?.nameTh ?? '-'} คืนร้าน → ได้วัตถุดิบ 50% (💠${refund.shards} + ✨${refund.dust})`,
+    soldItem.status === 200 && soldItem.json?.data?.refundShards === refund.shards && soldItem.json?.data?.refundDust === refund.dust,
+    `ได้ 💠${soldItem.json?.data?.refundShards} + ✨${soldItem.json?.data?.refundDust} (คาด 💠${refund.shards} + ✨${refund.dust}) · ${soldItem.json?.error ?? ''}`
+  );
+  const afterSell = await api('GET', '/api/items', { cookie });
+  check(
+    'ยอดหลังขาย: Veil Shards +50% ของสูตร · ฝุ่นเวท +50% ของสูตร',
+    (afterSell.json?.data?.veilShards ?? 0) === beforeSellShards + refund.shards &&
+      (afterSell.json?.data?.dust ?? 0) === beforeSellDust + refund.dust,
+    `💠 ${beforeSellShards}→${afterSell.json?.data?.veilShards} · ✨ ${beforeSellDust}→${afterSell.json?.data?.dust}`
+  );
+
+  // ถอดของออกแล้วขายได้ (ของที่ใส่อยู่ต้องขายได้หลังถอด)
+  await api('DELETE', `/api/cards/${equipCard.cardId}/equipment?slot=ATTACK`, { cookie });
+  const sellAfterUnequip = await api('POST', '/api/items/sell', { cookie, body: { code: buyable.code, quantity: 1 } });
+  check(
+    'ถอดของออกแล้วขายได้ (คืนวัตถุดิบ 50%)',
+    sellAfterUnequip.status === 200 && sellAfterUnequip.json?.data?.refundShards === Math.floor(buyable.craftCost / 2),
+    `💠${sellAfterUnequip.json?.data?.refundShards} + ✨${sellAfterUnequip.json?.data?.refundDust} · ${sellAfterUnequip.json?.error ?? ''}`
+  );
+
+  // คืนสภาพให้ส่วน UI ด้านล่าง: ซื้อของกลับมา + ใส่บนการ์ด (เทสต์ UI ต้องมีของให้กดใส่)
+  const rebuy = await api('POST', '/api/items/buy', { cookie, body: { code: buyable.code } });
+  const reequip = rebuy.status === 200
+    ? await api('POST', `/api/cards/${equipCard.cardId}/equipment`, {
+        cookie,
+        body: { slot: 'ATTACK', itemCode: buyable.code },
+      })
+    : { status: 0, json: null };
+  // ซื้อของช่อง "ป้องกัน" ที่ยังว่างไว้ 1 ชิ้น (ไม่ใส่) เพื่อให้เทสต์ UI ด้านล่างมี "ของให้กดใส่"
+  // (ปุ่มตัวเลือกจะกดได้เฉพาะของที่ยังไม่ถูกใส่อยู่บนการ์ดใบนี้)
+  const spareItem = rows.find((row) => row.slot === 'DEFENSE' && row.buyCost !== null) ?? rows.find((row) => row.slot === 'DEFENSE');
+  const spare = spareItem
+    ? await api('POST', '/api/items/buy', { cookie, body: { code: spareItem.code } })
+    : { status: 0, json: null };
+  check(
+    'ขายแล้วซื้อกลับมาใส่ใหม่ได้ + มีของช่องว่างไว้เทสต์ UI',
+    rebuy.status === 200 && reequip.status === 200 && spare.status === 200,
+    `ซื้อ ${rebuy.status} · ใส่ ${reequip.status} · ของช่องว่าง (${spareItem?.nameTh}) ${spare.status}`
+  );
+
+  // แคตตาล็อกต้องมี 36 ชิ้น (12 ต่อช่อง) หลังเพิ่มของรอบล่าสุด
+  const finalCatalog = await api('GET', '/api/items', { cookie });
+  const finalRows = finalCatalog.json?.data?.rows ?? [];
+  check(
+    'แคตตาล็อกมี 36 ชิ้น (12 ต่อช่อง)',
+    finalRows.length >= 36 && ['ATTACK', 'DEFENSE', 'SUPPORT'].every((slot) => finalRows.filter((row) => row.slot === slot).length >= 12),
+    `${finalRows.length} ชิ้น — ` + ['ATTACK', 'DEFENSE', 'SUPPORT'].map((slot) => `${slot}:${finalRows.filter((row) => row.slot === slot).length}`).join(' · ')
+  );
+
   // การ์ดที่อยู่ในเด็ค → ขายจนหมดไม่ได้ (กันเด็คพัง)
   const deckCardId = ((await api('GET', `/api/decks/${deckId ?? ''}`, { cookie })).json?.data?.slots ?? [])[0]?.cardId;
   if (deckCardId) {

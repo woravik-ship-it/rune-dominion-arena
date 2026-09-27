@@ -107,6 +107,9 @@ const BUILD_DUNGEONS: DungeonDef[] = [
       deepNames: ['ห้วงเถ้าถ่าน', 'โถงถ่านหลอม', 'เหวเถ้าร้อน', 'ห้องธุลีเพลิง', 'ปล่องลาวา', 'บัลลังก์เถ้า'],
       dropLadder: [
         { fromFloor: 4, code: 'ATK_WHETSTONE', chance: 20 },
+        { fromFloor: 5, code: 'ATK_SPARK_SHARD', chance: 20 },
+        { fromFloor: 9, code: 'DEF_PEBBLE_WARD', chance: 20 },
+        { fromFloor: 16, code: 'SUP_TRAVELERS_AMULET', chance: 18 },
         { fromFloor: 7, code: 'DEF_OAK_BUCKLER', chance: 20 },
         { fromFloor: 10, code: 'SUP_SWIFT_CHARM', chance: 20 },
         { fromFloor: 14, code: 'ATK_ASHEN_SPIKE', chance: 18 },
@@ -136,6 +139,8 @@ const BUILD_DUNGEONS: DungeonDef[] = [
       deepNames: ['ห้วงน้ำลึก', 'ถ้ำปะการังดำ', 'สระแสงจันทร์ลึก', 'ระเบียงคลื่นเงียบ', 'แกนสมุทร', 'วังน้ำวน'],
       dropLadder: [
         { fromFloor: 5, code: 'DEF_IRONWEAVE', chance: 20 },
+        { fromFloor: 6, code: 'DEF_SCALEWARD', chance: 18 },
+        { fromFloor: 16, code: 'SUP_WINDWHISPER', chance: 18 },
         { fromFloor: 8, code: 'ATK_ASHEN_SPIKE', chance: 20 },
         { fromFloor: 11, code: 'SUP_DUSKVEIL', chance: 20 },
         { fromFloor: 15, code: 'DEF_TIDEWALL', chance: 18 },
@@ -165,6 +170,8 @@ const BUILD_DUNGEONS: DungeonDef[] = [
       deepNames: ['ม่านบิดเบี้ยว', 'โถงไร้ดาว', 'ซอกจันทราแตก', 'ห้วงคำสาป', 'ประตูไร้แสง', 'แกนม่านเงา'],
       dropLadder: [
         { fromFloor: 5, code: 'ATK_ASHEN_SPIKE', chance: 20 },
+        { fromFloor: 6, code: 'ATK_HUNTERS_TALON', chance: 18 },
+        { fromFloor: 17, code: 'SUP_GALE_TOTEM', chance: 16 },
         { fromFloor: 8, code: 'SUP_DUSKVEIL', chance: 20 },
         { fromFloor: 11, code: 'ATK_EMBER_FANG', chance: 20 },
         { fromFloor: 15, code: 'DEF_DAWNSTONE', chance: 16 },
@@ -194,6 +201,8 @@ const BUILD_DUNGEONS: DungeonDef[] = [
       deepNames: ['อุโมงค์ทองคำ', 'คลังลึกลับ', 'เหวฉายทอง', 'บ่อหลอมสมบัติ', 'โลงทองคำ', 'ก้นเหวมรณะ'],
       dropLadder: [
         { fromFloor: 5, code: 'DEF_TIDEWALL', chance: 20 },
+        { fromFloor: 10, code: 'DEF_STORMBULWARK', chance: 18 },
+        { fromFloor: 19, code: 'SUP_STARLIGHT_CORE', chance: 14 },
         { fromFloor: 8, code: 'ATK_EMBER_FANG', chance: 20 },
         { fromFloor: 12, code: 'ATK_MOONLESS_BLADE', chance: 18 },
         { fromFloor: 15, code: 'DEF_DAWNSTONE', chance: 18 },
@@ -229,6 +238,9 @@ const BUILD_DUNGEONS: DungeonDef[] = [
         { fromFloor: 6, code: 'SUP_DUSKVEIL', chance: 22 },
         { fromFloor: 10, code: 'DEF_IRONWEAVE', chance: 22 },
         { fromFloor: 14, code: 'ATK_ASHEN_SPIKE', chance: 22 },
+        { fromFloor: 12, code: 'ATK_FROSTBRAND', chance: 20 },
+        { fromFloor: 22, code: 'DEF_MOONPLATE', chance: 16 },
+        { fromFloor: 32, code: 'SUP_DAWNHEART', chance: 14 },
         { fromFloor: 18, code: 'DEF_TIDEWALL', chance: 20 },
         { fromFloor: 22, code: 'ATK_MOONLESS_BLADE', chance: 18 },
         { fromFloor: 26, code: 'DEF_DAWNSTONE', chance: 18 },

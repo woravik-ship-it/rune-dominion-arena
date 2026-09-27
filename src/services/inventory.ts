@@ -2,6 +2,7 @@
 // ปลายทางของรางวัลที่ไม่ใช่ Coin: การ์ดพิเศษ / เครื่องประดับ / ฉายา / วัตถุดิบ / บทเนื้อเรื่อง
 // หลักการ: idempotent (upsert ตาม userId+type+code), integer เท่านั้น, เพิ่มจำนวนแบบ atomic
 import { prisma } from '@/lib/prisma';
+import type { VeilShardDb } from '@/services/veil-shard';
 import { InventoryItemType, EventRewardType } from '@prisma/client';
 import { createHash } from 'node:crypto';
 
@@ -57,34 +58,38 @@ export const CRAFTING_DUST_CODE = inventoryCode(CRAFTING_DUST_NAME_TH);
 
 export class InventoryService {
   /** เพิ่มของเข้าคลัง (idempotent — มีอยู่แล้วบวกจำนวน) */
-  static async grant(params: {
-    userId: string;
-    itemType: InventoryItemType;
-    code: string;
-    nameTh: string;
-    quantity?: number;
-    source?: string;
-    eventId?: string | null;
-    metadata?: Record<string, unknown>;
-  }): Promise<{ created: boolean; quantity: number; id: string }> {
+  static async grant(
+    params: {
+      userId: string;
+      itemType: InventoryItemType;
+      code: string;
+      nameTh: string;
+      quantity?: number;
+      source?: string;
+      eventId?: string | null;
+      metadata?: Record<string, unknown>;
+    },
+    /** ส่ง transaction client มาได้ เพื่อให้การให้ของอยู่ใน transaction เดียวกับงานอื่น (เช่น ขายของ) */
+    db: VeilShardDb = prisma
+  ): Promise<{ created: boolean; quantity: number; id: string }> {
     const quantity = Math.max(1, Math.trunc(params.quantity ?? 1));
     const code = inventoryCode(params.code);
 
-    const existing = await prisma.userInventoryItem.findUnique({
+    const existing = await db.userInventoryItem.findUnique({
       where: {
         userId_itemType_code: { userId: params.userId, itemType: params.itemType, code },
       },
     });
 
     if (existing) {
-      const updated = await prisma.userInventoryItem.update({
+      const updated = await db.userInventoryItem.update({
         where: { id: existing.id },
         data: { quantity: { increment: quantity } },
       });
       return { created: false, quantity: updated.quantity, id: updated.id };
     }
 
-    const created = await prisma.userInventoryItem.create({
+    const created = await db.userInventoryItem.create({
       data: {
         userId: params.userId,
         itemType: params.itemType,

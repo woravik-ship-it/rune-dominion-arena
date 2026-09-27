@@ -17,11 +17,13 @@ import {
   applyItemStats,
   craftQuote,
   findItemDef,
+  sellQuote,
   sumItemStats,
   type ItemDef,
   type ItemStats,
 } from '@/lib/item-definitions';
-import { debitVeilShards, type VeilShardDb } from '@/services/veil-shard';
+import { VeilShardService, creditVeilShards, debitVeilShards, type VeilShardDb } from '@/services/veil-shard';
+import { CRAFTING_DUST_CODE, CRAFTING_DUST_NAME_TH, InventoryService } from '@/services/inventory';
 
 export interface CatalogRow extends ItemDef {
   /** จำนวนที่ถืออยู่ */
@@ -233,6 +235,86 @@ export class ItemService {
       const quantity = await grantItem(tx, userId, row.id, 1);
       const dust = await dustBalance(userId, tx);
       return { balance: paid.balance, dust, quantity, nameTh: row.nameTh };
+    });
+  }
+
+  /**
+   * ขาย Item คืนร้าน → ได้วัตถุดิบกลับมา 50% (Veil Shards + ฝุ่นเวท ตามสูตรคราฟต์)
+   *
+   * ผู้ใช้สั่ง 2026-09-27: "เพิ่มระบบขาย Item ได้วัตถุดิบกลับมา 50%"
+   *  - คืนตาม `sellQuote()` (pure) ⇒ UI/API/เทสต์ใช้ตัวเลขชุดเดียวกัน
+   *  - กันของที่ "ใส่อยู่บนการ์ด" ไม่ให้ขายจนไม่พอใช้ (owned − ขาย ≥ จำนวนที่ใส่อยู่)
+   *  - ทำใน transaction เดียว: ตัดของ → คืน Veil Shards → คืนฝุ่นเวท
+   */
+  static async sell(
+    userId: string,
+    itemCode: string,
+    quantity = 1
+  ): Promise<{
+    nameTh: string; sold: number; refundShards: number; refundDust: number;
+    balance: number; dust: number; remaining: number;
+  }> {
+    await this.ensureCatalog();
+    const row = await prisma.itemDefinition.findUnique({ where: { code: itemCode } });
+    const def = findItemDef(itemCode);
+    if (!row || !def || !row.isActive) throw new Error('ไม่พบ Item นี้');
+
+    const owned = await prisma.userItem.findUnique({
+      where: { userId_itemId: { userId, itemId: row.id } },
+      select: { id: true, quantity: true },
+    });
+    if (!owned || owned.quantity <= 0) throw new Error('ยังไม่มี Item นี้ในคลัง');
+
+    const want = Math.max(1, Math.trunc(Number.isFinite(quantity) ? quantity : 1));
+    const sold = Math.min(want, owned.quantity);
+    const equippedCount = await prisma.cardItemSlot.count({
+      where: { itemId: row.id, userCard: { userId } },
+    });
+    if (owned.quantity - sold < equippedCount) {
+      throw new Error('Item ชิ้นนี้ใส่อยู่บนการ์ด — ถอดออกก่อนขาย (หรือขายให้น้อยลง)');
+    }
+
+    const quote = sellQuote(def, sold);
+    return prisma.$transaction(async (tx) => {
+      if (owned.quantity === sold) {
+        await tx.userItem.delete({ where: { id: owned.id } });
+      } else {
+        await tx.userItem.update({ where: { id: owned.id }, data: { quantity: owned.quantity - sold } });
+      }
+
+      let balance = await VeilShardService.balance(userId, tx);
+      if (quote.shards > 0) {
+        const credited = await creditVeilShards(tx, {
+          userId,
+          amount: quote.shards,
+          source: 'ITEM_SELL',
+          description: `ขาย ${row.nameTh} คืนร้าน ${sold} ชิ้น`,
+        });
+        balance = credited.balance;
+      }
+      if (quote.dust > 0) {
+        await InventoryService.grant(
+          {
+            userId,
+            itemType: 'CRAFTING_DUST',
+            code: CRAFTING_DUST_CODE,
+            nameTh: CRAFTING_DUST_NAME_TH,
+            quantity: quote.dust,
+            source: 'ITEM_SELL',
+          },
+          tx
+        );
+      }
+      const dust = await dustBalance(userId, tx);
+      return {
+        nameTh: row.nameTh,
+        sold,
+        refundShards: quote.shards,
+        refundDust: quote.dust,
+        balance,
+        dust,
+        remaining: owned.quantity - sold,
+      };
     });
   }
 

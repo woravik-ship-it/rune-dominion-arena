@@ -43,6 +43,8 @@ export const VEIL_SHARD_SOURCES = {
   EVENT_MILESTONE: 'EVENT_MILESTONE',
   ITEM_BUY: 'ITEM_BUY',
   ITEM_CRAFT: 'ITEM_CRAFT',
+  /** ขาย Item คืนร้าน → คืน Veil Shards 50% ของสูตรคราฟต์ (Phase 32) */
+  ITEM_SELL: 'ITEM_SELL',
 } as const;
 
 export type VeilShardSource = keyof typeof VEIL_SHARD_SOURCES;

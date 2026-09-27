@@ -2,12 +2,14 @@
 // ผู้ใช้สั่ง 2026-09-27: "ช่างใส่ Item เพิ่ม Status ให้ 3 ช่อง Item โจมตี, ป้องกัน, สนับสนุน"
 import {
   ITEM_CATALOG,
+  ITEM_SELL_REFUND_RATE,
   ITEM_SLOTS,
   applyItemStats,
   cheapestPrice,
   craftQuote,
   findItemDef,
   itemsForSlot,
+  sellQuote,
   slotAcceptsItem,
   sumItemStats,
 } from '@/lib/item-definitions';
@@ -64,12 +66,16 @@ describe('แคตตาล็อก Item', () => {
     expect(findItemDef('SUP_SELENE_SIGIL')?.buyCost).toBeNull();
   });
 
-  test('มีของให้คราฟต์หลากหลายครบทุกระดับ (Phase 31.4: เพิ่มของอีก 6 ชิ้น)', () => {
-    // อย่างน้อย 6 ชิ้นต่อช่อง (2 ระดับพื้นฐาน + 2 กลาง + 2 สูง)
+  test('มีของให้คราฟต์หลากหลายครบทุกระดับ (Phase 32: 12 ชิ้น/ช่อง = 36 ชิ้น)', () => {
+    // 2 ชิ้นต่อระดับความหายาก (6 ระดับ) ต่อช่อง
     for (const slot of ITEM_SLOTS) {
-      expect(itemsForSlot(slot).length).toBeGreaterThanOrEqual(6);
+      const list = itemsForSlot(slot);
+      expect(list.length).toBeGreaterThanOrEqual(12);
+      for (const rarity of ['COMMON', 'UNCOMMON', 'RARE', 'EPIC', 'LEGENDARY', 'MYTHIC']) {
+        expect(list.filter((item) => item.rarity === rarity).length).toBeGreaterThanOrEqual(2);
+      }
     }
-    expect(ITEM_CATALOG.length).toBeGreaterThanOrEqual(18);
+    expect(ITEM_CATALOG.length).toBeGreaterThanOrEqual(36);
     // ระดับสูงสุด (MYTHIC) ต้องมีจริง ครบ 3 ช่อง และคราฟต์เท่านั้น
     const mythic = ITEM_CATALOG.filter((item) => item.rarity === 'MYTHIC');
     expect(new Set(mythic.map((item) => item.slot)).size).toBe(3);
@@ -137,5 +143,31 @@ describe('การประเมินการคราฟต์ (ใช้�
     expect(quote.missingShards).toBe(0);
     expect(quote.missingDust).toBe(25);
     expect(quote.ok).toBe(false);
+  });
+});
+
+describe('ขาย Item คืนวัตถุดิบ 50% (Phase 32)', () => {
+  test('คืนครึ่งหนึ่งของสูตรคราฟต์ (ปัดลง) ทั้ง Veil Shards และฝุ่นเวท', () => {
+    expect(ITEM_SELL_REFUND_RATE).toBe(0.5);
+    // หินลับคม: คราฟต์ 6 shards + 5 dust → คืน 3 + 2
+    expect(sellQuote({ craftCost: 6, dustCost: 5 })).toEqual({ shards: 3, dust: 2, total: 5 });
+    // ดาบฉีกสุญญตา: 260 + 240 → คืน 130 + 120
+    expect(sellQuote({ craftCost: 260, dustCost: 240 })).toEqual({ shards: 130, dust: 120, total: 250 });
+  });
+
+  test('ขายหลายชิ้น = คูณจำนวน (และจำนวนเพี้ยนไม่ทำให้พัง)', () => {
+    expect(sellQuote({ craftCost: 20, dustCost: 25 }, 3)).toEqual({ shards: 30, dust: 36, total: 66 });
+    expect(sellQuote({ craftCost: 20, dustCost: 25 }, 0).shards).toBe(10);
+    expect(sellQuote({ craftCost: 20, dustCost: 25 }, Number.NaN).dust).toBe(12);
+  });
+
+  test('ทุกรายการ: ขายคืนต้องไม่เกินครึ่งของต้นทุน (กันปั๊มของ/กำไรจากคราฟต์แล้วขาย)', () => {
+    for (const item of ITEM_CATALOG) {
+      const quote = sellQuote(item);
+      expect(quote.shards).toBeLessThanOrEqual(Math.max(1, item.craftCost));
+      expect(quote.shards + quote.dust).toBeLessThan(item.craftCost + item.dustCost + 1);
+      expect(quote.shards).toBeLessThanOrEqual(Math.floor(item.craftCost / 2));
+      expect(quote.dust).toBeLessThanOrEqual(Math.floor(item.dustCost / 2));
+    }
   });
 });

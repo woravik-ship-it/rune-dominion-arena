@@ -206,6 +206,11 @@ export const TH: Record<string, string> = {
   'item.unequipped': 'ถอด Item แล้ว',
   'item.bought': 'ซื้อ {name} สำเร็จ',
   'item.crafted': 'คราฟต์ {name} สำเร็จ',
+  'item.sellItemButton': 'ขายคืนวัตถุดิบ ×1',
+  'item.sellItemButtonN': 'ขายคืนวัตถุดิบ ×{n}',
+  'item.sellItemHint': 'คืนวัตถุดิบ 50% ของสูตรคราฟต์: 💠 {shards} + ✨ {dust}',
+  'item.sellItemBlocked': 'ขายไม่ได้ — ชิ้นนี้ใส่อยู่บนการ์ด (ถอดออกก่อน)',
+  'item.sellItemDone': 'ขาย {name} ×{n} แล้ว — ได้ 💠 {shards} + ✨ {dust} กลับมา',
   'item.loginRequired': 'เข้าสู่ระบบก่อนจึงใช้ร้านช่างได้',
 
   // โปรไฟล์ + อวตาร + กระเป๋า (Phase 26)

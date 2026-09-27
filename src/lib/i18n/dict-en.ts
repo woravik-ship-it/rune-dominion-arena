@@ -206,6 +206,11 @@ export const EN: Record<string, string> = {
   'item.unequipped': 'Item removed',
   'item.bought': 'Bought {name}',
   'item.crafted': 'Crafted {name}',
+  'item.sellItemButton': 'Sell for materials ×1',
+  'item.sellItemButtonN': 'Sell for materials ×{n}',
+  'item.sellItemHint': 'Refunds 50% of the craft recipe: 💠 {shards} + ✨ {dust}',
+  'item.sellItemBlocked': 'Cannot sell — these copies are equipped on cards (remove first)',
+  'item.sellItemDone': 'Sold {name} ×{n} — got 💠 {shards} + ✨ {dust} back',
   'item.loginRequired': 'Sign in to use the workshop',
 
   // Profile + avatar + bag (Phase 26)
