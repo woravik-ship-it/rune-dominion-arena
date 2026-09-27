@@ -15,6 +15,18 @@ import AvatarEditor from '@/components/profile/AvatarEditor';
 import AvatarView from '@/components/profile/AvatarView';
 
 interface ProfileData {
+  /** Phase 33: เลเวล/EXP (คำนวณจาก exp ฝั่งเซิร์ฟเวอร์) */
+  level: {
+    level: number;
+    exp: number;
+    intoLevel: number;
+    levelSpan: number;
+    toNext: number;
+    ratio: number;
+    isMax: boolean;
+    dropBonusPercent: number;
+    maxLevel: number;
+  };
   user: {
     id: string;
     username: string;
@@ -146,6 +158,34 @@ export default function ProfilePage() {
             </div>
           </div>
         </section>
+
+        {/* เลเวล/EXP (Phase 33) */}
+        {data.level && (
+          <section data-profile-level className="mb-4 rounded-xl border border-amber-500/30 bg-amber-500/5 p-4">
+            <div className="flex items-center justify-between gap-2">
+              <h2 className="text-sm font-bold text-amber-200">
+                ⭐ {t('profile.level')} <span className="text-lg text-white" data-level-value>{data.level.level}</span>
+                <span className="ml-1 text-xs text-gray-400">/ {data.level.maxLevel}</span>
+              </h2>
+              <span className="text-xs text-emerald-300" data-level-drop-bonus>
+                🎁 {t('profile.dropBonus')}: +{data.level.dropBonusPercent}%
+              </span>
+            </div>
+            <div className="mt-2 h-2 overflow-hidden rounded-full bg-gray-700">
+              <div
+                className="h-full bg-gradient-to-r from-amber-400 to-orange-500"
+                style={{ width: `${Math.round(data.level.ratio * 100)}%` }}
+              />
+            </div>
+            <p className="mt-1 text-[11px] text-gray-400">
+              {t('profile.exp')} {formatNumber(locale, data.level.exp)}
+              {' · '}
+              {data.level.isMax
+                ? t('profile.maxLevel')
+                : t('profile.expToNext', { n: formatNumber(locale, data.level.toNext) })}
+            </p>
+          </section>
+        )}
 
         {/* ยอดเงินและพลัง */}
         <section data-profile-balances className="mb-4 rounded-xl border border-white/10 bg-gray-800/60 p-4">

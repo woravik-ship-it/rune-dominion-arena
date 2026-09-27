@@ -29,7 +29,12 @@ export interface AudioLayerSettings {
  */
 export const LAYER_BASE_GAIN = {
   sfx: 1.0,
-  music: 1.8,
+  /**
+   * Phase 35 (ผู้ใช้แจ้ง: "เพลงประกอบ ในโทรศัพท์ มีเสียงแตกหน่อยๆ"):
+   * เดิม 1.8 × master 1.3 = 2.34 เท่า ของสัญญาณดิบ ⇒ ยอดคลื่นเกิน 0 dBFS ⇒ ตัดยอด (แตก)
+   * ⇒ ลดเหลือ 1.55 พร้อม limiter หลัง compressor (ดู MASTER_LIMITER) · เกนต่อโน้ตก็ลดลงด้วย
+   */
+  music: 1.55,
   // บรรยากาศเป็น "ฉากหลัง" ของจริง — แต่ต้องได้ยิน ไม่ใช่ 0.07 ที่แทบไม่ได้ยิน (ดูหลักฐานใน DEVELOPMENT_PLAN Phase 22 รอบ 2)
   ambience: 0.3,
 } as const;
@@ -40,7 +45,7 @@ export type AudioLayer = keyof typeof LAYER_BASE_GAIN;
  * เกนรวมก่อนออกลำโพง (Phase 22) — เดิมตั้ง 1.0 ทำให้ "เปิดวอลุ่มสุดแล้วยังเบา"
  * ตัวเลขนี้ยกทั้งมิกซ์ขึ้นพร้อมกัน แล้วมี compressor ต่อท้ายกันเสียงแตก
  */
-export const MASTER_BASE_GAIN = 1.3;
+export const MASTER_BASE_GAIN = 1.1;
 
 /**
  * ค่าตั้งของ compressor — กันเสียงแตกเมื่อเพลง + เอฟเฟกต์ + บรรยากาศดังพร้อมกัน
@@ -53,6 +58,21 @@ export const MASTER_COMPRESSOR = {
   ratio: 2.5,
   attack: 0.004,
   release: 0.3,
+} as const;
+
+/**
+ * Limiter กันเสียงแตก (Phase 35) — ต่อท้าย compressor
+ *
+ * compressor เดิม (ratio 2.5) ยังปล่อยยอดถึง ~0 dBFS ได้ ⇒ บนมือถือ (ลำโพงเล็ก + DAC จำกัด)
+ * ยอดที่แตะ 0 dBFS จะได้ยินเป็น "เสียงแตก" ชัดเจน · limiter ratio 20 + threshold -1.5 dB
+ * จะดึงยอดไว้ใต้ 0 dBFS โดยไม่เปลี่ยนความดังที่รับรู้ (ทำงานเฉพาะพีค)
+ */
+export const MASTER_LIMITER = {
+  threshold: -1.5,
+  knee: 0,
+  ratio: 20,
+  attack: 0.002,
+  release: 0.12,
 } as const;
 
 /**
@@ -109,6 +129,8 @@ export interface AudioGraph {
   master: GainNode;
   /** กันเสียงแตกเมื่อทุกชั้นดังพร้อมกัน (Phase 22) */
   compressor: DynamicsCompressorNode;
+  /** Limiter กันยอดคลื่นแตะ 0 dBFS (Phase 35 — ต้นเหตุเสียงแตกบนมือถือ) */
+  limiter: DynamicsCompressorNode;
   sfxBus: GainNode;
   musicBus: GainNode;
   ambienceBus: GainNode;
@@ -138,10 +160,19 @@ export function createAudioGraph(ctx: AudioContext): AudioGraph {
   compressor.attack.value = MASTER_COMPRESSOR.attack;
   compressor.release.value = MASTER_COMPRESSOR.release;
 
+  // Phase 35: limiter ต่อท้าย compressor — กันยอดคลื่นแตะ 0 dBFS (ต้นเหตุ "เสียงแตก" บนมือถือ)
+  const limiter = ctx.createDynamicsCompressor();
+  limiter.threshold.value = MASTER_LIMITER.threshold;
+  limiter.knee.value = MASTER_LIMITER.knee;
+  limiter.ratio.value = MASTER_LIMITER.ratio;
+  limiter.attack.value = MASTER_LIMITER.attack;
+  limiter.release.value = MASTER_LIMITER.release;
+
   const analyser = ctx.createAnalyser();
   analyser.fftSize = 1024;
   master.connect(compressor);
-  compressor.connect(analyser);
+  compressor.connect(limiter);
+  limiter.connect(analyser);
   analyser.connect(ctx.destination);
 
   const makeBus = (): GainNode => {
@@ -151,7 +182,7 @@ export function createAudioGraph(ctx: AudioContext): AudioGraph {
     return bus;
   };
 
-  return { ctx, master, compressor, sfxBus: makeBus(), musicBus: makeBus(), ambienceBus: makeBus(), analyser };
+  return { ctx, master, compressor, limiter, sfxBus: makeBus(), musicBus: makeBus(), ambienceBus: makeBus(), analyser };
 }
 
 /** อ่านระดับเสียงปัจจุบัน (RMS 0..1) — ใช้ยืนยันว่าเสียงออกจริง */

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { resolveRequestUserId } from '@/lib/current-user';
 import { WalletService } from '@/services/wallet';
+import { MAX_LEVEL, itemDropBonusPercent, levelProgress } from '@/lib/level';
 import { VeilShardService } from '@/services/veil-shard';
 import { DiscoveryService } from '@/services/discovery';
 import { dustBalance } from '@/services/item';
@@ -35,7 +36,7 @@ export async function GET(request: NextRequest) {
         where: { id: userId },
         select: {
           id: true, username: true, displayName: true, role: true, createdAt: true,
-          locale: true, avatarEmoji: true, avatarGrid: true,
+          locale: true, avatarEmoji: true, avatarGrid: true, exp: true,
         },
       }),
       WalletService.getWallet(userId),
@@ -60,9 +61,15 @@ export async function GET(request: NextRequest) {
 
     const ownedCards = cards.reduce((sum, row) => sum + row.quantity, 0);
 
+    const level = levelProgress(user?.exp ?? 0);
     return NextResponse.json({
       success: true,
       data: {
+        level: {
+          ...level,
+          dropBonusPercent: itemDropBonusPercent(level.level),
+          maxLevel: MAX_LEVEL,
+        },
         user: {
           id: user.id,
           username: user.username,

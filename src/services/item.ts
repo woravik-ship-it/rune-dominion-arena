@@ -318,6 +318,35 @@ export class ItemService {
     });
   }
 
+  /**
+   * การ์ดที่ Item แต่ละชิ้นใส่อยู่ (Phase 34)
+   * ผู้ใช้สั่ง: "item ที่ใส่อยู่สามารถกดแล้วไปที่การ์ดที่ใส่อยู่ได้ ถ้ามี Item เดียวกันหลายชิ้น
+   *   ใส่หลายใบ ก็ให้มีตัวเลือก" ⇒ คืน Map<code, รายการการ์ดที่ใส่อยู่ (cardId + ชื่อ + ช่อง)>
+   */
+  static async equippedCardsByItem(
+    userId: string
+  ): Promise<Map<string, Array<{ cardId: string; nameTh: string; slot: ItemSlot }>>> {
+    const slots = await prisma.cardItemSlot.findMany({
+      where: { userCard: { userId } },
+      include: {
+        item: { select: { code: true } },
+        userCard: { include: { card: { select: { id: true, nameTh: true, name: true } } } },
+      },
+    });
+    const out = new Map<string, Array<{ cardId: string; nameTh: string; slot: ItemSlot }>>();
+    for (const row of slots) {
+      const list = out.get(row.item.code) ?? [];
+      list.push({
+        cardId: row.userCard.card.id,
+        nameTh: row.userCard.card.nameTh ?? row.userCard.card.name,
+        slot: row.slot,
+      });
+      out.set(row.item.code, list);
+    }
+    for (const list of out.values()) list.sort((a, b) => a.nameTh.localeCompare(b.nameTh));
+    return out;
+  }
+
   /** ของที่ใส่ไว้บนการ์ดใบหนึ่ง (เรียงตามช่อง ATTACK/DEFENSE/SUPPORT) */
   static async equipmentForCard(userId: string, cardId: string): Promise<EquippedItemView[]> {
     const userCard = await prisma.userCard.findUnique({

@@ -7,9 +7,10 @@
 //  - เวลาฟรีแสดงเป็น "ช่วง" (12:00–14:00 และ 20:00–22:00) + สถานะเปิด/ปิด + นับถอยหลังถึงรอบถัดไป
 //  - แสดงรางวัลของแต่ละชั้น (ฝุ่นเวท/Veil Shards/ไอเทมดรอป) และสถานะปลดล็อกชั้น
 //  - ข้อความทั้งหมดเป็นภาษาเกม (ไม่มีรหัส/ศัพท์ระบบ)
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import { apiFetch } from '@/lib/api-client';
+import { useAudio } from '@/components/providers/AudioProvider';
 import {
   freeEntryStatusTh,
   formatFreeHourWindow,
@@ -40,7 +41,18 @@ interface RunResult {
   /** false = ชั้นนี้เคยชนะแล้ว → รอบนี้เป็นรอบซ้อม ไม่มีรางวัล */
   rewardEligible: boolean;
 }
+/** ดันที่ผู้เล่นค้างไว้ไกลสุด (ผ่านชั้นมากสุด) — ใช้เป็นค่าเริ่มต้นของหน้า (ผู้ใช้สั่ง) */
+function pickDungeonByProgress(list: DungeonView[]): DungeonView {
+  return [...list].sort((a, b) => b.bestFloor - a.bestFloor || a.floors - b.floors)[0] ?? list[0];
+}
+
+/** ชั้นถัดไปที่ยังไม่ผ่าน (ชั้นที่ค้างไว้) — 1 ถ้ายังไม่เคยผ่านชั้นไหน */
+function pendingFloor(dungeon: DungeonView): number {
+  return Math.min(Math.max(1, dungeon.bestFloor + 1), Math.max(1, dungeon.floors));
+}
+
 export default function DungeonsPage() {
+  const { setMusicTrack } = useAudio();
   const [dungeons, setDungeons] = useState<DungeonView[]>([]);
   const [decks, setDecks] = useState<DeckOption[]>([]);
   const [selected, setSelected] = useState('');
@@ -51,13 +63,23 @@ export default function DungeonsPage() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [message, setMessage] = useState('');
+  /** Phase 33: โบนัสโอกาสดรอป Item จากเลเวลผู้เล่น */
+  const [levelInfo, setLevelInfo] = useState<{ level: number; dropBonusPercent: number } | null>(null);
   /** เวลาปัจจุบัน (อัปเดตเป็นระยะ) → สถานะเปิด/ปิดและเวลาถอยหลังตรงกับเวลาจริงเสมอ */
   const [now, setNow] = useState(() => new Date());
+  /** ตั้งค่าครั้งแรกครั้งเดียว (เลือกดันที่ค้างไว้ + ชั้นถัดไป) */
+  const initializedRef = useRef(false);
 
   useEffect(() => {
     const timer = setInterval(() => setNow(new Date()), 20_000);
     return () => clearInterval(timer);
   }, []);
+
+  // Phase 35: ฟังเพลงประจำดันเจี้ยนระหว่างอยู่หน้านี้ แล้วคืนเพลงธีมเมื่อออก
+  useEffect(() => {
+    setMusicTrack('dungeon');
+    return () => setMusicTrack('main');
+  }, [setMusicTrack]);
 
   const load = useCallback(async () => {
     try {
@@ -67,7 +89,17 @@ export default function DungeonsPage() {
       if (dRes.ok && dJson?.success) {
         const list = (dJson.data?.dungeons ?? []) as DungeonView[];
         setDungeons(list);
-        if (list.length > 0) setSelected((v) => v || list[0].code);
+        if (dJson.data?.level) {
+          setLevelInfo({ level: dJson.data.level.level, dropBonusPercent: dJson.data.level.dropBonusPercent });
+        }
+        if (list.length > 0 && !initializedRef.current) {
+          // ผู้ใช้สั่ง: "ปุ่มลุย ตอนเข้ามาใหม่ให้แสดงชั้นสูงสุดที่ค้างไว้ก่อน"
+          // ⇒ เลือกดันที่เล่นค้างไว้ไกลสุด แล้วตั้งชั้น = ชั้นถัดไปที่ยังไม่ผ่าน (ทำครั้งแรกครั้งเดียว)
+          initializedRef.current = true;
+          const initial = pickDungeonByProgress(list);
+          setSelected(initial.code);
+          setFloor(pendingFloor(initial));
+        }
       } else {
         setError(dJson?.error ?? 'โหลดดันเจี้ยนไม่สำเร็จ');
       }
@@ -99,7 +131,7 @@ export default function DungeonsPage() {
   /** เลือกดัน → ไปชั้นแรกที่ยังไม่ผ่าน */
   const pickDungeon = (d: DungeonView) => {
     setSelected(d.code);
-    setFloor(Math.min(Math.max(1, d.bestFloor + 1), Math.max(1, d.floors)));
+    setFloor(pendingFloor(d));
     setResult(null);
     setMessage('');
     setError('');
@@ -211,6 +243,12 @@ export default function DungeonsPage() {
       {current && (
         <section className="mt-4 rounded-xl border border-gray-700 bg-gray-900/70 p-3">
           <p className="text-sm font-bold text-white">ลุย: {current.icon} {current.nameTh}</p>
+          {/* Phase 33: โบนัสโอกาสดรอป Item จากเลเวล (สูงสุด +20%) */}
+          {levelInfo && levelInfo.dropBonusPercent > 0 && (
+            <p className="mt-1 text-xs text-emerald-300" data-dungeon-drop-bonus>
+              🎁 โบนัสโอกาสดรอป Item จากเลเวล {levelInfo.level}: +{levelInfo.dropBonusPercent}%
+            </p>
+          )}
           {current.freeWindowText && (
             <p className="mt-1 text-xs text-gray-300">
               เข้าฟรีช่วง {current.freeWindowText}
@@ -283,6 +321,9 @@ export default function DungeonsPage() {
                   : current.entry === 'COIN'
                     ? `ลุยเลย (${current.coinCost} Coin)`
                     : `ลุยชั้น ${selectedFloor?.floor ?? floor} ฟรี`}
+              {selectedFloor && !selectedFloor.cleared && selectedFloor.floor === pendingFloor(current) && (
+                <span className="ml-1 text-[11px] font-normal">(ชั้นที่ค้างไว้ {selectedFloor.floor})</span>
+              )}
             </button>
           </div>
 

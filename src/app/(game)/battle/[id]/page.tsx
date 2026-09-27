@@ -81,7 +81,7 @@ export default function BattleViewerPage() {
   /** สถานะของปุ่ม "ต่อสู้อีกครั้ง" (กำลังสร้างศึกใหม่) + ข้อความผิดพลาด */
   const [refighting, setRefighting] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
-  const { play } = useAudio();
+  const { play, setMusicTrack } = useAudio();
   // Phase 21: เสียงผลการต่อสู้ — เล่นครั้งเดียวตอนเทปจบ
   const resultSfxRef = useRef(false);
   // Phase 22: เวลาเล่นเสียงต่อสู้ครั้งล่าสุด (กันเสียงซ้อนกันที่ความเร็วสูง)
@@ -225,6 +225,13 @@ export default function BattleViewerPage() {
     lastBattleSfxAt.current = now;
     play(name);
   }, [battle, visibleCount, play]);
+
+  // Phase 35: ศึกดันเจี้ยนใช้เพลงประจำดันเจี้ยน (ศึกปกติใช้เพลงธีม)
+  useEffect(() => {
+    if (!battle) return;
+    setMusicTrack(battle.isDungeon ? 'dungeon' : 'main');
+    return () => setMusicTrack('main');
+  }, [battle, setMusicTrack]);
 
   // Phase 21: เล่นเสียงตอนเทปจบ (ชนะ/แพ้/เสมอ) — ครั้งเดียวต่อศึก
   useEffect(() => {

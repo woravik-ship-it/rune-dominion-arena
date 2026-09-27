@@ -6,6 +6,7 @@
 //  - คืน "อันดับของฉัน" เสมอ แม้ไม่อยู่ใน top ที่แสดง (ให้ผู้เล่นเห็นว่าตัวเองอยู่อันดับไหน)
 import { prisma } from '@/lib/prisma';
 import { ItemService } from '@/services/item';
+import { levelProgress } from '@/lib/level';
 import {
   assignRanks,
   collectionScore,
@@ -20,7 +21,7 @@ export interface RankingRow {
   value: number;
   /** ข้อมูลรอง (เช่น จำนวนใบ · จำนวนศึก · ดาเมจ) */
   secondary?: number;
-  secondaryLabel?: 'cards' | 'battles' | 'damage';
+  secondaryLabel?: 'cards' | 'battles' | 'damage' | 'dungeons' | 'level';
 }
 
 export interface RankingEntry {
@@ -131,6 +132,37 @@ export class RankingService {
             value: row._sum.eventPoints ?? 0,
             secondary: row._sum.damageDealt ?? 0,
             secondaryLabel: 'damage' as const,
+          }))
+          .filter((row) => row.value > 0);
+      }
+
+      case 'level': {
+        // Phase 33: อันดับเลเวล (EXP) — เลเวลคำนวณจาก exp ตอนแสดงผล
+        const users = await prisma.user.findMany({ select: { id: true, exp: true } });
+        // เรียงด้วย exp (ละเอียดที่สุด) แล้วโชว์เลเวลเป็นข้อมูลรอง
+        return users
+          .filter((row) => row.exp > 0)
+          .map((row) => ({
+            userId: row.id,
+            value: row.exp,
+            secondary: levelProgress(row.exp).level,
+            secondaryLabel: 'level' as const,
+          }));
+      }
+
+      case 'dungeon': {
+        // Phase 33: อันดับดันเจี้ยน — ผลรวมชั้นสูงสุดที่ผ่านทุกดัน (ตัวรอง = ดันที่ผ่านอย่างน้อย 1 ชั้น)
+        const rows = await prisma.dungeonProgress.groupBy({
+          by: ['userId'],
+          _sum: { bestFloor: true },
+          _count: { _all: true },
+        });
+        return rows
+          .map((row) => ({
+            userId: row.userId,
+            value: row._sum.bestFloor ?? 0,
+            secondary: row._count._all,
+            secondaryLabel: 'dungeons' as const,
           }))
           .filter((row) => row.value > 0);
       }

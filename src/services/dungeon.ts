@@ -25,6 +25,8 @@ import {
   type DungeonDef,
 } from '@/lib/dungeon-definitions';
 import { dungeonEnemyInfo, dungeonEnemySlots } from '@/lib/dungeon-art';
+import { LevelService } from '@/services/level';
+import { EXP_REWARD, itemDropBonusPercent } from '@/lib/level';
 import { dungeonBattlePath } from '@/lib/battle-route';
 
 /** ข้อผิดพลาดที่เกิดจาก "กติกาเกม" (ผู้เล่นแก้ได้) → API ตอบ 400 ไม่ใช่ 500 */
@@ -153,6 +155,8 @@ export interface DungeonRunResult {
   dustEarned: number; shardsEarned: number;
   itemDropped: string | null; itemNameTh: string | null;
   coinsSpent: number; floor: number; nextFloor: number | null;
+  /** โอกาสดรอปไอเทมจริงของรอบนี้ (%) — รวมโบนัสจากเลเวลผู้เล่นแล้ว */
+  dropChance: number;
   /** false = ชั้นนี้เคยชนะแล้ว → รอบนี้เป็นรอบซ้อม ไม่มีรางวัล */
   rewardEligible: boolean;
   log: unknown[];
@@ -183,7 +187,11 @@ export async function runDungeon(params: {
   const runId = params.runId ?? `${params.userId}:${dungeon.code}:f${params.floor}:${now.getTime()}`;
   const existing = await prisma.dungeonRun.findUnique({ where: { runId } });
   if (existing) {
-    const stored = existing.battleData as { log?: unknown[]; rewardEligible?: boolean } | null;
+    const stored = existing.battleData as { log?: unknown[]; rewardEligible?: boolean; dropChance?: number } | null;
+    const level = await LevelService.progress(params.userId);
+    const replayFloor = findFloor(dungeon, existing.floor);
+    const storedDropChance = stored?.dropChance
+      ?? Math.min(100, Math.round((replayFloor?.reward.itemDropChance ?? 0) + itemDropBonusPercent(level.level)));
     return {
       runId: existing.runId, battleUrl: dungeonBattlePath(existing.runId), won: existing.won, roundsPlayed: existing.roundsPlayed,
       teamHpRemaining: existing.teamHpRemaining, enemyHpRemaining: existing.enemyHpRemaining,
@@ -191,6 +199,7 @@ export async function runDungeon(params: {
       itemDropped: existing.itemDropped, itemNameTh: existing.itemNameTh,
       coinsSpent: existing.coinsSpent, floor: existing.floor,
       rewardEligible: stored?.rewardEligible ?? true,
+      dropChance: storedDropChance,
       nextFloor: existing.floor < dungeon.floors.length ? existing.floor + 1 : null,
       log: stored?.log ?? [],
     };
@@ -238,9 +247,12 @@ async function finishRun(args: {
   let itemDropped: string | null = null;
   let itemNameTh: string | null = null;
   // ไอเทมดรอป: ชนะ + ยังไม่เคยผ่านชั้นนี้ เท่านั้น
-  if (won && rewardEligible && floor.reward.itemDropCode && floor.reward.itemDropChance > 0) {
+  // Phase 33: โบนัสโอกาสดรอปตามเลเวลผู้เล่น (Level 350 = +20%) — บอกผู้เล่นใน UI ด้วย
+  const level = await LevelService.progress(params.userId);
+  const dropChance = Math.min(100, Math.round(floor.reward.itemDropChance + itemDropBonusPercent(level.level)));
+  if (won && rewardEligible && floor.reward.itemDropCode && dropChance > 0) {
     const hex = Buffer.from(seed, 'hex').readUInt32BE(0);
-    if (hex % 100 < floor.reward.itemDropChance) itemDropped = floor.reward.itemDropCode;
+    if (hex % 100 < dropChance) itemDropped = floor.reward.itemDropCode;
   }
   // ฝุ่นเวท/Shards: ชั้นที่ผ่านแล้ว = 0 ทั้งคู่ (ไม่มีรางวัลซ้ำ)
   const dustEarned = rewardEligible ? floorDustReward(dungeon!, floor, won) : 0;
@@ -287,9 +299,20 @@ async function finishRun(args: {
       teamHpRemaining: result.teamAHpRemaining, enemyHpRemaining: result.teamBHpRemaining,
       dustEarned, shardsEarned, itemDropped, itemNameTh, coinsSpent,
       // เก็บสิทธิ์รับรางวัลไว้ใน battleData → หน้า replay บอกผู้เล่นได้ว่า "รอบนี้เป็นรอบซ้อม"
-      battleData: JSON.parse(JSON.stringify({ seed, log: result.log, teams: { A: teamA, B: teamB }, rewardEligible })),
+      battleData: JSON.parse(JSON.stringify({ seed, log: result.log, teams: { A: teamA, B: teamB }, rewardEligible, dropChance })),
     },
   });
+  if (rewardEligible) {
+    // Phase 33: exp จากดัน — ยิ่งลึกยิ่งได้มาก · เฉพาะชั้นที่ยังไม่เคยผ่าน (กันปั๊มชั้นเดิม)
+    try {
+      await LevelService.addExp(
+        params.userId,
+        EXP_REWARD.dungeonBase + floorNo * EXP_REWARD.dungeonPerFloor
+      );
+    } catch (levelError) {
+      console.error('Dungeon level hook error:', levelError);
+    }
+  }
   try {
     await QuestService.recordEvent(params.userId, 'BATTLE', 1);
     if (won) await QuestService.recordEvent(params.userId, 'BATTLE_WIN', 1);
@@ -307,7 +330,7 @@ async function finishRun(args: {
     runId: saved.runId, battleUrl: dungeonBattlePath(saved.runId), won, roundsPlayed: result.roundsPlayed,
     teamHpRemaining: result.teamAHpRemaining, enemyHpRemaining: result.teamBHpRemaining,
     dustEarned, shardsEarned, itemDropped, itemNameTh, coinsSpent, floor: floorNo,
-    rewardEligible,
+    rewardEligible, dropChance,
     nextFloor: floorNo < dungeon!.floors.length ? floorNo + 1 : null,
     log: JSON.parse(JSON.stringify(result.log)),
   };

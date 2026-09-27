@@ -12,6 +12,7 @@ import { apiFetch } from '@/lib/api-client';
 import { useI18n } from '@/components/providers/LocaleProvider';
 import { formatNumber } from '@/lib/i18n';
 import { sourceLabelTh } from '@/lib/inventory-display';
+import { emitVeilShardsChanged } from '@/lib/veil-shard-events';
 
 interface InventoryItem {
   id: string;
@@ -36,6 +37,10 @@ interface WorkshopItem {
   craftCost: number;
   dustCost: number;
   buyCost: number | null;
+  /** Phase 34: ยอดวัตถุดิบที่จะได้คืนเมื่อขาย ×1 (50% ของสูตรคราฟต์) */
+  sellRefund?: { shards: number; dust: number; total: number };
+  /** การ์ดที่ไอเทมชิ้นนี้ใส่อยู่ — ใช้ทำปุ่มพาไปถอดที่หน้าการ์ด (มีได้หลายใบ) */
+  equippedCards?: Array<{ cardId: string; nameTh: string; slot: string }>;
 }
 
 const TYPE_LABEL: Record<InventoryItem['itemType'], { label: string; icon: string }> = {
@@ -70,6 +75,9 @@ export default function InventoryPage() {
     dust: 0,
   });
   const [loading, setLoading] = useState(true);
+  const [busy, setBusy] = useState('');
+  const [notice, setNotice] = useState('');
+  const [sellError, setSellError] = useState('');
 
   const load = useCallback(async () => {
     try {
@@ -91,6 +99,36 @@ export default function InventoryPage() {
   useEffect(() => {
     void load();
   }, [load]);
+
+  /**
+   * ขายไอเทมช่างคืนร้านจากหน้ากระเป๋า (Phase 34) — คืนวัตถุดิบ 50% เหมือนหน้าร้านช่าง
+   * ขายได้เฉพาะชิ้นที่ยังไม่ใส่อยู่บนการ์ด (owned − equippedCount)
+   */
+  const sellItem = async (code: string, nameTh: string) => {
+    setBusy(code);
+    setNotice('');
+    setSellError('');
+    try {
+      const res = await apiFetch('/api/items/sell', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ code, quantity: 1 }),
+      });
+      const json = await res.json().catch(() => null);
+      if (!res.ok || !json?.success) {
+        setSellError(json?.error ?? t('common.error'));
+        return;
+      }
+      const data = json.data ?? {};
+      setNotice(t('bag.sellDone', { name: nameTh, n: Number(data.sold ?? 1), shards: Number(data.refundShards ?? 0), dust: Number(data.refundDust ?? 0) }));
+      emitVeilShardsChanged(Number(data.balance));
+      await load();
+    } catch {
+      setSellError(t('common.error'));
+    } finally {
+      setBusy('');
+    }
+  };
 
   const grouped = items.reduce<Record<string, InventoryItem[]>>((acc, item) => {
     (acc[item.itemType] ??= []).push(item);
@@ -141,6 +179,8 @@ export default function InventoryPage() {
                 </Link>
               </div>
 
+              {notice && <p className="mb-2 rounded-lg bg-emerald-500/10 p-2 text-xs text-emerald-300" data-bag-sell-notice>{notice}</p>}
+              {sellError && <p className="mb-2 rounded-lg bg-red-500/10 p-2 text-xs text-red-300">{sellError}</p>}
               {workshopItems.length === 0 ? (
                 <p className="text-xs text-gray-500">{t('bag.noItems')}</p>
               ) : (
@@ -151,17 +191,42 @@ export default function InventoryPage() {
                     <div key={slot} className="mb-3 last:mb-0">
                       <p className="mb-1 text-[11px] font-bold text-amber-300">{t(`item.slot.${slot}`)}</p>
                       <div className="space-y-2">
-                        {list.map((row) => (
+                        {list.map((row) => {
+                          // Phase 34: ขายคืนวัตถุดิบ 50% + ลิงก์ไปการ์ดที่ใส่อยู่ (มีหลายใบ = มีตัวเลือก)
+                          const equippedCards = row.equippedCards ?? [];
+                          const sellable = Math.max(0, row.owned - row.equippedCount);
+                          const refund = row.sellRefund ?? { shards: 0, dust: 0, total: 0 };
+                          return (
                           <div
                             key={row.code}
                             data-bag-item={row.code}
-                            className="flex items-center justify-between gap-2 border-b border-gray-700 pb-2 text-sm"
+                            className="flex flex-wrap items-start justify-between gap-2 border-b border-gray-700 pb-2 text-sm"
                           >
-                            <div className="min-w-0">
+                            <div className="min-w-0 flex-1">
                               <p className="truncate text-white">
                                 {row.icon} {row.nameTh}
                               </p>
                               <p className="text-[11px] text-emerald-300">{statLabel(row.stats)}</p>
+                              {equippedCards.length > 0 && (
+                                <div className="mt-1 flex flex-wrap items-center gap-1 text-[11px] text-gray-400">
+                                  <span>
+                                    {equippedCards.length > 1
+                                      ? t('bag.equippedOnCount', { n: equippedCards.length })
+                                      : t('bag.equippedOn')}
+                                  </span>
+                                  {equippedCards.map((equipped) => (
+                                    <Link
+                                      key={`${equipped.cardId}-${equipped.slot}`}
+                                      href={`/cards/${equipped.cardId}`}
+                                      data-bag-equipped-card={equipped.cardId}
+                                      className="rounded bg-white/10 px-1.5 py-0.5 text-emerald-200 hover:bg-white/20"
+                                      title={t(`item.slot.${equipped.slot}`)}
+                                    >
+                                      🎴 {equipped.nameTh} ›
+                                    </Link>
+                                  ))}
+                                </div>
+                              )}
                             </div>
                             <div className="shrink-0 text-right text-xs">
                               <p className="font-bold text-amber-400">×{row.owned}</p>
@@ -170,9 +235,25 @@ export default function InventoryPage() {
                                   {t('bag.equippedCount', { n: row.equippedCount })}
                                 </p>
                               )}
+                              {sellable > 0 ? (
+                                <button
+                                  type="button"
+                                  data-bag-sell={row.code}
+                                  onClick={() => sellItem(row.code, row.nameTh)}
+                                  disabled={busy === row.code}
+                                  className="mt-1 rounded-lg bg-emerald-600/80 px-2 py-1 text-[11px] font-bold text-white hover:bg-emerald-500 disabled:opacity-40"
+                                >
+                                  {t('bag.sell')} (💠{refund.shards} + ✨{refund.dust})
+                                </button>
+                              ) : (
+                                <p className="mt-1 text-[10px] text-gray-500" data-bag-sell-blocked>
+                                  {t('bag.sellBlocked')}
+                                </p>
+                              )}
                             </div>
                           </div>
-                        ))}
+                          );
+                        })}
                       </div>
                     </div>
                   );

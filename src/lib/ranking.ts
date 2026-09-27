@@ -7,7 +7,15 @@
 //    เช่น 100, 90, 90, 80 → อันดับ 1, 2, 2, 4
 import type { Rarity } from '@prisma/client';
 
-export type RankingCategory = 'power' | 'collection' | 'wins' | 'event' | 'coin';
+export type RankingCategory =
+  | 'power'
+  | 'collection'
+  | 'wins'
+  | 'event'
+  | 'coin'
+  // Phase 33: หมวดตามโหมดที่เพิ่มเข้ามา
+  | 'level'   // เลเวล/EXP (สูงสุด 350)
+  | 'dungeon'; // ดันเจี้ยน — ชั้นรวมที่ผ่านทุกดัน (ยิ่งลึกยิ่งมาก)
 
 export interface RankingCategoryDef {
   key: RankingCategory;
@@ -25,6 +33,8 @@ export const RANKING_CATEGORIES: RankingCategoryDef[] = [
   { key: 'wins', labelKey: 'rank.catWins', icon: '🏆', unitKey: 'rank.unitWins' },
   { key: 'event', labelKey: 'rank.catEvent', icon: '🌙', unitKey: 'rank.unitPoints' },
   { key: 'coin', labelKey: 'rank.catCoin', icon: '🪙', unitKey: 'rank.unitCoin' },
+  { key: 'level', labelKey: 'rank.catLevel', icon: '⭐', unitKey: 'rank.unitLevel' },
+  { key: 'dungeon', labelKey: 'rank.catDungeon', icon: '🏰', unitKey: 'rank.unitFloors' },
 ];
 
 export function normalizeCategory(raw: unknown): RankingCategory {

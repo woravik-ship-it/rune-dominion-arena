@@ -23,7 +23,7 @@ interface RankingEntryView {
   avatarGrid: string | null;
   value: number;
   secondary?: number;
-  secondaryLabel?: 'cards' | 'battles' | 'damage';
+  secondaryLabel?: 'cards' | 'battles' | 'damage' | 'dungeons' | 'level';
   isMe: boolean;
 }
 
@@ -82,6 +82,8 @@ export default function RankingPage() {
     if (entry.secondaryLabel === 'cards') return t('rank.cards', { n: formatNumber(locale, entry.secondary) });
     if (entry.secondaryLabel === 'battles') return t('rank.battles', { n: formatNumber(locale, entry.secondary) });
     if (entry.secondaryLabel === 'damage') return t('rank.damage', { n: formatNumber(locale, entry.secondary) });
+    if (entry.secondaryLabel === 'dungeons') return t('rank.dungeons', { n: formatNumber(locale, entry.secondary) });
+    if (entry.secondaryLabel === 'level') return t('rank.level', { n: formatNumber(locale, entry.secondary) });
     return '';
   };
 

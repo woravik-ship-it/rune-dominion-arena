@@ -4,9 +4,13 @@
 // เพื่อไม่ให้เสียงสะดุดเมื่อแท็บมีงานหนัก — และหยุดทันทีเมื่อผู้ใช้ปิดสวิตช์
 import { ambiencePlan, AMBIENCE_SHIMMER, generateNoiseSamples } from '@/lib/ambience';
 import {
-  MUSIC_CHORD_SECONDS,
   chordNotes,
   musicLoopSeconds,
+  trackChordCount,
+  trackChordSeconds,
+  trackLoopSeconds,
+  trackNotes,
+  type MusicTrack,
 } from '@/lib/music';
 
 export interface Player {
@@ -17,8 +21,15 @@ export interface Player {
 
 const LOOKAHEAD_MS = 700;
 
-/** เพลงประกอบ: วนคอร์ดไปเรื่อย ๆ (pad + ระฆังเบา ๆ) */
-export function createMusicPlayer(ctx: AudioContext, destination: AudioNode): Player {
+/**
+ * เพลงประกอบ: วนคอร์ดไปเรื่อย ๆ (pad + ระฆังเบา ๆ)
+ * Phase 35: เลือกได้ว่าเป็นเพลงธีมหลัก ('main') หรือเพลงดันเจี้ยน ('dungeon') — จังหวะ/คอร์ดคนละชุด
+ */
+export function createMusicPlayer(
+  ctx: AudioContext,
+  destination: AudioNode,
+  track: MusicTrack = 'main'
+): Player {
   let timer: number | null = null;
   let nextChordAt = 0;
   let chordIndex = 0;
@@ -27,13 +38,14 @@ export function createMusicPlayer(ctx: AudioContext, destination: AudioNode): Pl
   const scheduleChord = (startAt: number, index: number): void => {
     const filter = ctx.createBiquadFilter();
     filter.type = 'lowpass';
+    const chordSeconds = trackChordSeconds(track);
     filter.frequency.setValueAtTime(1200, startAt);
-    filter.frequency.linearRampToValueAtTime(2200, startAt + MUSIC_CHORD_SECONDS * 0.5);
-    filter.frequency.linearRampToValueAtTime(1200, startAt + MUSIC_CHORD_SECONDS);
+    filter.frequency.linearRampToValueAtTime(2200, startAt + chordSeconds * 0.5);
+    filter.frequency.linearRampToValueAtTime(1200, startAt + chordSeconds);
     filter.Q.value = 0.6;
     filter.connect(destination);
 
-    for (const note of chordNotes(index)) {
+    for (const note of trackNotes(track, index)) {
       const osc = ctx.createOscillator();
       const gain = ctx.createGain();
       const at = startAt + note.at;
@@ -63,7 +75,7 @@ export function createMusicPlayer(ctx: AudioContext, destination: AudioNode): Pl
       } catch {
         /* ตัดการเชื่อมต่อแล้ว */
       }
-    }, (MUSIC_CHORD_SECONDS + 2.5) * 1000);
+    }, (trackChordSeconds(track) + 2.5) * 1000);
   };
 
   const tick = (): void => {
@@ -71,8 +83,8 @@ export function createMusicPlayer(ctx: AudioContext, destination: AudioNode): Pl
     while (nextChordAt < horizon) {
       if (nextChordAt < ctx.currentTime) nextChordAt = ctx.currentTime + 0.05;
       scheduleChord(nextChordAt, chordIndex);
-      nextChordAt += MUSIC_CHORD_SECONDS;
-      chordIndex = (chordIndex + 1) % 4;
+      nextChordAt += trackChordSeconds(track);
+      chordIndex = (chordIndex + 1) % trackChordCount(track);
     }
   };
 
@@ -201,3 +213,6 @@ export function createAmbiencePlayer(
 
 /** ความยาวลูปเพลง (วินาที) — ใช้แสดง/ตรวจสอบ */
 export const MUSIC_LOOP_SECONDS = musicLoopSeconds();
+
+/** ความยาวลูปของเพลงดันเจี้ยน (ใช้ตรวจ/แสดง) */
+export const DUNGEON_LOOP_SECONDS = trackLoopSeconds('dungeon');

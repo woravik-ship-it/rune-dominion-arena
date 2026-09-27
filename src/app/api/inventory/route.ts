@@ -5,6 +5,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { InventoryService } from '@/services/inventory';
 import { ItemService } from '@/services/item';
+import { sellQuote } from '@/lib/item-definitions';
 import { VeilShardService } from '@/services/veil-shard';
 import { WalletService } from '@/services/wallet';
 import { resolveRequestUserId } from '@/lib/current-user';
@@ -17,10 +18,11 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'ไม่พบผู้ใช้ — กรุณาเข้าสู่ระบบ' }, { status: 401 });
     }
 
-    const [items, summary, catalog, veilShards, wallet] = await Promise.all([
+    const [items, summary, catalog, equippedByItem, veilShards, wallet] = await Promise.all([
       InventoryService.list(userId),
       InventoryService.summary(userId),
       ItemService.catalog(userId),
+      ItemService.equippedCardsByItem(userId),
       VeilShardService.balance(userId),
       WalletService.getWallet(userId),
     ]);
@@ -51,6 +53,10 @@ export async function GET(request: NextRequest) {
           craftCost: row.craftCost,
           dustCost: row.dustCost,
           buyCost: row.buyCost,
+          /** Phase 34: ขายคืนได้วัตถุดิบ 50% (โชว์ยอดล่วงหน้าในกระเป๋า) */
+          sellRefund: sellQuote(row, 1),
+          /** การ์ดที่ไอเทมชิ้นนี้ใส่อยู่ (กดเพื่อไปถอดที่หน้าการ์ด) */
+          equippedCards: equippedByItem.get(row.code) ?? [],
         })),
     });
   } catch (error) {

@@ -20,6 +20,7 @@ import {
   type AudioGraph,
 } from '@/lib/audio-engine';
 import { createAmbiencePlayer, createMusicPlayer, type Player } from '@/lib/audio-players';
+import type { MusicTrack } from '@/lib/music';
 
 interface AudioSettings {
   music: boolean;
@@ -48,6 +49,9 @@ interface AudioContextValue {
   unlock: () => void;
   /** ระดับเสียงที่ออกจริงตอนนี้ (0..1) */
   level: () => number;
+  /** เพลงที่กำลังเล่นอยู่ ('main' = เพลงธีม · 'dungeon' = เพลงประจำดันเจี้ยน) */
+  musicTrack: MusicTrack;
+  setMusicTrack: (track: MusicTrack) => void;
 }
 
 const AudioCtx = createContext<AudioContextValue | null>(null);
@@ -79,6 +83,9 @@ export function AudioProvider({ children }: { children: React.ReactNode }) {
   const settingsRef = useRef<AudioSettings>(DEFAULTS);
   /** จับเวลา "คืนระดับเพลง" หลัง duck (Phase 24.2) */
   const duckTimerRef = useRef<number | null>(null);
+  /** Phase 35: เพลงที่เลือกอยู่ (หน้าดันเจี้ยนสลับเป็นเพลงดันเจี้ยน แล้วคืนเพลงธีมเมื่อออก) */
+  const [musicTrack, setMusicTrackState] = useState<MusicTrack>('main');
+  const musicTrackRef = useRef<MusicTrack>('main');
 
   // โหลดค่าที่บันทึกไว้ (หลัง mount เพื่อไม่ให้ SSR mismatch)
   useEffect(() => {
@@ -97,7 +104,7 @@ export function AudioProvider({ children }: { children: React.ReactNode }) {
     const graph = createAudioGraph(ctx);
     graphRef.current = graph;
     applyLayerGains(graph, settingsRef.current);
-    musicRef.current = createMusicPlayer(ctx, graph.musicBus);
+    musicRef.current = createMusicPlayer(ctx, graph.musicBus, musicTrackRef.current);
     ambienceRef.current = createAmbiencePlayer(ctx, graph.ambienceBus, {
       reduceIntense: settingsRef.current.reduceIntense,
     });
@@ -180,6 +187,25 @@ export function AudioProvider({ children }: { children: React.ReactNode }) {
     if (s.music) musicRef.current?.start();
     if (s.ambience) ambienceRef.current?.start();
   }, [ensureGraph]);
+
+  /**
+   * เปลี่ยนเพลงประกอบ (Phase 35) — ผู้ใช้สั่ง: "เพิ่มเพลงประจำดันเจี้ยน ให้ตื่นเต้น"
+   * ปิดตัวเล่นเดิม → สร้างตัวใหม่ตามเพลงที่เลือก → เล่นต่อถ้าเดิมกำลังเล่นอยู่
+   */
+  const setMusicTrack = useCallback(
+    (track: MusicTrack) => {
+      if (musicTrackRef.current === track) return;
+      musicTrackRef.current = track;
+      setMusicTrackState(track);
+      const graph = graphRef.current;
+      if (!graph) return;
+      const wasPlaying = musicRef.current?.isPlaying() ?? false;
+      musicRef.current?.stop();
+      musicRef.current = createMusicPlayer(graph.ctx, graph.musicBus, track);
+      if (wasPlaying && settingsRef.current.music) musicRef.current.start();
+    },
+    []
+  );
 
   const update = useCallback((patch: Partial<AudioSettings>) => {
     setSettings((prev) => ({ ...prev, ...patch }));
@@ -271,6 +297,7 @@ export function AudioProvider({ children }: { children: React.ReactNode }) {
       settings: () => ({ ...settingsRef.current }),
       gains: () => describeAudio(settingsRef.current),
       musicPlaying: () => musicRef.current?.isPlaying() ?? false,
+      musicTrack: () => musicTrackRef.current,
       ambiencePlaying: () => ambienceRef.current?.isPlaying() ?? false,
       play: (name: SfxName) => play(name),
       unlock: () => unlock(),
@@ -314,8 +341,8 @@ export function AudioProvider({ children }: { children: React.ReactNode }) {
   );
 
   const value = useMemo(
-    () => ({ settings, update, play, unlocked, unlock, level }),
-    [settings, update, play, unlocked, unlock, level]
+    () => ({ settings, update, play, unlocked, unlock, level, musicTrack, setMusicTrack }),
+    [settings, update, play, unlocked, unlock, level, musicTrack, setMusicTrack]
   );
 
   return <AudioCtx.Provider value={value}>{children}</AudioCtx.Provider>;
@@ -332,5 +359,7 @@ export function useAudio(): AudioContextValue {
     unlocked: false,
     unlock: () => undefined,
     level: () => 0,
+    musicTrack: 'main' as MusicTrack,
+    setMusicTrack: () => undefined,
   };
 }

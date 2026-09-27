@@ -14,10 +14,21 @@ import {
 } from '@/lib/ranking';
 
 describe('หมวดการจัดอันดับ', () => {
-  test('มี 5 หมวด ตามที่ออกแบบ (พลังทีม/สะสม/ชนะ/กิจกรรม/Coin)', () => {
+  test('มี 7 หมวด: เดิม 5 + เลเวล/EXP และดันเจี้ยน (ตามโหมดที่เพิ่มมา · Phase 33)', () => {
     expect(RANKING_CATEGORIES.map((c) => c.key)).toEqual([
-      'power', 'collection', 'wins', 'event', 'coin',
+      'power', 'collection', 'wins', 'event', 'coin', 'level', 'dungeon',
     ]);
+  });
+
+  test('หมวดใหม่มีคีย์คำแปล + ไอคอน และ normalizeCategory รับค่าใหม่ได้', () => {
+    const level = categoryDef('level');
+    expect(level.icon).toBe('⭐');
+    expect(level.unitKey).toBe('rank.unitLevel');
+    const dungeon = categoryDef('dungeon');
+    expect(dungeon.icon).toBe('🏰');
+    expect(normalizeCategory('level')).toBe('level');
+    expect(normalizeCategory('dungeon')).toBe('dungeon');
+    expect(normalizeCategory('ไม่รู้จัก')).toBe('power');
   });
 
   test('ทุกหมวดมีคีย์คำแปล + ไอคอน', () => {

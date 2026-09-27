@@ -4,6 +4,8 @@ import { buildBattleSeed } from '@/services/combat';
 import { simulateBattle } from '@/services/combat-engine';
 import { deckToCombatCards, resolveBattleUserId, buildBotTeam } from '@/services/battle-api';
 import { QuestService } from '@/services/quest';
+import { LevelService } from '@/services/level';
+import { EXP_REWARD } from '@/lib/level';
 import { parseJsonBody, battleSimulateSchema } from '@/lib/validation';
 import { enforceRateLimit } from '@/lib/api-guard';
 import { resolveRequestUserId } from '@/lib/current-user';
@@ -110,6 +112,16 @@ export async function POST(request: NextRequest) {
       }
     } catch (questError) {
       console.error('Quest BATTLE hook error:', questError);
+    }
+
+    // Phase 33: EXP/Level — ทุกศึกได้ exp (ชนะมากกว่าแพ้) · ขึ้นเลเวลได้รางวัลอัตโนมัติใน LevelService
+    try {
+      await LevelService.addExp(
+        userId,
+        result.winner === 'A' ? EXP_REWARD.battleWin : EXP_REWARD.battleLose
+      );
+    } catch (levelError) {
+      console.error('Level hook error:', levelError);
     }
 
     // Phase 20: แจ้งเตือนผลการต่อสู้ให้ทั้งผู้โจมตี (และผู้ป้องกัน ถ้าเป็นการท้าจริง)
