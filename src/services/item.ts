@@ -23,6 +23,7 @@ import {
   type ItemStats,
 } from '@/lib/item-definitions';
 import { VeilShardService, creditVeilShards, debitVeilShards, type VeilShardDb } from '@/services/veil-shard';
+import { creditWalletDb, debitWalletDb } from '@/services/wallet';
 import { CRAFTING_DUST_CODE, CRAFTING_DUST_NAME_TH, InventoryService } from '@/services/inventory';
 
 export interface CatalogRow extends ItemDef {
@@ -52,6 +53,12 @@ export async function dustBalance(userId: string, db: VeilShardDb = prisma): Pro
     select: { quantity: true },
   });
   return rows.reduce((sum, row) => sum + Math.max(0, row.quantity), 0);
+}
+
+/** อ่านยอด Coin ใน transaction (ไม่สร้างกระเป๋าใหม่) */
+async function currentCoins(db: VeilShardDb, userId: string): Promise<number> {
+  const wallet = await db.wallet.findUnique({ where: { userId }, select: { balance: true } });
+  return Math.max(0, wallet?.balance ?? 0);
 }
 
 /** หักฝุ่นเวท (ตัดจากรายการที่ได้มาก่อน — ทำซ้ำได้ผลเดิม) */
@@ -120,6 +127,7 @@ export class ItemService {
         craftCost: def.craftCost,
         dustCost: def.dustCost,
         buyCost: def.buyCost,
+        coinCost: def.coinCost,
         isActive: true,
       };
       await prisma.itemDefinition.upsert({
@@ -135,9 +143,9 @@ export class ItemService {
   /** แคตตาล็อก + ของที่มี + สถานะซื้อ/คราฟต์ได้ (ใช้ในหน้า /items) */
   static async catalog(
     userId: string
-  ): Promise<{ veilShards: number; dust: number; rows: CatalogRow[] }> {
+  ): Promise<{ veilShards: number; dust: number; coins: number; rows: CatalogRow[] }> {
     await this.ensureCatalog();
-    const [defs, owned, equipped, user, dust] = await Promise.all([
+    const [defs, owned, equipped, user, dust, wallet] = await Promise.all([
       prisma.itemDefinition.findMany({
         where: { isActive: true },
         orderBy: [{ slot: 'asc' }, { craftCost: 'asc' }],
@@ -150,11 +158,13 @@ export class ItemService {
       }),
       prisma.user.findUnique({ where: { id: userId }, select: { veilShards: true } }),
       dustBalance(userId),
+      prisma.wallet.findUnique({ where: { userId }, select: { balance: true } }),
     ]);
 
     const ownedByItem = new Map(owned.map((row) => [row.itemId, row.quantity]));
     const equippedByItem = new Map(equipped.map((row) => [row.itemId, row._count._all]));
     const balance = Math.max(0, user?.veilShards ?? 0);
+    const coins = Math.max(0, wallet?.balance ?? 0);
 
     const rows: CatalogRow[] = defs.map((row) => {
       const def: ItemDef = {
@@ -172,8 +182,9 @@ export class ItemService {
         craftCost: row.craftCost,
         dustCost: row.dustCost,
         buyCost: row.buyCost,
+        coinCost: row.coinCost,
       };
-      const quote = craftQuote(def, { veilShards: balance, dust });
+      const quote = craftQuote(def, { veilShards: balance, dust, coins });
       return {
         ...def,
         owned: ownedByItem.get(row.id) ?? 0,
@@ -182,10 +193,11 @@ export class ItemService {
         canCraft: quote.ok,
         missingShards: quote.missingShards,
         missingDust: quote.missingDust,
+        missingCoins: quote.missingCoins,
       };
     });
 
-    return { veilShards: balance, dust, rows };
+    return { veilShards: balance, dust, coins, rows };
   }
 
   /** ซื้อ Item ด้วย Veil Shards (buyCost = null → ซื้อไม่ได้ ต้องคราฟต์) */
@@ -217,7 +229,7 @@ export class ItemService {
   static async craft(
     userId: string,
     itemCode: string
-  ): Promise<{ balance: number; dust: number; quantity: number; nameTh: string }> {
+  ): Promise<{ balance: number; dust: number; coins: number; quantity: number; nameTh: string }> {
     await this.ensureCatalog();
     const row = await prisma.itemDefinition.findUnique({ where: { code: itemCode } });
     const def = findItemDef(itemCode);
@@ -232,9 +244,17 @@ export class ItemService {
         description: `คราฟต์ ${row.nameTh}`,
       });
       await spendDust(tx, userId, row.dustCost);
+      // Phase 39: คราฟต์ต้องใช้ Coin ด้วย (ผู้ใช้สั่ง)
+      const wallet = await debitWalletDb(tx, {
+        userId,
+        amount: row.coinCost,
+        type: 'PURCHASE',
+        referenceType: 'ITEM_CRAFT',
+        description: `คราฟต์ ${row.nameTh}`,
+      });
       const quantity = await grantItem(tx, userId, row.id, 1);
       const dust = await dustBalance(userId, tx);
-      return { balance: paid.balance, dust, quantity, nameTh: row.nameTh };
+      return { balance: paid.balance, dust, coins: wallet.balance, quantity, nameTh: row.nameTh };
     });
   }
 
@@ -251,8 +271,8 @@ export class ItemService {
     itemCode: string,
     quantity = 1
   ): Promise<{
-    nameTh: string; sold: number; refundShards: number; refundDust: number;
-    balance: number; dust: number; remaining: number;
+    nameTh: string; sold: number; refundShards: number; refundDust: number; refundCoins: number;
+    balance: number; dust: number; coins: number; remaining: number;
   }> {
     await this.ensureCatalog();
     const row = await prisma.itemDefinition.findUnique({ where: { code: itemCode } });
@@ -292,6 +312,17 @@ export class ItemService {
         });
         balance = credited.balance;
       }
+      let coins = await currentCoins(tx, userId);
+      if (quote.coins > 0) {
+        const refunded = await creditWalletDb(tx, {
+          userId,
+          amount: quote.coins,
+          type: 'REWARD',
+          referenceType: 'ITEM_SELL',
+          description: `ขาย ${row.nameTh} คืนร้าน ${sold} ชิ้น`,
+        });
+        coins = refunded.balance;
+      }
       if (quote.dust > 0) {
         await InventoryService.grant(
           {
@@ -311,6 +342,8 @@ export class ItemService {
         sold,
         refundShards: quote.shards,
         refundDust: quote.dust,
+        refundCoins: quote.coins,
+        coins,
         balance,
         dust,
         remaining: owned.quantity - sold,

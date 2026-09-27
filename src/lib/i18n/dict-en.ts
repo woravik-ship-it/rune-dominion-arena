@@ -192,6 +192,7 @@ export const EN: Record<string, string> = {
   'item.costDust': '✨ {n}',
   'item.dust': 'Crafting Dust',
   'item.veilShards': 'Veil Shards',
+  'item.needCoins': 'Need 🪙{n} more coins',
   'item.needMore': 'Need 💠{shards} ✨{dust} more',
   'item.craftOnly': 'Craft only',
   'item.workshopTitle': '🛠️ Item Workshop',

@@ -1,6 +1,7 @@
 // Wallet Service — Phase 5 (Coin Ledger ปลอดภัย)
 // Rules: Integer เท่านั้น / balance ห้ามติดลบ / ACID + Idempotency
 import { prisma } from '@/lib/prisma';
+import { Prisma, PrismaClient } from '@prisma/client';
 import { STARTING_COIN } from '@/lib/constants';
 
 export const DAILY_REWARD_CAP = 1000;
@@ -38,13 +39,16 @@ function mapTx(tx: TxRow): WalletTxRecord {
   return { ...tx };
 }
 
-async function getOrCreateWallet(userId: string) {
-  let wallet = await prisma.wallet.findUnique({ where: { userId } });
+export type WalletDb = PrismaClient | Prisma.TransactionClient;
+
+/** สร้างกระเป๋าถ้ายังไม่มี (ใช้ได้ทั้ง prisma และ transaction client) — Phase 39 */
+export async function getOrCreateWalletDb(db: WalletDb, userId: string) {
+  let wallet = await db.wallet.findUnique({ where: { userId } });
   if (!wallet) {
-    wallet = await prisma.wallet.create({
+    wallet = await db.wallet.create({
       data: { userId, balance: STARTING_COIN, totalEarned: STARTING_COIN, totalSpent: 0 },
     });
-    await prisma.walletTransaction.create({
+    await db.walletTransaction.create({
       data: {
         walletId: wallet.id,
         amount: STARTING_COIN,
@@ -55,10 +59,95 @@ async function getOrCreateWallet(userId: string) {
         balanceAfter: STARTING_COIN,
       },
     });
-    wallet = await prisma.wallet.findUnique({ where: { userId } });
+    wallet = await db.wallet.findUnique({ where: { userId } });
     if (!wallet) throw new Error('สร้างกระเป๋าไม่สำเร็จ');
   }
   return wallet;
+}
+
+/** ใช้กับ prisma ปกติ (ของเดิม) */
+async function getOrCreateWallet(userId: string) {
+  return getOrCreateWalletDb(prisma, userId);
+}
+
+/**
+ * ตัด Coin (Phase 39) — ใช้ใน transaction ของงานอื่นได้ เช่น การคราฟต์ที่ต้องจ่าย Coin ด้วย
+ * ยอดไม่พอ → throw 'ยอด Coin ไม่เพียงพอ' (ให้ผู้เรียกแปลงเป็นข้อความผู้เล่น)
+ */
+export async function debitWalletDb(
+  db: WalletDb,
+  params: {
+    userId: string; amount: number; type: WalletTxType;
+    referenceId?: string; referenceType?: string; description?: string; idempotencyKey?: string;
+  }
+): Promise<{ balance: number }> {
+  assertIntegerAmount(params.amount);
+  const amount = Math.trunc(params.amount);
+  if (params.idempotencyKey) {
+    const existing = await db.walletTransaction.findUnique({ where: { idempotencyKey: params.idempotencyKey } });
+    if (existing) return { balance: existing.balanceAfter };
+  }
+  const wallet = await getOrCreateWalletDb(db, params.userId);
+  const current = await db.wallet.findFirstOrThrow({ where: { id: wallet.id } });
+  if (current.balance < amount) throw new Error('ยอด Coin ไม่เพียงพอ');
+  const before = current.balance;
+  const after = before - amount;
+  const record = await db.walletTransaction.create({
+    data: {
+      walletId: current.id,
+      amount: -amount,
+      type: params.type,
+      referenceId: params.referenceId ?? null,
+      referenceType: params.referenceType ?? null,
+      description: params.description ?? null,
+      balanceBefore: before,
+      balanceAfter: after,
+      idempotencyKey: params.idempotencyKey ?? null,
+    },
+  });
+  await db.wallet.update({
+    where: { id: current.id },
+    data: { balance: after, totalSpent: { increment: amount } },
+  });
+  return { balance: record.balanceAfter };
+}
+
+/** เติม Coin (Phase 39) — ใช้ใน transaction ได้ (เช่นการขายของคืน) */
+export async function creditWalletDb(
+  db: WalletDb,
+  params: {
+    userId: string; amount: number; type: WalletTxType;
+    referenceId?: string; referenceType?: string; description?: string; idempotencyKey?: string;
+  }
+): Promise<{ balance: number; credited: boolean }> {
+  assertIntegerAmount(params.amount);
+  const amount = Math.trunc(params.amount);
+  if (params.idempotencyKey) {
+    const existing = await db.walletTransaction.findUnique({ where: { idempotencyKey: params.idempotencyKey } });
+    if (existing) return { balance: existing.balanceAfter, credited: false };
+  }
+  const wallet = await getOrCreateWalletDb(db, params.userId);
+  const current = await db.wallet.findFirstOrThrow({ where: { id: wallet.id } });
+  const before = current.balance;
+  const after = before + amount;
+  const record = await db.walletTransaction.create({
+    data: {
+      walletId: current.id,
+      amount,
+      type: params.type,
+      referenceId: params.referenceId ?? null,
+      referenceType: params.referenceType ?? null,
+      description: params.description ?? null,
+      balanceBefore: before,
+      balanceAfter: after,
+      idempotencyKey: params.idempotencyKey ?? null,
+    },
+  });
+  await db.wallet.update({
+    where: { id: current.id },
+    data: { balance: after, totalEarned: { increment: amount } },
+  });
+  return { balance: record.balanceAfter, credited: true };
 }
 
 

@@ -38,6 +38,9 @@ interface CatalogRowView {
   craftCost: number;
   dustCost: number;
   buyCost: number | null;
+  /** Phase 39: Coin ที่ต้องใช้ตอนคราฟต์ */
+  coinCost: number;
+  missingCoins?: number;
   owned: number;
   equippedCount: number;
   canBuy: boolean;
@@ -81,6 +84,7 @@ export default function ItemsPage() {
   const [rows, setRows] = useState<CatalogRowView[]>([]);
   const [veilShards, setVeilShards] = useState(0);
   const [dust, setDust] = useState(0);
+  const [coins, setCoins] = useState(0);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState('');
   const [message, setMessage] = useState('');
@@ -98,6 +102,7 @@ export default function ItemsPage() {
       setRows((json.data?.rows ?? []) as CatalogRowView[]);
       setVeilShards(Number(json.data?.veilShards ?? 0));
       setDust(Number(json.data?.dust ?? 0));
+      setCoins(Number(json.data?.coins ?? 0));
     } catch {
       setError(t('common.error'));
     } finally {
@@ -187,6 +192,10 @@ export default function ItemsPage() {
             <span className="rounded-full bg-amber-500/10 px-3 py-1 text-amber-300" data-dust={dust}>
               ✨ {dust} {t('item.dust')}
             </span>
+            {/* Phase 39: คราฟต์ต้องใช้ Coin ด้วย ⇒ โชว์ยอด Coin ให้เห็นก่อนกด */}
+            <span className="rounded-full bg-yellow-500/10 px-3 py-1 text-yellow-200" data-item-coins={coins}>
+              🪙 {coins}
+            </span>
             <Link href="/cards" className="text-xs text-gray-300 underline hover:text-white">
               {t('nav.cards')} →
             </Link>
@@ -236,9 +245,10 @@ export default function ItemsPage() {
                     )}
 
                     <div className="mt-2 flex flex-wrap items-center gap-1.5 text-[11px]">
-                      <span className="rounded bg-sky-500/10 px-2 py-0.5 text-sky-300">
+                      <span className="rounded bg-sky-500/10 px-2 py-0.5 text-sky-300" data-item-craft-cost={row.code}>
                         {t('item.craft')}: {t('item.costShards', { n: row.craftCost })}
                         {row.dustCost > 0 && ` + ${t('item.costDust', { n: row.dustCost })}`}
+                        {row.coinCost > 0 && ` + 🪙${row.coinCost}`}
                       </span>
                       <span className="rounded bg-white/5 px-2 py-0.5 text-gray-300">
                         {row.buyCost === null
@@ -250,6 +260,7 @@ export default function ItemsPage() {
                     {!row.canCraft && (
                       <p className="mt-1 text-[11px] text-red-400">
                         {t('item.needMore', { shards: row.missingShards, dust: row.missingDust })}
+                        {(row.missingCoins ?? 0) > 0 && ` · 🪙 ขาดอีก ${row.missingCoins}`}
                       </p>
                     )}
 
@@ -283,7 +294,7 @@ export default function ItemsPage() {
                           className="rounded-lg bg-emerald-600/80 px-3 py-1.5 text-xs font-bold text-white hover:bg-emerald-500 disabled:opacity-40"
                           title={t('item.sellItemHint', { shards: refund.shards, dust: refund.dust })}
                         >
-                          {t('item.sellItemButton')} (💠{refund.shards} + ✨{refund.dust})
+                          {t('item.sellItemButton')} (💠{refund.shards} + ✨{refund.dust}{refund.coins > 0 ? ` + 🪙${refund.coins}` : ''})
                         </button>
                       )}
                       {row.owned > 0 && sellable === 0 && (

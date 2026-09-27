@@ -32,7 +32,8 @@ export async function POST(request: NextRequest) {
     });
   } catch (error) {
     const message = error instanceof Error ? error.message : 'คราฟต์ Item ไม่สำเร็จ';
-    const status = /ไม่พบ Item|ไม่พอ|คราฟต์ไม่ได้/.test(message) ? 400 : 500;
+    // Phase 39: คราฟต์ต้องใช้ Coin ด้วย ⇒ เงินไม่พอ = กติกาเกม (400) ไม่ใช่ข้อผิดพลาดเซิร์ฟเวอร์
+    const status = /ไม่พบ Item|ไม่พอ|ไม่เพียงพอ|Coin|คราฟต์ไม่ได้|ฝุ่นเวท/.test(message) ? 400 : 500;
     if (status === 500) console.error('Craft item error:', error);
     return NextResponse.json({ error: message }, { status });
   }

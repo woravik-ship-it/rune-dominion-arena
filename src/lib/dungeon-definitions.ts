@@ -39,6 +39,11 @@ export interface DungeonDeepFloorsDef {
   difficultyCap: number;
   /** ตัวคูณรางวัล "ฝุ่นเวท" ต่อบล็อก (5 ชั้น) — รางวัลกระโดดตามความยาก */
   blockRewardStep: number;
+  /**
+   * สัดส่วนฝุ่นเวทเทียบกับค่าฐานในนิยาม (Phase 40)
+   * ผู้ใช้สั่ง: *"ลดของรางวัล ฝุ่นเวท ลงอีก เอาแค่ 20% จากตอนนี้"* ⇒ ตั้ง 0.2 ให้ทุกดัน
+   */
+  dustRatio?: number;
   /** ตัวคูณรางวัล "Veil Shards" ต่อบล็อก (ช้ากว่าฝุ่น เพื่อกันเงินเฟ้อ) */
   blockShardStep: number;
   /** บล็อกที่เริ่มมีบอส 2 ตัว / 3 ตัว (นับจาก 1) */
@@ -115,8 +120,8 @@ const BUILD_DUNGEONS: DungeonDef[] = [
     code: 'EMBER_CRYPT', name: 'Ember Crypt', nameTh: 'สุสานเพลิง',
     descriptionTh: 'ดันฝึกหัด — เข้าฟรีตลอด ดรอปฝุ่นเวทสำหรับคราฟต์ของพื้นฐาน',
     icon: '🔥', entry: 'FREE_ALWAYS', coinCost: 0, freeHours: [], lossDustRatio: 0,
-    minionBase: { atk: 26, def: 14, hp: 95, spd: 11 },
-    bossBase: { atk: 52, def: 30, hp: 240, spd: 15 },
+    minionBase: { atk: 32, def: 18, hp: 119, spd: 14 },
+    bossBase: { atk: 65, def: 38, hp: 300, spd: 19 },
     elements: ['EMBERBOUND', 'ROOTFORGED'],
     floors: [
       { floor: 1, nameTh: 'ปากทางเถ้าถ่าน', minions: 4, scale: 1.0, reward: { dust: 10, shards: 2, itemDropCode: null, itemDropChance: 0 } },
@@ -125,7 +130,7 @@ const BUILD_DUNGEONS: DungeonDef[] = [
     ],
     // เพิ่มอีก 22 ชั้น → รวม 25 ชั้น (ผู้ใช้สั่ง: เพิ่มชั้นไปอีก 20-40 ชั้น)
     deepFloors: {
-      extra: 25, blockStep: 1.09, difficultyCap: 1.45, blockRewardStep: 1.3, blockShardStep: 1.2,
+      extra: 25, blockStep: 1.05, difficultyCap: 0.98, blockRewardStep: 1.3, blockShardStep: 1.2, dustRatio: 0.2,
       doubleBossBlock: 3, tripleBossBlock: 5,
       deepNames: ['ปากทางเถ้าถ่าน', 'ห้วงเถ้าถ่าน', 'เหวเถ้าร้อน', 'ปล่องลาวา', 'บัลลังก์เถ้า'],
       dropLadder: [
@@ -146,8 +151,8 @@ const BUILD_DUNGEONS: DungeonDef[] = [
     code: 'TIDAL_SANCTUM', name: 'Tidal Sanctum', nameTh: 'วิหารน้ำขึ้น',
     descriptionTh: 'ดันกลาง — เข้าฟรีตลอด ดรอปฝุ่นเวทหนาและของช่างระดับกลาง',
     icon: '🌊', entry: 'FREE_ALWAYS', coinCost: 0, freeHours: [], lossDustRatio: 0,
-    minionBase: { atk: 36, def: 22, hp: 128, spd: 15 },
-    bossBase: { atk: 71, def: 44, hp: 323, spd: 21 },
+    minionBase: { atk: 54, def: 33, hp: 192, spd: 22 },
+    bossBase: { atk: 106, def: 66, hp: 484, spd: 32 },
     elements: ['TIDEBORN', 'SKYRIVEN', 'DAWNSWORN'],
     floors: [
       { floor: 1, nameTh: 'บันไดปะการัง', minions: 4, scale: 1.0, reward: { dust: 18, shards: 4, itemDropCode: null, itemDropChance: 0 } },
@@ -157,7 +162,7 @@ const BUILD_DUNGEONS: DungeonDef[] = [
     ],
     // เพิ่มอีก 24 ชั้น → รวม 28 ชั้น
     deepFloors: {
-      extra: 28, blockStep: 1.09, difficultyCap: 1.55, blockRewardStep: 1.3, blockShardStep: 1.2,
+      extra: 28, blockStep: 1.05, difficultyCap: 1.02, blockRewardStep: 1.3, blockShardStep: 1.2, dustRatio: 0.2,
       doubleBossBlock: 3, tripleBossBlock: 5,
       deepNames: ['บันไดปะการัง', 'ห้วงน้ำลึก', 'สระแสงจันทร์ลึก', 'แกนสมุทร', 'วังน้ำวน', 'ห้วงอเวจี'],
       dropLadder: [
@@ -177,8 +182,8 @@ const BUILD_DUNGEONS: DungeonDef[] = [
     code: 'MOONLESS_RIFT', name: 'Moonless Rift', nameTh: 'รอยแยกไร้จันทร์',
     descriptionTh: 'ดันตามเวลา — เข้าฟรีเฉพาะช่วงที่กำหนด ดรอปของกลาง-แรง',
     icon: '🌙', entry: 'FREE_TIMED', coinCost: 0, freeHours: [12, 13, 20, 21], lossDustRatio: 0,
-    minionBase: { atk: 55, def: 36, hp: 190, spd: 19 },
-    bossBase: { atk: 110, def: 74, hp: 494, spd: 25 },
+    minionBase: { atk: 82, def: 54, hp: 285, spd: 28 },
+    bossBase: { atk: 165, def: 111, hp: 741, spd: 38 },
     elements: ['VEILMARKED', 'DAWNSWORN', 'SKYRIVEN'],
     floors: [
       { floor: 1, nameTh: 'ม่านชั้นนอก', minions: 4, scale: 1.0, reward: { dust: 28, shards: 6, itemDropCode: null, itemDropChance: 0 } },
@@ -188,7 +193,7 @@ const BUILD_DUNGEONS: DungeonDef[] = [
     ],
     // เพิ่มอีก 24 ชั้น → รวม 28 ชั้น
     deepFloors: {
-      extra: 28, blockStep: 1.1, difficultyCap: 1.62, blockRewardStep: 1.32, blockShardStep: 1.2,
+      extra: 28, blockStep: 1.06, difficultyCap: 1.05, blockRewardStep: 1.32, blockShardStep: 1.2, dustRatio: 0.2,
       doubleBossBlock: 3, tripleBossBlock: 5,
       deepNames: ['ม่านชั้นนอก', 'ม่านบิดเบี้ยว', 'ซอกจันทราแตก', 'ประตูไร้แสง', 'แกนม่านเงา', 'ใจกลางรอยแยก'],
       dropLadder: [
@@ -208,8 +213,8 @@ const BUILD_DUNGEONS: DungeonDef[] = [
     code: 'GILDED_ABYSS', name: 'Gilded Abyss', nameTh: 'เหวลึกทองคำ',
     descriptionTh: 'ดันเหรียญ — จ่าย Coin เข้า ดรอปหนักที่สุด (ของคราฟต์ระดับสูง)',
     icon: '💰', entry: 'COIN', coinCost: DUNGEON_COIN_ENTRY, freeHours: [], lossDustRatio: 0.25,
-    minionBase: { atk: 97, def: 65, hp: 331, spd: 23 },
-    bossBase: { atk: 194, def: 132, hp: 878, spd: 29 },
+    minionBase: { atk: 107, def: 72, hp: 364, spd: 25 },
+    bossBase: { atk: 213, def: 145, hp: 966, spd: 32 },
     elements: ['TIDEBORN', 'DAWNSWORN', 'VEILMARKED', 'EMBERBOUND'],
     floors: [
       { floor: 1, nameTh: 'บันไดทอง', minions: 4, scale: 1.0, reward: { dust: 45, shards: 10, itemDropCode: 'DEF_TIDEWALL', itemDropChance: 12 } },
@@ -219,7 +224,7 @@ const BUILD_DUNGEONS: DungeonDef[] = [
     ],
     // เพิ่มอีก 26 ชั้น → รวม 30 ชั้น
     deepFloors: {
-      extra: 30, blockStep: 1.06, difficultyCap: 1.3, blockRewardStep: 1.35, blockShardStep: 1.25,
+      extra: 30, blockStep: 1.04, difficultyCap: 1.15, blockRewardStep: 1.35, blockShardStep: 1.25, dustRatio: 0.2,
       doubleBossBlock: 4, tripleBossBlock: 7,
       deepNames: ['บันไดทอง', 'คลังลึกลับ', 'เหวฉายทอง', 'โลงทองคำ', 'ก้นเหวสมบัติ', 'ก้นเหวมรณะ'],
       dropLadder: [
@@ -242,8 +247,8 @@ const BUILD_DUNGEONS: DungeonDef[] = [
     code: 'STORMREACH_SPIRE', name: 'Stormreach Spire', nameTh: 'ยอดหอพายุ',
     descriptionTh: 'ดันสูงสุดที่มีให้เข้าฟรี — เปิดช่วงเย็น ดรอปฝุ่นเวทหนาและของระดับตำนาน',
     icon: '⚡', entry: 'FREE_TIMED', coinCost: 0, freeHours: [18, 19], lossDustRatio: 0,
-    minionBase: { atk: 108, def: 74, hp: 371, spd: 27 },
-    bossBase: { atk: 215, def: 149, hp: 993, spd: 33 },
+    minionBase: { atk: 162, def: 111, hp: 556, spd: 40 },
+    bossBase: { atk: 322, def: 224, hp: 1490, spd: 50 },
     elements: ['SKYRIVEN', 'VEILMARKED', 'TIDEBORN', 'EMBERBOUND'],
     floors: [
       { floor: 1, nameTh: 'ลานลมกรด', minions: 4, scale: 1.0, reward: { dust: 70, shards: 16, itemDropCode: null, itemDropChance: 0 } },
@@ -254,7 +259,7 @@ const BUILD_DUNGEONS: DungeonDef[] = [
     ],
     // เพิ่มอีก 35 ชั้น → รวม 40 ชั้น
     deepFloors: {
-      extra: 40, blockStep: 1.05, difficultyCap: 1.16, blockRewardStep: 1.3, blockShardStep: 1.2,
+      extra: 40, blockStep: 1.03, difficultyCap: 0.72, blockRewardStep: 1.3, blockShardStep: 1.2, dustRatio: 0.2,
       doubleBossBlock: 3, tripleBossBlock: 5,
       deepNames: ['ลานลมกรด', 'หอคอยเมฆดำ', 'ระเบียงสายฟ้า', 'ใจกลางพายุ', 'ดวงตาพายุ', 'บัลลังก์พายุ', 'ฟากฟ้าดำ', 'ยอดจักรวาล'],
       dropLadder: [
@@ -342,6 +347,8 @@ export function buildDeepFloors(dungeon: DungeonDef): DungeonFloorDef[] {
     const block = Math.floor((floorNo - 1) / FLOOR_BLOCK_SIZE) + 1;
     const bosses = block >= def.tripleBossBlock ? 3 : block >= def.doubleBossBlock ? 2 : 1;
     // ความยากจริงของบล็อกนี้ — ไล่ทีละบล็อกจนถึงเพดานที่ "วัดได้จริง" ว่าเด็คเป้าหมายผ่านได้
+    // ⚠️ Phase 40 (ผู้ใช้สั่ง ให้ยากขึ้น ~50%): ฐาน status ศัตรู ×1.5 ⇒ เพดานสเกลต้องลดลงตาม
+    //    (เพดานที่วัดได้ ≈ 0.72-1.05 ตามดัน) ความยากที่เพิ่มมาจาก "ฐาน" ไม่ใช่การดันสเกลเกินเพดาน
     // (วัดด้วย npm run calibrate:dungeons: เพดานของเด็คติดของครบอยู่ราวสเกล 1.10-1.30 แล้วแต่ดัน)
     // ⇒ ดันสเกลเกินเพดาน = ชั้นท้ายผ่านไม่ได้ทุกเด็ค (เคยเกิดจริง) จึงตั้งเพดานตามค่าที่วัด
 
@@ -351,7 +358,8 @@ export function buildDeepFloors(dungeon: DungeonDef): DungeonFloorDef[] {
     const scale = Number((difficulty / bossWeight(bosses)).toFixed(3));
     const bossScale = 1;
     // รางวัลกระโดดตาม "บล็อก" (ไม่ใช่ต่อชั้น) ⇒ คาดเดาได้ และไม่ระเบิดเป็นทวีคูณ
-    const dust = Math.round(first.reward.dust * Math.pow(def.blockRewardStep, block - 1));
+    const dustRatio = def.dustRatio ?? 1;
+    const dust = Math.max(1, Math.round(first.reward.dust * Math.pow(def.blockRewardStep, block - 1) * dustRatio));
     const shards = Math.max(1, Math.round(first.reward.shards * Math.pow(def.blockShardStep, block - 1)));
     const drop = [...def.dropLadder].reverse().find((row) => row.fromFloor <= floorNo);
     const writtenFloor = written.find((row) => row.floor === floorNo);

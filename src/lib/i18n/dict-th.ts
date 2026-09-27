@@ -192,6 +192,7 @@ export const TH: Record<string, string> = {
   'item.costDust': '✨ {n}',
   'item.dust': 'ฝุ่นเวท',
   'item.veilShards': 'Veil Shards',
+  'item.needCoins': 'ขาดอีก 🪙{n} Coin',
   'item.needMore': 'ขาดอีก 💠{shards} ✨{dust}',
   'item.craftOnly': 'คราฟต์เท่านั้น',
   'item.workshopTitle': '🛠️ ช่างใส่ Item',

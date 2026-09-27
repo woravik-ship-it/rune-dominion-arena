@@ -150,13 +150,13 @@ describe('ขาย Item คืนวัตถุดิบ 50% (Phase 32)', () =
   test('คืนครึ่งหนึ่งของสูตรคราฟต์ (ปัดลง) ทั้ง Veil Shards และฝุ่นเวท', () => {
     expect(ITEM_SELL_REFUND_RATE).toBe(0.5);
     // หินลับคม: คราฟต์ 6 shards + 5 dust → คืน 3 + 2
-    expect(sellQuote({ craftCost: 6, dustCost: 5 })).toEqual({ shards: 3, dust: 2, total: 5 });
+    expect(sellQuote({ craftCost: 6, dustCost: 5 })).toEqual({ shards: 3, dust: 2, coins: 0, total: 5 });
     // ดาบฉีกสุญญตา: 260 + 240 → คืน 130 + 120
-    expect(sellQuote({ craftCost: 260, dustCost: 240 })).toEqual({ shards: 130, dust: 120, total: 250 });
+    expect(sellQuote({ craftCost: 260, dustCost: 240 })).toEqual({ shards: 130, dust: 120, coins: 0, total: 250 });
   });
 
   test('ขายหลายชิ้น = คูณจำนวน (และจำนวนเพี้ยนไม่ทำให้พัง)', () => {
-    expect(sellQuote({ craftCost: 20, dustCost: 25 }, 3)).toEqual({ shards: 30, dust: 36, total: 66 });
+    expect(sellQuote({ craftCost: 20, dustCost: 25 }, 3)).toEqual({ shards: 30, dust: 36, coins: 0, total: 66 });
     expect(sellQuote({ craftCost: 20, dustCost: 25 }, 0).shards).toBe(10);
     expect(sellQuote({ craftCost: 20, dustCost: 25 }, Number.NaN).dust).toBe(12);
   });
@@ -169,5 +169,27 @@ describe('ขาย Item คืนวัตถุดิบ 50% (Phase 32)', () =
       expect(quote.shards).toBeLessThanOrEqual(Math.floor(item.craftCost / 2));
       expect(quote.dust).toBeLessThanOrEqual(Math.floor(item.dustCost / 2));
     }
+  });
+});
+
+describe('คราฟต์ต้องใช้ Coin ด้วย (Phase 39)', () => {
+  test('ทุกไอเทมมี coinCost > 0 และคิดตามสูตร 3 เท่าของ Veil Shards (ขั้นต่ำ 10)', () => {
+    for (const item of ITEM_CATALOG) {
+      expect(item.coinCost).toBeGreaterThanOrEqual(10);
+      expect(item.coinCost).toBe(Math.max(10, item.craftCost * 3));
+    }
+  });
+
+  test('craftQuote: Coin ไม่พอ → คราฟต์ไม่ได้ และบอกจำนวนที่ขาด', () => {
+    const item = findItemDef('ATK_WHETSTONE')!; // craft 6 shards · 5 dust · coinCost 18
+    const quote = craftQuote(item, { veilShards: 100, dust: 100, coins: 5 });
+    expect(quote.ok).toBe(false);
+    expect(quote.missingCoins).toBe(13);
+    expect(craftQuote(item, { veilShards: 100, dust: 100, coins: 18 }).ok).toBe(true);
+  });
+
+  test('ขายคืนคืน Coin 50% ด้วย', () => {
+    const item = findItemDef('ATK_WHETSTONE')!;
+    expect(sellQuote(item).coins).toBe(Math.floor(item.coinCost / 2));
   });
 });
