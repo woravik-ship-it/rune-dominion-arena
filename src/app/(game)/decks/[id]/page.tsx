@@ -2,9 +2,13 @@
 
 import { apiFetch } from '@/lib/api-client';
 import { useMemo, useState, useEffect } from 'react';
-import { useParams, useRouter } from 'next/navigation';
+import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import CardFace from '@/components/cards/CardFace';
 import DeckRing, { type RingCard } from '@/components/deck/DeckRing';
+import Modal from '@/components/ui/Modal';
+import ConfirmDialog from '@/components/ui/ConfirmDialog';
+import { CardPreviewModal } from '@/components/cards/CardMiniPreview';
+import { compareCardStats, compareVerdictLabel, deltaLabel } from '@/lib/deck-compare';
 import StatHexagon from '@/components/deck/StatHexagon';
 import {
   ROLE_AFFINITY,
@@ -81,6 +85,7 @@ export default function DeckBuilderPage() {
   const params = useParams();
   const router = useRouter();
   const deckId = params.id as string;
+  const searchParams = useSearchParams();
 
   const [deckName, setDeckName] = useState('');
   const [pool, setPool] = useState<PoolCard[]>([]);
@@ -92,8 +97,33 @@ export default function DeckBuilderPage() {
   const [err, setErr] = useState<string | null>(null);
   const [search, setSearch] = useState('');
   const [roleFilter, setRoleFilter] = useState<'ALL' | DeckSlotRole>('ALL');
+  // Phase 41: UI แบบ "ฟอง" + กันแก้แล้วลืมบันทึก
+  const [sheetPos, setSheetPos] = useState<number | null>(null);
+  const [pickPos, setPickPos] = useState<number | null>(null);
+  const [viewCard, setViewCard] = useState<PoolCard | null>(null);
+  const [confirmRemove, setConfirmRemove] = useState<number | null>(null);
+  const [confirmLeave, setConfirmLeave] = useState(false);
+  /** ลายเซ็นของเด็คที่บันทึกล่าสุด (ใช้เทียบว่ามีการแก้ไขค้างอยู่ไหม) */
+  const [savedSig, setSavedSig] = useState('');
 
   useEffect(() => { loadAll(); }, [deckId]);
+
+  /** ลายเซ็นเด็ค (ชื่อ + การ์ดแต่ละช่อง) — ใช้ตัดสินว่า "มีการแก้ไขค้าง" ไหม */
+  const signatureOf = (name: string, cards: (PlacedCard | null)[]) =>
+    `${name.trim()}|${cards.map((c) => c?.cardId ?? '-').join(',')}`;
+  const currentSig = signatureOf(deckName, placed);
+  const dirty = savedSig !== '' && currentSig !== savedSig;
+
+  // รีเฟรช/ปิดแท็บ ต้องเตือนก่อนถ้ายังไม่บันทึก
+  useEffect(() => {
+    if (!dirty) return;
+    const onBeforeUnload = (event: BeforeUnloadEvent) => {
+      event.preventDefault();
+      event.returnValue = '';
+    };
+    window.addEventListener('beforeunload', onBeforeUnload);
+    return () => window.removeEventListener('beforeunload', onBeforeUnload);
+  }, [dirty]);
 
   const loadAll = async () => {
     setLoading(true);
@@ -111,8 +141,12 @@ export default function DeckBuilderPage() {
           arr[s.position] = { id: s.cardId, cardId: s.cardId, ...s, position: s.position };
         }
         setPlaced(arr);
+        setSavedSig(signatureOf(deckData.data.name, arr));
       }
       if (cardsData.success) setPool(cardsData.data);
+      // Phase 41: ถ้ามี ?slot=N (กด "เอาออก" มาจากหน้าการ์ด) → เปิดฟองเลือกการ์ดให้ช่องนั้นทันที
+      const slotParam = Number(searchParams.get('slot'));
+      if (Number.isInteger(slotParam) && slotParam >= 0 && slotParam < 5) setPickPos(slotParam);
     } catch (e) { console.error(e); }
     finally { setLoading(false); }
   };
@@ -135,41 +169,62 @@ export default function DeckBuilderPage() {
       .map((r) => (r === 'WARRIOR' ? 'นักรบ' : r === 'MAGE' ? 'จอมเวท' : r === 'HEALER' ? 'ผู้รักษา' : r === 'TANK' ? 'ผู้พิทักษ์' : r === 'ASSASSIN' ? 'นักฆ่า' : 'ผู้สนับสนุน'))
       .join('/');
 
-  const handleSlotClick = (pos: number) => {
-    setErr(null);
-    setMsg(null);
-    if (placed[pos]) {
-      const next = [...placed];
-      next[pos] = null;
-      setPlaced(next);
-      setMsg(`ถอดการ์ดออกจากช่อง${SLOT_ROLE_STYLE[slotRole(pos)].th}แล้ว`);
-      return;
-    }
-    if (!selectedPool) {
-      const role = slotRole(pos);
-      setErr(
-        `แตะการ์ดในคลังก่อน แล้วแตะช่องที่จะวาง · ช่อง ${pos + 1} เป็นช่อง${SLOT_ROLE_STYLE[role].th} (เหมาะกับ ${affinityHint(role)})`
-      );
-      return;
-    }
-    if (placedIds.has(selectedPool)) { setErr('การ์ดใบนี้อยู่ในทีมแล้ว'); return; }
-    const card = pool.find((p) => p.cardId === selectedPool);
-    if (!card) return;
+  /** วางการ์ดลงช่อง (ใช้ทั้งตอนแตะการ์ดในคลังแล้วแตะช่อง และตอนเลือกจากฟองเปลี่ยนการ์ด) */
+  const placeCard = (pos: number, card: PoolCard) => {
     const next = [...placed];
     next[pos] = { ...card, position: pos };
     setPlaced(next);
     setSelectedPool(null);
-    const role = slotRole(pos);
+    setPickPos(null);
     const bonus = formationReport(next.map((c) => (c ? toFormationCard(c) : null)));
-    setMsg(
-      `วาง ${card.nameTh || card.name} ในช่อง${SLOT_ROLE_STYLE[role].th} · คะแนนรวม ${bonus.total.toLocaleString('th-TH')}`
-    );
+    setMsg(`วาง ${card.nameTh || card.name} ในช่อง ${pos + 1} · คะแนนรวม ${bonus.total.toLocaleString('th-TH')}`);
   };
 
-  const handleSave = async () => {
+  /** เอาออก (ต้องยืนยันก่อน — ผู้ใช้สั่ง: "การเปลี่ยน Item หรือการขาย ต้องมีหน้า Confirm") */
+  const removeCard = (pos: number) => {
+    const next = [...placed];
+    next[pos] = null;
+    setPlaced(next);
+    setConfirmRemove(null);
+    setSheetPos(null);
+    setMsg(`เอาออกช่อง ${pos + 1} แล้ว — อย่าลืมบันทึก`);
+  };
+
+  /**
+   * แตะช่องในวงแหวน (Phase 41)
+   *  - ช่องมีการ์ด → เปิดชีต "ดูการ์ด / เปลี่ยนการ์ด / เอาออก"
+   *  - ช่องว่าง → เปิดฟองเลือกการ์ดทันที (ถ้าเลือกการ์ดในคลังไว้ก่อนแล้ว → วางเลย)
+   */
+  const handleSlotClick = (pos: number) => {
+    setErr(null);
+    setMsg(null);
+    if (placed[pos]) { setSheetPos(pos); return; }
+    if (selectedPool) {
+      const card = pool.find((c) => c.cardId === selectedPool);
+      if (!card) return;
+      if (placedIds.has(card.cardId)) { setErr('การ์ดใบนี้อยู่ในทีมแล้ว'); return; }
+      placeCard(pos, card);
+      return;
+    }
+    setPickPos(pos);
+  };
+
+  /** ออกไปหน้าอื่น — ถ้ามีการแก้ไขค้างให้ถามก่อน (ผู้ใช้สั่ง) */
+  const leavePage = (target = '/decks') => {
+    if (dirty) { setConfirmLeave(true); return; }
+    router.push(target);
+  };
+
+  /** บันทึกแล้วออก (ใช้จากกล่องยืนยัน "ยังไม่บันทึก") */
+  const saveThenLeave = async () => {
+    const ok = await handleSave();
+    if (ok) { setConfirmLeave(false); router.push('/decks'); }
+  };
+
+  const handleSave = async (): Promise<boolean> => {
     setErr(null); setMsg(null);
-    if (filledCount !== 5) { setErr(`ทีมต้องครบ 5 ใบ (ปัจจุบัน ${filledCount} ใบ)`); return; }
-    if (overElement) { setErr(`ธาตุ ${overElement[0]} เกิน 3 ใบ`); return; }
+    if (filledCount !== 5) { setErr(`ทีมต้องครบ 5 ใบ (ปัจจุบัน ${filledCount} ใบ)`); return false; }
+    if (overElement) { setErr(`ธาตุ ${overElement[0]} เกิน 3 ใบ`); return false; }
     setSaving(true);
     try {
       const slots = placed.map((c, position) => ({ cardId: c!.cardId, position }));
@@ -181,11 +236,13 @@ export default function DeckBuilderPage() {
       const data = await res.json();
       if (!res.ok) {
         setErr(data.details ? data.details.join('\n') : data.error || 'บันทึกไม่สำเร็จ');
-        return;
+        return false;
       }
       setMsg(
         `บันทึกแล้ว ⚡ คะแนนรวม ${report.total.toLocaleString('th-TH')} (เกรด ${report.grade.key}) · โบนัสช่อง +${(report.bonusScore + report.affinityScore).toLocaleString('th-TH')}`
       );
+      setSavedSig(currentSig);
+      return true;
     } finally { setSaving(false); }
   };
 
@@ -211,9 +268,16 @@ export default function DeckBuilderPage() {
   return (
     <main className="min-h-screen p-4">
       <div className="max-w-4xl mx-auto">
-        <button onClick={() => router.push('/decks')} className="text-sm text-gray-400 mb-2">
-          ← กลับรายการเด็ค
-        </button>
+        <div className="mb-2 flex items-center justify-between gap-2">
+          <button onClick={() => leavePage()} data-deck-back className="text-sm text-gray-400 hover:text-gray-200">
+            ← กลับรายการเด็ค
+          </button>
+          {dirty && (
+            <span data-deck-dirty className="rounded-full bg-amber-500/15 px-2 py-0.5 text-[11px] text-amber-200">
+              ● มีการแก้ไขที่ยังไม่บันทึก
+            </span>
+          )}
+        </div>
         <input
           value={deckName}
           onChange={(e) => setDeckName(e.target.value)}
@@ -365,12 +429,152 @@ export default function DeckBuilderPage() {
           })}
         </div>
         <button
-          onClick={handleSave}
+          onClick={() => void handleSave()}
           disabled={saving || filledCount !== 5}
+          data-deck-save
           className="btn-primary w-full disabled:opacity-50"
         >
-          {saving ? 'กำลังบันทึก...' : 'บันทึกเด็ค'}
+          {saving ? 'กำลังบันทึก...' : dirty ? 'บันทึกเด็ค (มีการแก้ไข)' : 'บันทึกเด็ค'}
         </button>
+        {/* ===== ฟอง/ป็อปอัปทั้งหมดของหน้าจัดเด็ค (Phase 41) ===== */}
+
+        {/* ชีตตัวเลือกเมื่อแตะช่องที่มีการ์ดอยู่ */}
+        <Modal
+          open={sheetPos !== null}
+          onClose={() => setSheetPos(null)}
+          title={sheetPos !== null && placed[sheetPos] ? `🎴 ${placed[sheetPos]!.nameTh || placed[sheetPos]!.name}` : ''}
+          subtitle={sheetPos !== null ? `ช่อง ${sheetPos + 1} · ${SLOT_ROLE_STYLE[slotRole(sheetPos)].th}` : ''}
+          size="sm"
+        >
+          {sheetPos !== null && placed[sheetPos] && (
+            <div className="space-y-2">
+              <button
+                type="button" data-slot-action="view"
+                onClick={() => { const card = placed[sheetPos]!; setSheetPos(null); setViewCard(card); }}
+                className="w-full rounded-xl bg-white/10 px-3 py-2 text-left text-sm text-gray-100 hover:bg-white/20"
+              >
+                👁 ดูการ์ด + ใส่/ถอด Item (ไม่ต้องออกจากหน้านี้)
+              </button>
+              <button
+                type="button" data-slot-action="swap"
+                onClick={() => { setPickPos(sheetPos); setSheetPos(null); }}
+                className="w-full rounded-xl bg-amber-500/20 px-3 py-2 text-left text-sm text-amber-100 hover:bg-amber-500/30"
+              >
+                🔄 เปลี่ยนการ์ด (เทียบดีขึ้น/แย่ลงให้ก่อน)
+              </button>
+              <button
+                type="button" data-slot-action="remove"
+                onClick={() => { setConfirmRemove(sheetPos); setSheetPos(null); }}
+                className="w-full rounded-xl bg-red-500/15 px-3 py-2 text-left text-sm text-red-200 hover:bg-red-500/25"
+              >
+                🗑 เอาออกช่องนี้
+              </button>
+            </div>
+          )}
+        </Modal>
+        {/* ฟองเลือกการ์ด + เทียบสถานะกับการ์ดเดิมในช่อง (ผู้ใช้สั่ง: ต้องบอกว่าดีขึ้นหรือแย่ลง) */}
+        <Modal
+          open={pickPos !== null}
+          onClose={() => setPickPos(null)}
+          title={pickPos !== null && placed[pickPos] ? 'เปลี่ยนการ์ดในช่อง' : 'เลือกการ์ดใส่ช่องว่าง'}
+          subtitle={pickPos !== null ? `ช่อง ${pickPos + 1} · ${SLOT_ROLE_STYLE[slotRole(pickPos)].th}` : ''}
+          size="lg"
+        >
+          {pickPos !== null && (
+            <div className="space-y-2" data-deck-picker={pickPos}>
+              {pool.filter((c) => !placedIds.has(c.cardId)).length === 0 && (
+                <p className="text-sm text-gray-400">ไม่มีการ์ดอื่นให้เลือก (การ์ดที่เหลืออยู่ในทีมหมดแล้ว)</p>
+              )}
+              {pool
+                .filter((c) => !placedIds.has(c.cardId))
+                .map((c) => {
+                  const current = placed[pickPos];
+                  const cmp = compareCardStats(current ? current.stats : null, c.stats);
+                  const verdictColor =
+                    cmp.verdict === 'better' ? 'text-emerald-300'
+                      : cmp.verdict === 'worse' ? 'text-red-300' : 'text-gray-300';
+                  return (
+                    <div
+                      key={c.cardId}
+                      data-picker-card={c.cardId}
+                      className="flex items-center gap-3 rounded-xl border border-gray-700 bg-gray-900/70 p-2"
+                    >
+                      <div className="relative h-[70px] w-[49px] shrink-0 overflow-hidden rounded-lg border border-white/10 bg-black/40">
+                        <CardFace cardId={c.cardId} imageUrl={c.imageUrl} imageStatus={c.imageStatus} rarity={c.rarity} alt={c.nameTh || c.name} />
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <p className="truncate text-sm font-bold text-white">{c.nameTh || c.name}</p>
+                        <p className="text-[11px] text-gray-400">{c.element} · {c.role ?? '—'}</p>
+                        <div className="mt-0.5 flex flex-wrap gap-x-2 text-[11px]">
+                          {cmp.lines.map((line) => (
+                            <span
+                              key={line.key}
+                              className={line.trend === 'up' ? 'text-emerald-300' : line.trend === 'down' ? 'text-red-300' : 'text-gray-500'}
+                            >
+                              {line.icon} {deltaLabel(line.delta)}
+                            </span>
+                          ))}
+                          <span className={`font-bold ${verdictColor}`} data-picker-verdict={cmp.verdict}>
+                            {cmp.verdict === 'better' ? '▲' : cmp.verdict === 'worse' ? '▼' : '＝'} {compareVerdictLabel(cmp.verdict)}
+                            <span className="text-gray-500"> ({cmp.scoreDelta >= 0 ? '+' : ''}{cmp.scoreDelta})</span>
+                          </span>
+                        </div>
+                      </div>
+                      <button
+                        type="button"
+                        data-picker-pick={c.cardId}
+                        onClick={() => placeCard(pickPos, c)}
+                        className="shrink-0 rounded-lg bg-amber-500/90 px-3 py-1.5 text-xs font-bold text-black hover:bg-amber-400"
+                      >
+                        ใช้ใบนี้
+                      </button>
+                    </div>
+                  );
+                })}
+            </div>
+          )}
+        </Modal>
+        {/* ฟองดูการ์ดเต็มใบ + ช่างใส่ Item (รวมหน้าดูการ์ดเข้ากับหน้าจัดเด็ค) */}
+        <CardPreviewModal
+          card={viewCard}
+          open={viewCard !== null}
+          onClose={() => setViewCard(null)}
+          onChanged={() => { void loadAll(); }}
+        />
+
+        {/* ยืนยันก่อนเอาออก (ผู้ใช้สั่ง: การเปลี่ยน/ถอด ต้องมีหน้า Confirm) */}
+        <ConfirmDialog
+          open={confirmRemove !== null}
+          danger
+          title="เอาการ์ดออกจากทีม?"
+          message={confirmRemove !== null && placed[confirmRemove]
+            ? `${placed[confirmRemove]!.nameTh || placed[confirmRemove]!.name}`
+            : ''}
+          confirmLabel="เอาออก"
+          onConfirm={() => confirmRemove !== null && removeCard(confirmRemove)}
+          onCancel={() => setConfirmRemove(null)}
+        />
+
+        {/* เตือนก่อนออกโดยยังไม่บันทึก (ผู้ใช้สั่ง: ต้องถามก่อน) */}
+        <ConfirmDialog
+          open={confirmLeave}
+          title="ยังไม่ได้บันทึกการแก้ไข"
+          message="ต้องการบันทึกก่อนออกหรือไม่?"
+          confirmLabel="บันทึกแล้วออก"
+          cancelLabel="ยกเลิก"
+          busy={saving}
+          onConfirm={() => void saveThenLeave()}
+          onCancel={() => setConfirmLeave(false)}
+        >
+          <button
+            type="button"
+            data-deck-leave-anyway
+            onClick={() => { setConfirmLeave(false); router.push('/decks'); }}
+            className="mt-3 w-full rounded-xl bg-white/10 px-3 py-2 text-xs text-gray-200 hover:bg-white/20"
+          >
+            ออกโดยไม่บันทึก
+          </button>
+        </ConfirmDialog>
       </div>
     </main>
   );

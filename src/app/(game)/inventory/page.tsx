@@ -12,6 +12,7 @@ import { apiFetch } from '@/lib/api-client';
 import { useI18n } from '@/components/providers/LocaleProvider';
 import { formatNumber } from '@/lib/i18n';
 import { sourceLabelTh } from '@/lib/inventory-display';
+import { CardMiniPreview } from '@/components/cards/CardMiniPreview';
 import { emitVeilShardsChanged } from '@/lib/veil-shard-events';
 
 interface InventoryItem {
@@ -39,8 +40,11 @@ interface WorkshopItem {
   buyCost: number | null;
   /** Phase 34: ยอดวัตถุดิบที่จะได้คืนเมื่อขาย ×1 (50% ของสูตรคราฟต์) */
   sellRefund?: { shards: number; dust: number; total: number };
-  /** การ์ดที่ไอเทมชิ้นนี้ใส่อยู่ — ใช้ทำปุ่มพาไปถอดที่หน้าการ์ด (มีได้หลายใบ) */
-  equippedCards?: Array<{ cardId: string; nameTh: string; slot: string }>;
+  /** การ์ดที่ไอเทมชิ้นนี้ใส่อยู่ — แสดงเป็นการ์ดย่อกดขยายได้ (มีได้หลายใบ) */
+  equippedCards?: Array<{
+    cardId: string; nameTh: string; slot: string;
+    imageUrl?: string | null; imageStatus?: string | null; rarity?: string | null;
+  }>;
 }
 
 const TYPE_LABEL: Record<InventoryItem['itemType'], { label: string; icon: string }> = {
@@ -208,23 +212,34 @@ export default function InventoryPage() {
                               </p>
                               <p className="text-[11px] text-emerald-300">{statLabel(row.stats)}</p>
                               {equippedCards.length > 0 && (
-                                <div className="mt-1 flex flex-wrap items-center gap-1 text-[11px] text-gray-400">
+                                <div className="mt-1 flex flex-wrap items-center gap-2 text-[11px] text-gray-400">
                                   <span>
                                     {equippedCards.length > 1
                                       ? t('bag.equippedOnCount', { n: equippedCards.length })
                                       : t('bag.equippedOn')}
                                   </span>
-                                  {equippedCards.map((equipped) => (
-                                    <Link
-                                      key={`${equipped.cardId}-${equipped.slot}`}
-                                      href={`/cards/${equipped.cardId}`}
-                                      data-bag-equipped-card={equipped.cardId}
-                                      className="rounded bg-white/10 px-1.5 py-0.5 text-emerald-200 hover:bg-white/20"
-                                      title={t(`item.slot.${equipped.slot}`)}
-                                    >
-                                      🎴 {equipped.nameTh} ›
-                                    </Link>
-                                  ))}
+                                  {/* Phase 41: แสดง "การ์ดย่อ" กดขยายเป็นฟองดูการ์ด/ถอด Item ได้เลย */}
+                                  <span className="flex flex-wrap items-start gap-1.5">
+                                    {equippedCards.map((equipped) => (
+                                      <span key={`${equipped.cardId}-${equipped.slot}`} data-bag-equipped-card={equipped.cardId}>
+                                        <CardMiniPreview
+                                          card={{
+                                            cardId: equipped.cardId,
+                                            nameTh: equipped.nameTh,
+                                            rarity: equipped.rarity ?? null,
+                                            imageUrl: equipped.imageUrl ?? null,
+                                            imageStatus: equipped.imageStatus ?? null,
+                                          }}
+                                          width={48}
+                                          badge="🎴"
+                                          onChanged={() => { void load(); }}
+                                        />
+                                        <span className="mt-0.5 block max-w-[74px] truncate text-[9px] text-emerald-200">
+                                          {t(`item.slot.${equipped.slot}`)}
+                                        </span>
+                                      </span>
+                                    ))}
+                                  </span>
                                 </div>
                               )}
                             </div>

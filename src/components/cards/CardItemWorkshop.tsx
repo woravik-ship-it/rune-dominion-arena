@@ -13,6 +13,7 @@ import { apiFetch } from '@/lib/api-client';
 import { useI18n } from '@/components/providers/LocaleProvider';
 import { useAudio } from '@/components/providers/AudioProvider';
 import { emitVeilShardsChanged } from '@/lib/veil-shard-events';
+import ConfirmDialog from '@/components/ui/ConfirmDialog';
 
 interface ItemStatsView {
   atk: number;
@@ -80,6 +81,9 @@ export default function CardItemWorkshop({
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
   const [sellConfirm, setSellConfirm] = useState(false);
+  /** Phase 41: ยืนยันก่อนสลับ/ถอด Item (ผู้ใช้สั่ง: "การเปลี่ยน Item ต้องมีหน้า Confirm") */
+  const [confirmSwap, setConfirmSwap] = useState<{ slot: SlotKey; from: EquippedView | null; to: AvailableView } | null>(null);
+  const [confirmUnequip, setConfirmUnequip] = useState<{ slot: SlotKey; item: EquippedView } | null>(null);
 
   const load = useCallback(async () => {
     try {
@@ -220,7 +224,7 @@ export default function CardItemWorkshop({
                   <button
                     type="button"
                     data-item-unequip={slot}
-                    onClick={() => unequip(slot)}
+                    onClick={() => equipped && setConfirmUnequip({ slot, item: equipped })}
                     disabled={busy === `unequip:${slot}`}
                     className="rounded bg-white/10 px-2 py-0.5 text-[11px] text-gray-200 hover:bg-white/20 disabled:opacity-50"
                   >
@@ -245,7 +249,14 @@ export default function CardItemWorkshop({
                       type="button"
                       data-item-option={option.itemCode}
                       data-item-slot-option={slot}
-                      onClick={() => equip(slot, option.itemCode)}
+                      onClick={() => {
+                        // มีของในช่องแล้ว = เป็นการ "เปลี่ยน" → ยืนยันก่อน (ผู้ใช้สั่ง)
+                        if (equipped && equipped.itemCode !== option.itemCode) {
+                          setConfirmSwap({ slot, from: equipped, to: option });
+                          return;
+                        }
+                        void equip(slot, option.itemCode);
+                      }}
                       disabled={!usable || busy === `${slot}:${option.itemCode}` || isEquipped}
                       className={`rounded-lg border px-2 py-1 text-[11px] transition-colors ${
                         isEquipped
@@ -318,6 +329,59 @@ export default function CardItemWorkshop({
 
       {message && <p className="mt-2 text-xs text-emerald-400">{message}</p>}
       {error && <p className="mt-2 text-xs text-red-400">{error}</p>}
+
+      {/* ยืนยันเปลี่ยน Item (ของเดิม → ของใหม่) */}
+      <ConfirmDialog
+        open={confirmSwap !== null}
+        busy={busy !== ''}
+        title="เปลี่ยน Item ในช่องนี้?"
+        confirmLabel="เปลี่ยน"
+        cancelLabel="ยกเลิก"
+        onConfirm={() => {
+          const pending = confirmSwap;
+          setConfirmSwap(null);
+          if (pending) void equip(pending.slot, pending.to.itemCode);
+        }}
+        onCancel={() => setConfirmSwap(null)}
+      >
+        {confirmSwap && (
+          <div data-item-swap-confirm className="mt-2 space-y-1 text-sm">
+            <p className="text-gray-300">{t(`item.slot.${confirmSwap.slot}`)}</p>
+            {confirmSwap.from && (
+              <p className="text-gray-400">
+                เดิม: {confirmSwap.from.icon} {confirmSwap.from.nameTh}
+                <span className="text-gray-500"> ({statLabel(confirmSwap.from.stats) || 'ไม่มีสถานะ'})</span>
+              </p>
+            )}
+            <p className="text-gray-200">
+              ใหม่: {confirmSwap.to.icon} {confirmSwap.to.nameTh}
+              <span className="text-gray-500"> ({statLabel(confirmSwap.to.stats) || 'ไม่มีสถานะ'})</span>
+            </p>
+          </div>
+        )}
+      </ConfirmDialog>
+
+      {/* ยืนยันถอด Item */}
+      <ConfirmDialog
+        open={confirmUnequip !== null}
+        danger
+        busy={busy !== ''}
+        title="ถอด Item ออก?"
+        confirmLabel="ถอดออก"
+        cancelLabel="ยกเลิก"
+        onConfirm={() => {
+          const pending = confirmUnequip;
+          setConfirmUnequip(null);
+          if (pending) void unequip(pending.slot);
+        }}
+        onCancel={() => setConfirmUnequip(null)}
+      >
+        {confirmUnequip && (
+          <p data-item-unequip-confirm className="text-sm text-gray-300">
+            {confirmUnequip.item.icon} {confirmUnequip.item.nameTh} · {t(`item.slot.${confirmUnequip.slot}`)}
+          </p>
+        )}
+      </ConfirmDialog>
     </section>
   );
 }

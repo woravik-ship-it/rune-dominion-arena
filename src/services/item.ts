@@ -358,21 +358,24 @@ export class ItemService {
    */
   static async equippedCardsByItem(
     userId: string
-  ): Promise<Map<string, Array<{ cardId: string; nameTh: string; slot: ItemSlot }>>> {
+  ): Promise<Map<string, Array<{ cardId: string; nameTh: string; slot: ItemSlot; imageUrl: string | null; imageStatus: string; rarity: string }>>> {
     const slots = await prisma.cardItemSlot.findMany({
       where: { userCard: { userId } },
       include: {
         item: { select: { code: true } },
-        userCard: { include: { card: { select: { id: true, nameTh: true, name: true } } } },
+        userCard: { include: { card: { select: { id: true, nameTh: true, name: true, imageUrl: true, imageStatus: true, rarity: true } } } },
       },
     });
-    const out = new Map<string, Array<{ cardId: string; nameTh: string; slot: ItemSlot }>>();
+    const out = new Map<string, Array<{ cardId: string; nameTh: string; slot: ItemSlot; imageUrl: string | null; imageStatus: string; rarity: string }>>();
     for (const row of slots) {
       const list = out.get(row.item.code) ?? [];
       list.push({
         cardId: row.userCard.card.id,
         nameTh: row.userCard.card.nameTh ?? row.userCard.card.name,
         slot: row.slot,
+        imageUrl: row.userCard.card.imageUrl,
+        imageStatus: row.userCard.card.imageStatus,
+        rarity: row.userCard.card.rarity,
       });
       out.set(row.item.code, list);
     }
