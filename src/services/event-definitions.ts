@@ -18,8 +18,8 @@ export interface MilestoneDef {
 
 // Personal Milestones (GDD §13.6)
 export const PERSONAL_MILESTONES: MilestoneDef[] = [
-  { scope: 'PERSONAL', tier: 1, threshold: 2_000, title: 'Veil Touched', titleTh: 'ผู้สัมผัสม่าน', rewardType: 'COIN', rewardAmount: 100 },
-  { scope: 'PERSONAL', tier: 2, threshold: 5_000, title: 'Dust Gatherer', titleTh: 'นักรวบฝุ่นเวท', rewardType: 'CRAFTING_DUST', rewardAmount: 50 },
+  { scope: 'PERSONAL', tier: 1, threshold: 2_000, title: 'Veil Touched', titleTh: 'ผู้สัมผัสม่าน', rewardType: 'COIN', rewardAmount: 60 },
+  { scope: 'PERSONAL', tier: 2, threshold: 5_000, title: 'Dust Gatherer', titleTh: 'นักรวบฝุ่นเวท', rewardType: 'CRAFTING_DUST', rewardAmount: 60 },
   { scope: 'PERSONAL', tier: 3, threshold: 10_000, title: 'Rift Observer', titleTh: 'ผู้สังเกตการณ์รอยแยก', rewardType: 'CARD', rewardAmount: 1, rewardLabel: 'ผู้สังเกตการณ์รอยแยก' },
   { scope: 'PERSONAL', tier: 4, threshold: 20_000, title: 'Moonless Frame', titleTh: 'กรอบม่านไร้จันทร์', rewardType: 'COSMETIC', rewardAmount: 1, rewardLabel: 'Avatar Frame: ม่านไร้จันทร์' },
   { scope: 'PERSONAL', tier: 5, threshold: 35_000, title: 'Shadow Variant', titleTh: 'ภาพเงาแห่งรอยแยก', rewardType: 'COSMETIC', rewardAmount: 1, rewardLabel: 'Shadow Card Art Variant' },
@@ -49,8 +49,8 @@ export interface ShopItemDef {
 
 // Event Shop — ซื้อด้วย Veil Shards
 export const SHOP_ITEMS: ShopItemDef[] = [
-  { code: 'SHARD_BUNDLE_COIN', name: 'Coin Cache', nameTh: 'ถุง Coin', descriptionTh: 'แลก Veil Shards เป็น Coin ภายในเกม', price: 15, rewardType: 'COIN', rewardAmount: 150, perUserLimit: 5 },
-  { code: 'SHARD_CRAFTING_DUST', name: 'Crafting Dust', nameTh: 'ฝุ่นเวท', descriptionTh: 'วัตถุดิบสำหรับงานคราฟต์', price: 20, rewardType: 'CRAFTING_DUST', rewardAmount: 25, perUserLimit: 5 },
+  { code: 'SHARD_BUNDLE_COIN', name: 'Coin Cache', nameTh: 'ถุง Coin', descriptionTh: 'แลก Veil Shards เป็น Coin ภายในเกม (1 Shard ≈ 5 Coin)', price: 20, rewardType: 'COIN', rewardAmount: 100, perUserLimit: 5 },
+  { code: 'SHARD_CRAFTING_DUST', name: 'Crafting Dust', nameTh: 'ฝุ่นเวท', descriptionTh: 'วัตถุดิบสำหรับงานคราฟต์ (คุ้มกว่าซื้อด้วย Coin)', price: 15, rewardType: 'CRAFTING_DUST', rewardAmount: 30, perUserLimit: 5 },
   { code: 'SHARD_COSMETIC_VEIL', name: 'Veil Cosmetic', nameTh: 'เครื่องประดับม่าน', descriptionTh: 'ของประดับธีมม่านไร้จันทร์', price: 60, rewardType: 'COSMETIC', rewardAmount: 1, perUserLimit: 1 },
   { code: 'SHARD_TITLE_RIFT', name: 'Title: Rift Walker', nameTh: 'ฉายา: ผู้เดินรอยแยก', descriptionTh: 'ฉายาเฉพาะกิจกรรม', price: 100, rewardType: 'TITLE', rewardAmount: 1, perUserLimit: 1 },
 ];
@@ -96,6 +96,6 @@ export interface EventQuestDef {
 // Event Quests — ทำแล้วได้ Veil Shards (GDD §13.2)
 export const EVENT_QUESTS: EventQuestDef[] = [
   { name: 'Rift Scout', nameTh: 'สำรวจรอยแยก', descriptionTh: 'เข้าร่วม Raid 3 ครั้ง', type: 'DAILY', targetValue: 3, rewardAmount: 30, currencyReward: 5 },
-  { name: 'Shard Collector', nameTh: 'นักสะสมเศษม่าน', descriptionTh: 'สะสม Veil Shards 50 ชิ้น', type: 'WEEKLY', targetValue: 50, rewardAmount: 100, currencyReward: 10 },
-  { name: 'Gate Breaker', nameTh: 'ผู้ทลายประตู', descriptionTh: 'สร้างดาเมจรวม 50,000', type: 'MILESTONE', targetValue: 50_000, rewardAmount: 300, currencyReward: 25 },
+  { name: 'Shard Collector', nameTh: 'นักสะสมเศษม่าน', descriptionTh: 'สะสม Veil Shards 50 ชิ้น', type: 'WEEKLY', targetValue: 50, rewardAmount: 60, currencyReward: 8 },
+  { name: 'Gate Breaker', nameTh: 'ผู้ทลายประตู', descriptionTh: 'สร้างดาเมจรวม 50,000', type: 'MILESTONE', targetValue: 50_000, rewardAmount: 200, currencyReward: 20 },
 ];

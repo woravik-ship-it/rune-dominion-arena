@@ -16,6 +16,19 @@ import {
   type DungeonDef, type DungeonFloorDef,
 } from '@/lib/dungeon-definitions';
 
+/** คูณ status ฐานด้วยตัวคูณ (ใช้กับ bossScale) — integer เท่านั้น */
+function scaleStats4(
+  base: { atk: number; def: number; hp: number; spd: number },
+  factor: number
+): { atk: number; def: number; hp: number; spd: number } {
+  return {
+    atk: Math.max(1, Math.floor(base.atk * factor)),
+    def: Math.max(0, Math.floor(base.def * factor)),
+    hp: Math.max(1, Math.floor(base.hp * factor)),
+    spd: Math.max(1, Math.floor(base.spd * factor)),
+  };
+}
+
 const CARD_ID_PREFIX = 'dungeon:';
 
 export type DungeonEnemyKind = 'boss' | 'minion';
@@ -105,7 +118,9 @@ export function dungeonEnemyInfo(dungeon: DungeonDef, ref: DungeonCardRef): Dung
   const isBoss = ref.kind === 'boss';
   const elements = dungeon.elements.length > 0 ? dungeon.elements : ['VEILMARKED'];
   const base = isBoss ? dungeon.bossBase : dungeon.minionBase;
-  const stats = scaleStats(base, floor.scale);
+  // ชั้นที่มีบอสหลายตัว: บอสถูกลด status ลงเพื่อคงงบทีม (ดู bossScale ในนิยามชั้น)
+  const bossScale = isBoss ? Math.min(1, Math.max(0.2, floor.bossScale ?? 1)) : 1;
+  const stats = scaleStats(scaleStats4(base, bossScale), floor.scale);
   const element = isBoss
     ? elements[(ref.index - 1) % elements.length]
     : elements[ref.index % elements.length];

@@ -137,8 +137,8 @@ export function levelRewardItem(level: number): string | null {
 /** รางวัลเมื่อ "ขึ้นมาเลเวลนี้" (Coin + พลังงาน + Item) */
 export function levelReward(level: number): LevelReward {
   const target = clampLevel(level);
-  // Coin เพิ่มตามเลเวลแบบนุ่ม ๆ (ไม่ให้เงินเฟ้อ): 20 + 6×เลเวล
-  const coins = 20 + target * 6;
+  // Coin เพิ่มแบบนุ่มมาก (Phase 37 กันเงินเฟ้อ): 12 + 2×เลเวล ⇒ L350 ได้ 712 (เดิม 2,120)
+  const coins = 12 + target * 2;
   return { coins, energy: target, itemCode: levelRewardItem(target) };
 }
 

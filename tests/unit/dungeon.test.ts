@@ -43,7 +43,8 @@ describe('dungeon-definitions', () => {
       const doubleBoss = dungeon.floors.filter((f) => floorBossCount(f) === 2);
       const tripleBoss = dungeon.floors.filter((f) => floorBossCount(f) === 3);
       expect(doubleBoss.length).toBeGreaterThan(0);
-      expect(tripleBoss.length).toBeGreaterThan(0);
+      // ดันเสียเงินตั้งใจให้สูงสุด 2 ตัว (ผู้ใช้สั่ง: ค่าเข้าต้องคุ้ม ⇒ ต้องผ่านได้ด้วยของระดับตำนาน)
+      if (dungeon.entry !== 'COIN') expect(tripleBoss.length).toBeGreaterThan(0);
       for (const floor of dungeon.floors) {
         expect(enemyTeamSize(floor)).toBe(DUNGEON_TEAM_SIZE);
         expect(floor.minions).toBe(DUNGEON_TEAM_SIZE - floorBossCount(floor));
@@ -175,7 +176,7 @@ describe('dungeon — ช่วงเวลาเข้าฟรี (บอก�
 
     const coin = freeEntryStatusTh(findDungeon('GILDED_ABYSS')!, new Date(2026, 0, 5, 3, 0));
     expect(coin.open).toBe(true);
-    expect(coin.labelTh).toContain('50 Coin');
+    expect(coin.labelTh).toContain('35 Coin');
   });
 });
 

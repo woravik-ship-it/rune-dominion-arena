@@ -36,6 +36,8 @@
     "inspect:arena": "node scripts/inspect-arena-room.mjs",
     "inspect:dungeons": "node scripts/inspect-dungeons.mjs",
     "calibrate:dungeons": "tsx scripts/calibrate-dungeons.mts",
+    "inspect:economy": "node scripts/inspect-economy.mjs",
+    "reset:dungeon-balance": "node scripts/reset-dungeon-balance.mjs",
     "inspect:mobile": "node scripts/inspect-mobile-overflow.mjs",
     "inspect:notif-read": "node scripts/inspect-notification-read.mjs",
     "inspect:items": "node scripts/inspect-item-workshop.mjs",

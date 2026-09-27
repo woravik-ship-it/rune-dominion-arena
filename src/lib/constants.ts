@@ -36,7 +36,7 @@ export const GRID_SIZE = 100;
 export const TOTAL_GRID_POINTS = 10000;
 
 // Wallet
-export const STARTING_COIN = 100;
+export const STARTING_COIN = 10; // Phase 37: ลดจาก 100 → 10 (กันเงินเฟ้อตั้งแต่ต้นเกม)
 export const STARTING_ENERGY = 5;
 export const MAX_ENERGY = 10;
 
@@ -45,8 +45,8 @@ export const ARENA_CREATE_FEE = 30;
 export const ARENA_ENTRY_FEE = 10;
 export const ARENA_DURATION_HOURS = 24;
 export const ARENA_MAX_PARTICIPANTS = 50;
-export const ARENA_BASE_REWARD = 100;
-export const ARENA_MAX_REWARD = 500;
+export const ARENA_BASE_REWARD = 60; // Phase 37: ลดจาก 100 (รางวัลต่อคนต่อห้องเคยสูงเกิน)
+export const ARENA_MAX_REWARD = 300; // Phase 37: ลดจาก 500
 export const ARENA_COOLDOWN_MINUTES = 5;
 export const ARENA_DAILY_LIMIT = 20;
 

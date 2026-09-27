@@ -10,14 +10,14 @@ import {
 
 describe('Arena Service', () => {
   describe('calculateArenaReward', () => {
-    it('สูตร min(100 + n×5, 500)', () => {
-      expect(calculateArenaReward(0)).toBe(100);
-      expect(calculateArenaReward(10)).toBe(150);
-      expect(calculateArenaReward(20)).toBe(200);
+    it('สูตร min(60 + n×5, 300)', () => {
+      expect(calculateArenaReward(0)).toBe(60);
+      expect(calculateArenaReward(10)).toBe(110);
+      expect(calculateArenaReward(20)).toBe(160);
     });
-    it('เพดาน 500', () => {
-      expect(calculateArenaReward(80)).toBe(500);
-      expect(calculateArenaReward(1000)).toBe(500);
+    it('เพดาน 300', () => {
+      expect(calculateArenaReward(80)).toBe(300);
+      expect(calculateArenaReward(1000)).toBe(300);
     });
     it('ผลเป็น integer', () => {
       expect(Number.isInteger(calculateArenaReward(7))).toBe(true);

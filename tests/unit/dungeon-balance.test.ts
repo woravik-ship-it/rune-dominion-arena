@@ -118,7 +118,7 @@ describe('ดันเจี้ยน — ความยากต้องใ�
   });
 
   test('ชั้นลึกมีบอส 2-3 ตัว และคนติดของยังผ่านได้ (ดันกลาง/สูง)', () => {
-    for (const code of ['MOONLESS_RIFT', 'GILDED_ABYSS', 'STORMREACH_SPIRE']) {
+    for (const code of ['MOONLESS_RIFT', 'STORMREACH_SPIRE']) {
       const dungeon = findDungeon(code)!;
       const twoBoss = dungeon.floors.filter((f) => (f.bosses ?? 1) === 2).pop()!;
       const threeBoss = dungeon.floors.filter((f) => (f.bosses ?? 1) === 3).pop()!;

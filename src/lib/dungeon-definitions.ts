@@ -11,27 +11,40 @@ export interface DungeonFloorDef {
   minions: number;
   /** จำนวนบอสในชั้นนี้ (ไม่ระบุ = 1) — ชั้นลึกใช้ 2-3 ตัวเป็นขั้นความยากจริง */
   bosses?: number;
+  /**
+   * ตัวคูณ status ของ "บอส" ในชั้นนี้ (ไม่ระบุ = 1)
+   * ใช้คง "งบ status รวมของทีมศัตรู" ให้เท่ากับทีมบอส 1 ตัว ⇒ จำนวนบอสไม่ทำให้ความยากแกว่ง
+   */
+  bossScale?: number;
   scale: number;
   reward: DungeonRewardDef;
 }
 
-/** ชั้นลึกที่สร้างอัตโนมัติต่อจากชั้นที่เขียนมือ (ผู้ใช้สั่ง 2026-09-27: "เพิ่มชั้นไปอีก 20-40 ชั้น") */
+/**
+ * ชั้นดันเจี้ยน: ความยาก "เป็นบล็อกละ 5 ชั้น" (Phase 37)
+ *
+ * ผู้ใช้สั่ง 2026-09-27: *"ดันเจี้ยน…ควรทำให้เป็น Step 5 ชั้น แล้วขยับ ให้เก่งขึ้นแบบเห็นได้ชัด"*
+ *  ⇒ 5 ชั้นในบล็อกเดียวกันใช้ status ชุดเดียวกัน (เล่นได้หลายรอบไม่รู้สึกวืด)
+ *    แล้ว **กระโดดชัดเจนที่ชั้นแรกของบล็อกถัดไป** (blockStep ~+10-14% ต่อบล็อก)
+ *    + บอสเพิ่มเป็น 2 ตัวที่บล็อก 3 และ 3 ตัวที่บล็อก 5 → เป็นหมุดหมายที่ผู้เล่นเห็นชัด
+ */
+export const FLOOR_BLOCK_SIZE = 5;
+
 export interface DungeonDeepFloorsDef {
-  /** จำนวนชั้นลึกที่เพิ่มต่อจากชั้นที่เขียนมือ */
+  /** จำนวนชั้นทั้งหมดของดัน (ไม่รวมชั้นที่เขียนมือที่ถูกเขียนทับด้วยความยากแบบบล็อกแล้ว) */
   extra: number;
-  /**
-   * เพดาน "ความยากจริง" (effective difficulty = scale × น้ำหนักจำนวนบอส)
-   * ชั้นลึกจะไล่เข้าใกล้ค่านี้แบบ asymptotic แล้วค่อย ๆ นิ่ง
-   */
+  /** ตัวคูณความยากต่อบล็อก (5 ชั้น) — ยิ่งมากยิ่งกระโดดชัด */
+  blockStep: number;
+  /** เพดาน "ความยากจริง" (effective difficulty = scale × น้ำหนักจำนวนบอส) */
   difficultyCap: number;
-  /** อัตราเข้าใกล้เพดานต่อชั้น (0-1 · ยิ่งน้อยยิ่งชัน) */
-  ratio: number;
-  /** ตัวคูณรางวัล (ฝุ่นเวท) ต่อชั้น */
-  rewardGrowth: number;
-  /** ชั้นที่เริ่มมีบอส 2 ตัว / 3 ตัว (นับเลขชั้นจริง) */
-  doubleBossAt: number;
-  tripleBossAt: number;
-  /** ชื่อชั้นลึก (วนใช้ตามลำดับ) */
+  /** ตัวคูณรางวัล "ฝุ่นเวท" ต่อบล็อก (5 ชั้น) — รางวัลกระโดดตามความยาก */
+  blockRewardStep: number;
+  /** ตัวคูณรางวัล "Veil Shards" ต่อบล็อก (ช้ากว่าฝุ่น เพื่อกันเงินเฟ้อ) */
+  blockShardStep: number;
+  /** บล็อกที่เริ่มมีบอส 2 ตัว / 3 ตัว (นับจาก 1) */
+  doubleBossBlock: number;
+  tripleBossBlock: number;
+  /** ชื่อชั้น (วนใช้ตามบล็อก) */
   deepNames: string[];
   /** บันไดไอเทมดรอปตามชั้น (ใช้รายการสุดท้ายที่ fromFloor ≤ ชั้นนั้น) */
   dropLadder: Array<{ fromFloor: number; code: string; chance: number }>;
@@ -56,6 +69,16 @@ export interface DungeonDef {
 
 /** ขนาดทีมต่อศึก (ผู้เล่น 5 ใบ = ศัตรู 5 ใบ) */
 export const DUNGEON_TEAM_SIZE = 5;
+
+/**
+ * ค่าเข้าดันเสียเงิน (Coin) — Phase 37: ลดจาก 50 → 35
+ * ผู้ใช้แจ้ง: *"แบบเสียเงินก็มากเกินไป จนค่าเข้าไม่คุ้มกับรางวัล"*
+ * ⇒ ลดค่าเข้า + เพิ่มรางวัลต่อชั้น (blockRewardBonus) + **แพ้คืนค่าเข้า 50%** (ดู DUNGEON_LOSS_REFUND)
+ */
+export const DUNGEON_COIN_ENTRY = 35;
+
+/** สัดส่วนค่าเข้าที่คืนให้เมื่อ "แพ้" ดันเสียเงิน (ไม่ให้ผู้เล่นเจ็บตัวหนักจากการลอง) */
+export const DUNGEON_LOSS_REFUND = 0.5;
 
 /** เพดานเลขชั้นสูงสุดที่รับได้ (ใช้ตรวจ input ของ API) */
 export const DUNGEON_MAX_FLOOR = 60;
@@ -102,9 +125,9 @@ const BUILD_DUNGEONS: DungeonDef[] = [
     ],
     // เพิ่มอีก 22 ชั้น → รวม 25 ชั้น (ผู้ใช้สั่ง: เพิ่มชั้นไปอีก 20-40 ชั้น)
     deepFloors: {
-      extra: 22, difficultyCap: 1.38, ratio: 0.9, rewardGrowth: 1.06,
-      doubleBossAt: 13, tripleBossAt: 21,
-      deepNames: ['ห้วงเถ้าถ่าน', 'โถงถ่านหลอม', 'เหวเถ้าร้อน', 'ห้องธุลีเพลิง', 'ปล่องลาวา', 'บัลลังก์เถ้า'],
+      extra: 25, blockStep: 1.09, difficultyCap: 1.45, blockRewardStep: 1.3, blockShardStep: 1.2,
+      doubleBossBlock: 3, tripleBossBlock: 5,
+      deepNames: ['ปากทางเถ้าถ่าน', 'ห้วงเถ้าถ่าน', 'เหวเถ้าร้อน', 'ปล่องลาวา', 'บัลลังก์เถ้า'],
       dropLadder: [
         { fromFloor: 4, code: 'ATK_WHETSTONE', chance: 20 },
         { fromFloor: 5, code: 'ATK_SPARK_SHARD', chance: 20 },
@@ -134,9 +157,9 @@ const BUILD_DUNGEONS: DungeonDef[] = [
     ],
     // เพิ่มอีก 24 ชั้น → รวม 28 ชั้น
     deepFloors: {
-      extra: 24, difficultyCap: 1.42, ratio: 0.9, rewardGrowth: 1.06,
-      doubleBossAt: 13, tripleBossAt: 22,
-      deepNames: ['ห้วงน้ำลึก', 'ถ้ำปะการังดำ', 'สระแสงจันทร์ลึก', 'ระเบียงคลื่นเงียบ', 'แกนสมุทร', 'วังน้ำวน'],
+      extra: 28, blockStep: 1.09, difficultyCap: 1.55, blockRewardStep: 1.3, blockShardStep: 1.2,
+      doubleBossBlock: 3, tripleBossBlock: 5,
+      deepNames: ['บันไดปะการัง', 'ห้วงน้ำลึก', 'สระแสงจันทร์ลึก', 'แกนสมุทร', 'วังน้ำวน', 'ห้วงอเวจี'],
       dropLadder: [
         { fromFloor: 5, code: 'DEF_IRONWEAVE', chance: 20 },
         { fromFloor: 6, code: 'DEF_SCALEWARD', chance: 18 },
@@ -165,9 +188,9 @@ const BUILD_DUNGEONS: DungeonDef[] = [
     ],
     // เพิ่มอีก 24 ชั้น → รวม 28 ชั้น
     deepFloors: {
-      extra: 24, difficultyCap: 1.5, ratio: 0.9, rewardGrowth: 1.06,
-      doubleBossAt: 12, tripleBossAt: 21,
-      deepNames: ['ม่านบิดเบี้ยว', 'โถงไร้ดาว', 'ซอกจันทราแตก', 'ห้วงคำสาป', 'ประตูไร้แสง', 'แกนม่านเงา'],
+      extra: 28, blockStep: 1.1, difficultyCap: 1.62, blockRewardStep: 1.32, blockShardStep: 1.2,
+      doubleBossBlock: 3, tripleBossBlock: 5,
+      deepNames: ['ม่านชั้นนอก', 'ม่านบิดเบี้ยว', 'ซอกจันทราแตก', 'ประตูไร้แสง', 'แกนม่านเงา', 'ใจกลางรอยแยก'],
       dropLadder: [
         { fromFloor: 5, code: 'ATK_ASHEN_SPIKE', chance: 20 },
         { fromFloor: 6, code: 'ATK_HUNTERS_TALON', chance: 18 },
@@ -184,7 +207,7 @@ const BUILD_DUNGEONS: DungeonDef[] = [
   {
     code: 'GILDED_ABYSS', name: 'Gilded Abyss', nameTh: 'เหวลึกทองคำ',
     descriptionTh: 'ดันเหรียญ — จ่าย Coin เข้า ดรอปหนักที่สุด (ของคราฟต์ระดับสูง)',
-    icon: '💰', entry: 'COIN', coinCost: 50, freeHours: [], lossDustRatio: 0.25,
+    icon: '💰', entry: 'COIN', coinCost: DUNGEON_COIN_ENTRY, freeHours: [], lossDustRatio: 0.25,
     minionBase: { atk: 97, def: 65, hp: 331, spd: 23 },
     bossBase: { atk: 194, def: 132, hp: 878, spd: 29 },
     elements: ['TIDEBORN', 'DAWNSWORN', 'VEILMARKED', 'EMBERBOUND'],
@@ -196,9 +219,9 @@ const BUILD_DUNGEONS: DungeonDef[] = [
     ],
     // เพิ่มอีก 26 ชั้น → รวม 30 ชั้น
     deepFloors: {
-      extra: 26, difficultyCap: 1.42, ratio: 0.9, rewardGrowth: 1.06,
-      doubleBossAt: 12, tripleBossAt: 22,
-      deepNames: ['อุโมงค์ทองคำ', 'คลังลึกลับ', 'เหวฉายทอง', 'บ่อหลอมสมบัติ', 'โลงทองคำ', 'ก้นเหวมรณะ'],
+      extra: 30, blockStep: 1.06, difficultyCap: 1.3, blockRewardStep: 1.35, blockShardStep: 1.25,
+      doubleBossBlock: 4, tripleBossBlock: 7,
+      deepNames: ['บันไดทอง', 'คลังลึกลับ', 'เหวฉายทอง', 'โลงทองคำ', 'ก้นเหวสมบัติ', 'ก้นเหวมรณะ'],
       dropLadder: [
         { fromFloor: 5, code: 'DEF_TIDEWALL', chance: 20 },
         { fromFloor: 10, code: 'DEF_STORMBULWARK', chance: 18 },
@@ -231,9 +254,9 @@ const BUILD_DUNGEONS: DungeonDef[] = [
     ],
     // เพิ่มอีก 35 ชั้น → รวม 40 ชั้น
     deepFloors: {
-      extra: 35, difficultyCap: 1.24, ratio: 0.9, rewardGrowth: 1.05,
-      doubleBossAt: 10, tripleBossAt: 20,
-      deepNames: ['บันไดฟ้าคำราม', 'หอคอยเมฆดำ', 'ห้วงลมกรด', 'ระเบียงสายฟ้า', 'ใจกลางพายุ', 'ดวงตาพายุ'],
+      extra: 40, blockStep: 1.05, difficultyCap: 1.16, blockRewardStep: 1.3, blockShardStep: 1.2,
+      doubleBossBlock: 3, tripleBossBlock: 5,
+      deepNames: ['ลานลมกรด', 'หอคอยเมฆดำ', 'ระเบียงสายฟ้า', 'ใจกลางพายุ', 'ดวงตาพายุ', 'บัลลังก์พายุ', 'ฟากฟ้าดำ', 'ยอดจักรวาล'],
       dropLadder: [
         { fromFloor: 6, code: 'SUP_DUSKVEIL', chance: 22 },
         { fromFloor: 10, code: 'DEF_IRONWEAVE', chance: 22 },
@@ -257,17 +280,25 @@ export const DUNGEON_ENTRY_LABEL: Record<DungeonEntryKind, string> = {
 };
 
 /**
- * น้ำหนักความยากของ "องค์ประกอบทีม" (บอส 2-3 ตัว) — ค่าคงที่ที่วัดจากของจริง
+ * งบ status ของทีมศัตรูเมื่อมีบอสหลายตัว (Phase 37)
  *
- * วัดด้วย `npm run calibrate:dungeons -- --scan <ดัน>:<ชั้น> --deck <legendary|mythic>`:
- * ทีม "บอส 2 + ลูกน้อง 3" ที่สเกล ×0.72 ≫ ยังชนะได้ แต่ ×0.9 เริ่มแพ้ ⇒ น้ำหนัก ≈ 1.4
- * และ "บอส 3 + ลูกน้อง 2" ที่ ×0.60 ยังชนะได้ แต่ ×0.75 เริ่มแพ้ ⇒ น้ำหนัก ≈ 1.7
- * (บอสมี HP/ATK ต่อใบสูงกว่าลูกน้องมาก ⇒ ทีมที่มีบอสเพิ่มจึงยากกว่าที่จำนวนใบบอก)
+ * ที่มา: วัดจริงพบว่า "เพดานความยาก" ของเด็คที่ใส่ของครบอยู่ราวสเกล 1.15
+ * ⇒ ถ้าดันสเกลขึ้นเรื่อย ๆ ชั้นลึกจะผ่านไม่ได้เลยทุกเด็ค (9 วัด: mythic 0% ที่สเกล 1.19)
+ * วิธีที่ถูกคือ: สเกลไล่ช้า ๆ (+4-6% ต่อบล็อก) แล้วให้ **ขนาดทีมศัตรู** เป็นขั้นความยากที่เห็นชัด
+ *   บอส 1 ตัว = งบมาตรฐาน · บอส 2 ตัว = +12% · บอส 3 ตัว = +25%
  */
-export function bossWeight(bosses: number): number {
+export function bossWeight(bosses = 1): number {
+  // วัดจริง (calibrate-dungeons): ทีม "บอส 2 + ลูกน้อง 3" ยากกว่างบ status ที่เท่ากันราว ×1.4
+  // และ "บอส 3 + ลูกน้อง 2" ราว ×1.7 (บอสยิงแรงรวมศูนย์ ⇒ ผู้เล่นเสียการ์ดเป็นใบ ๆ เร็วกว่า)
+  // ⇒ ตอนแปลง "ความยากเป้าหมาย" เป็นสเกลของชั้น ต้องหารด้วยค่านี้
   if (bosses >= 3) return 1.7;
   if (bosses === 2) return 1.4;
   return 1;
+}
+
+/** ความยากจริงของชั้น = scale × น้ำหนักจำนวนบอส */
+export function floorDifficultyRaw(floor: DungeonFloorDef): number {
+  return floor.scale * bossWeight(floorBossCount(floor));
 }
 
 /**
@@ -275,7 +306,7 @@ export function bossWeight(bosses: number): number {
  * (ชั้นที่มีบอส 2-3 ตัวใช้สเกลต่ำกว่าชดเชย ⇒ ต้องดูคู่นี้จึงเทียบความยากได้)
  */
 export function floorDifficulty(floor: DungeonFloorDef): number {
-  return Math.round(floor.scale * bossWeight(floorBossCount(floor)) * 1000) / 1000;
+  return Math.round(floorDifficultyRaw(floor) * 1000) / 1000;
 }
 
 /** จำนวนบอสของชั้น (ไม่ระบุ = 1) */
@@ -302,28 +333,41 @@ export function buildDeepFloors(dungeon: DungeonDef): DungeonFloorDef[] {
   const def = dungeon.deepFloors;
   const written = dungeon.floors;
   if (!def || def.extra <= 0) return written;
-  const last = written[written.length - 1];
-  const floors: DungeonFloorDef[] = [...written];
+  const first = written[0];
+  const totalFloors = def.extra;
+  const floors: DungeonFloorDef[] = [];
 
-  for (let step = 1; step <= def.extra; step += 1) {
-    const floorNo = last.floor + step;
-    const bosses = floorNo >= def.tripleBossAt ? 3 : floorNo >= def.doubleBossAt ? 2 : 1;
-    // "ความยากจริง" ไล่เข้าใกล้เพดาน แล้วแปลงกลับเป็นสเกลของชั้นนั้น
-    // (ชั้นที่มีบอส 2-3 ตัวได้สเกลต่ำลง ⇒ ความยากต่อเนื่อง ไม่กระโดดข้ามกำแพง)
-    const lastDifficulty = floorDifficulty(last);
-    const difficulty = def.difficultyCap - (def.difficultyCap - lastDifficulty) * Math.pow(def.ratio, step);
+  for (let floorNo = 1; floorNo <= totalFloors; floorNo += 1) {
+    // บล็อกที่ 1 = ชั้น 1-5, บล็อกที่ 2 = ชั้น 6-10, ... (ผู้ใช้สั่ง: Step 5 ชั้น)
+    const block = Math.floor((floorNo - 1) / FLOOR_BLOCK_SIZE) + 1;
+    const bosses = block >= def.tripleBossBlock ? 3 : block >= def.doubleBossBlock ? 2 : 1;
+    // ความยากจริงของบล็อกนี้ — ไล่ทีละบล็อกจนถึงเพดานที่ "วัดได้จริง" ว่าเด็คเป้าหมายผ่านได้
+    // (วัดด้วย npm run calibrate:dungeons: เพดานของเด็คติดของครบอยู่ราวสเกล 1.10-1.30 แล้วแต่ดัน)
+    // ⇒ ดันสเกลเกินเพดาน = ชั้นท้ายผ่านไม่ได้ทุกเด็ค (เคยเกิดจริง) จึงตั้งเพดานตามค่าที่วัด
+
+    const difficulty = Number(
+      Math.min(def.difficultyCap, Math.pow(def.blockStep, block - 1)).toFixed(3)
+    );
     const scale = Number((difficulty / bossWeight(bosses)).toFixed(3));
-    const growth = Math.pow(def.rewardGrowth, step);
+    const bossScale = 1;
+    // รางวัลกระโดดตาม "บล็อก" (ไม่ใช่ต่อชั้น) ⇒ คาดเดาได้ และไม่ระเบิดเป็นทวีคูณ
+    const dust = Math.round(first.reward.dust * Math.pow(def.blockRewardStep, block - 1));
+    const shards = Math.max(1, Math.round(first.reward.shards * Math.pow(def.blockShardStep, block - 1)));
     const drop = [...def.dropLadder].reverse().find((row) => row.fromFloor <= floorNo);
+    const writtenFloor = written.find((row) => row.floor === floorNo);
     floors.push({
       floor: floorNo,
-      nameTh: def.deepNames[(step - 1) % def.deepNames.length],
+      // ชั้นที่เขียนมือเก็บชื่อเดิมไว้ (ผู้เล่นคุ้นเคย) · ชั้นถัดไปใช้ชื่อของบล็อกนั้น
+      nameTh:
+        writtenFloor?.nameTh ??
+        def.deepNames[(block - 1) % def.deepNames.length],
       bosses,
+      bossScale,
       minions: DUNGEON_TEAM_SIZE - bosses,
       scale,
       reward: {
-        dust: Math.round(last.reward.dust * growth),
-        shards: Math.round(last.reward.shards * Math.pow(def.rewardGrowth, step * 0.8)),
+        dust,
+        shards,
         itemDropCode: drop?.code ?? null,
         itemDropChance: drop?.chance ?? 0,
       },

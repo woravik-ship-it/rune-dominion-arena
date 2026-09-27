@@ -19,6 +19,8 @@ import {
 
 interface FloorView {
   floor: number; nameTh: string; unlocked: boolean; cleared: boolean;
+  /** Phase 37: ชั้นที่ N ของบล็อก (5 ชั้นต่อบล็อก) — ความยาก/รางวัลกระโดดเป็นบล็อก */
+  block?: number; blockFloor?: number;
   dust: number; lossDust: number; shards: number;
   itemNameTh: string | null; itemDropChance: number;
   minions: number; bosses: number; enemyNameTh: string;
@@ -284,7 +286,7 @@ export default function DungeonsPage() {
                 >
                   {floors.map((f) => (
                     <option key={f.floor} value={f.floor} disabled={!f.unlocked}>
-                      ชั้น {f.floor} · {f.nameTh}{f.cleared ? ' ✅' : ''}{f.bosses > 1 ? ` 👑×${f.bosses}` : ''}{f.unlocked ? '' : ' 🔒'}
+                      ชั้น {f.floor} · {f.nameTh}{f.cleared ? ' ✅' : ''}{f.bosses > 1 ? ` 👑×${f.bosses}` : ''}{f.block ? ` · ระดับ ${f.block}` : ''}{f.unlocked ? '' : ' 🔒'}
                     </option>
                   ))}
                 </select>

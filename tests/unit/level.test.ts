@@ -100,8 +100,8 @@ describe('Level/EXP — รางวัลขึ้นเลเวล', () => {
   });
 
   test('Coin เพิ่มตามเลเวลแบบนุ่ม ๆ (ไม่ให้เงินเฟ้อ)', () => {
-    expect(levelReward(2).coins).toBe(32);
-    expect(levelReward(350).coins).toBe(2120);
+    expect(levelReward(2).coins).toBe(16);
+    expect(levelReward(350).coins).toBe(712);
     expect(levelReward(100).coins).toBeGreaterThan(levelReward(2).coins);
   });
 
@@ -124,7 +124,7 @@ describe('Level/EXP — รางวัลขึ้นเลเวล', () => {
     expect(summary.gainedLevels).toBe(3);
     // เลเวล 6, 7, 8 → พลังงาน 6+7+8 (8 ไม่ใช่ผลคูณ 5 → ไม่มี Item)
     expect(summary.totalEnergy).toBe(6 + 7 + 8);
-    expect(summary.totalCoins).toBe(20 + 6 * 6 + 20 + 6 * 7 + 20 + 6 * 8);
+    expect(summary.totalCoins).toBe(12 + 2 * 6 + 12 + 2 * 7 + 12 + 2 * 8);
     expect(summary.items).toEqual([]);
 
     const many = levelUpSummary(expForLevel(9), expForLevel(11));

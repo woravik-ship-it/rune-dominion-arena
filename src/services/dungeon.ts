@@ -25,6 +25,7 @@ import {
   type DungeonDef,
 } from '@/lib/dungeon-definitions';
 import { dungeonEnemyInfo, dungeonEnemySlots } from '@/lib/dungeon-art';
+import { DUNGEON_LOSS_REFUND, FLOOR_BLOCK_SIZE } from '@/lib/dungeon-definitions';
 import { LevelService } from '@/services/level';
 import { EXP_REWARD, itemDropBonusPercent } from '@/lib/level';
 import { dungeonBattlePath } from '@/lib/battle-route';
@@ -55,6 +56,10 @@ export interface DungeonFloorView {
   bosses: number;
   /** ตัวคูณความยากของชั้น (ไว้โชว์/ตรวจสอบ) */
   scale: number;
+  /** Phase 37: บล็อกที่เท่าไร (5 ชั้นต่อบล็อก) — ความยาก/รางวัลกระโดดเป็นบล็อก */
+  block: number;
+  /** ลำดับชั้นภายในบล็อก (1-5) */
+  blockFloor: number;
   enemyNameTh: string;
 }
 
@@ -123,6 +128,8 @@ export async function listDungeons(userId: string, now = new Date()): Promise<Du
         minions: f.minions,
         enemyNameTh: `บอส ${floorBossCount(f)} · ลูกน้อง ${f.minions}`,
         scale: f.scale,
+        block: Math.floor((f.floor - 1) / FLOOR_BLOCK_SIZE) + 1,
+        blockFloor: ((f.floor - 1) % FLOOR_BLOCK_SIZE) + 1,
       })),
       bestFloor,
     };
@@ -155,6 +162,8 @@ export interface DungeonRunResult {
   dustEarned: number; shardsEarned: number;
   itemDropped: string | null; itemNameTh: string | null;
   coinsSpent: number; floor: number; nextFloor: number | null;
+  /** Coin ที่คืนให้เมื่อแพ้ (ดันเสียเงิน) */
+  coinsRefunded: number;
   /** โอกาสดรอปไอเทมจริงของรอบนี้ (%) — รวมโบนัสจากเลเวลผู้เล่นแล้ว */
   dropChance: number;
   /** false = ชั้นนี้เคยชนะแล้ว → รอบนี้เป็นรอบซ้อม ไม่มีรางวัล */
@@ -197,7 +206,7 @@ export async function runDungeon(params: {
       teamHpRemaining: existing.teamHpRemaining, enemyHpRemaining: existing.enemyHpRemaining,
       dustEarned: existing.dustEarned, shardsEarned: existing.shardsEarned,
       itemDropped: existing.itemDropped, itemNameTh: existing.itemNameTh,
-      coinsSpent: existing.coinsSpent, floor: existing.floor,
+      coinsSpent: existing.coinsSpent, floor: existing.floor, coinsRefunded: 0,
       rewardEligible: stored?.rewardEligible ?? true,
       dropChance: storedDropChance,
       nextFloor: existing.floor < dungeon.floors.length ? existing.floor + 1 : null,
@@ -256,6 +265,17 @@ async function finishRun(args: {
   }
   // ฝุ่นเวท/Shards: ชั้นที่ผ่านแล้ว = 0 ทั้งคู่ (ไม่มีรางวัลซ้ำ)
   const dustEarned = rewardEligible ? floorDustReward(dungeon!, floor, won) : 0;
+  // Phase 37: ดันที่จ่าย Coin — แพ้แล้วคืนค่าเข้าครึ่งหนึ่ง (ไม่ให้เจ็บตัวจากการลอง)
+  let coinsRefunded = 0;
+  if (!won && coinsSpent > 0) {
+    coinsRefunded = Math.floor(coinsSpent * DUNGEON_LOSS_REFUND);
+    if (coinsRefunded > 0) {
+      await WalletService.credit(
+        params.userId, coinsRefunded, 'REWARD', runId, 'DUNGEON_REFUND',
+        `คืนค่าเข้าดัน ${dungeon!.nameTh} (แพ้)`, `refund:${runId}`
+      );
+    }
+  }
   const shardsEarned = rewardEligible && won ? floor.reward.shards : 0;
   if (dustEarned > 0) {
     // รหัส/ชื่อ "ฝุ่นเวท" ต้องเป็นตัวเดียวกับทุกแหล่งที่มา (กิจกรรม/ร้านค้า)
@@ -330,7 +350,7 @@ async function finishRun(args: {
     runId: saved.runId, battleUrl: dungeonBattlePath(saved.runId), won, roundsPlayed: result.roundsPlayed,
     teamHpRemaining: result.teamAHpRemaining, enemyHpRemaining: result.teamBHpRemaining,
     dustEarned, shardsEarned, itemDropped, itemNameTh, coinsSpent, floor: floorNo,
-    rewardEligible, dropChance,
+    rewardEligible, dropChance, coinsRefunded,
     nextFloor: floorNo < dungeon!.floors.length ? floorNo + 1 : null,
     log: JSON.parse(JSON.stringify(result.log)),
   };
