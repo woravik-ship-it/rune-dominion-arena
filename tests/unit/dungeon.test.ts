@@ -2,7 +2,7 @@
 import {
   DUNGEONS, findDungeon, findFloor, floorBossCount, floorDifficulty, floorDustReward,
   freeEntryStatusTh, freeHourWindows, formatFreeWindowsTh, isFloorCleared, isFreeWindowOpen,
-  isRewardFloor, isWinOnlyReward, nextFreeOpenAt, scaleStats, enemyTeamSize,
+  isRewardFloor, isWinOnlyReward, nextDungeonFloor, nextFreeOpenAt, scaleStats, enemyTeamSize,
   DUNGEON_TEAM_SIZE,
 } from '@/lib/dungeon-definitions';
 import { buildEnemyTeam } from '@/services/dungeon';
@@ -262,5 +262,26 @@ describe('dungeon-art — การ์ดศัตรู', () => {
     expect(pickArtIndex(key, 7)).toBe(pickArtIndex(key, 7));
     expect(pickArtIndex(key, 7)).toBeLessThan(7);
     expect(stableHash('same')).toBe(stableHash('same'));
+  });
+});
+
+// Phase 38 — ผู้ใช้สั่ง: "หลังต่อสู้ดันเจี้ยนชนะชั้นปัจจุบัน มีปุ่มกดไปสู่ชั้นต่อไป"
+describe('ชั้นถัดไปของดันเจี้ยน (ปุ่มไปชั้นต่อไปหลังชนะ)', () => {
+  it('คืนชั้นถัดไปเมื่อยังไม่ใช่ชั้นสุดท้าย', () => {
+    expect(nextDungeonFloor(1, 25)).toBe(2);
+    expect(nextDungeonFloor(24, 25)).toBe(25);
+  });
+
+  it('ชั้นสุดท้าย = ไม่มีชั้นถัดไป (null)', () => {
+    expect(nextDungeonFloor(25, 25)).toBeNull();
+    expect(nextDungeonFloor(40, 40)).toBeNull();
+    expect(nextDungeonFloor(1, 0)).toBeNull();
+  });
+
+  it('ทุกดัน: ชั้น 1 ต้องมีชั้นถัดไปเสมอ และชั้นสุดท้ายต้องไม่มี', () => {
+    for (const dungeon of DUNGEONS) {
+      expect(nextDungeonFloor(1, dungeon.floors.length)).toBe(2);
+      expect(nextDungeonFloor(dungeon.floors.length, dungeon.floors.length)).toBeNull();
+    }
   });
 });

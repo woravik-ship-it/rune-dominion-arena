@@ -424,6 +424,16 @@ export function isRewardFloor(bestFloor: number, floorNo: number): boolean {
   return !isFloorCleared(bestFloor, floorNo);
 }
 
+/**
+ * ชั้นถัดไปของดัน (Phase 38) — ผู้ใช้สั่ง: "หลังต่อสู้ดันเจี้ยนชนะชั้นปัจจุบัน มีปุ่มกดไปสู่ชั้นต่อไป"
+ * คืน null เมื่ออยู่ชั้นสุดท้ายแล้ว
+ */
+export function nextDungeonFloor(currentFloor: number, totalFloors: number): number | null {
+  const current = Math.max(1, Math.trunc(currentFloor));
+  const total = Math.max(0, Math.trunc(totalFloors));
+  return current < total ? current + 1 : null;
+}
+
 /** สเกล status ฐานด้วยตัวคูณชั้น (ปัดลงเป็น integer) */
 export function scaleStats(
   base: { atk: number; def: number; hp: number; spd: number },

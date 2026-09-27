@@ -26,6 +26,8 @@ export default function TopHeader() {
   const [balance, setBalance] = useState<number | null>(null);
   const [energy, setEnergy] = useState<number | null>(null);
   const [shards, setShards] = useState<number | null>(null);
+  /** Phase 38: เลเวลผู้เล่น (ผู้ใช้สั่ง: "เพิ่มแสดง Level ด้านบนแถวแจ้งเตือน หรือ User ด้วย") */
+  const [level, setLevel] = useState<{ level: number; dropBonusPercent: number } | null>(null);
   const [user, setUser] = useState<SessionUser | null>(null);
 
   // เมนูบนจอใหญ่ — ป้ายเปลี่ยนตามภาษาที่เลือก
@@ -57,6 +59,9 @@ export default function TopHeader() {
       if (cancelled) return;
       if (walletData?.success) setBalance(walletData.data.balance);
       if (meData?.success) setUser(meData.data.user);
+      if (meData?.success && meData.data.level) {
+        setLevel({ level: meData.data.level.level, dropBonusPercent: meData.data.level.dropBonusPercent });
+      }
       if (energyData?.success) setEnergy(energyData.energy.remaining);
       if (shardData?.success) setShards(Number(shardData.data?.balance ?? 0));
     });
@@ -145,6 +150,17 @@ export default function TopHeader() {
 
         {/* สถานะผู้เล่น (พลังค้นหา/Coin/ชื่อ) — โชว์ทุกจอแต่ย่อบนมือถือให้พอดี */}
         <div className="ml-auto flex min-w-0 shrink-0 items-center gap-2 sm:gap-3">
+          {/* Phase 38: เลเวล (อยู่ติดแถบแจ้งเตือน/ผู้ใช้ ตามที่ผู้ใช้สั่ง) */}
+          {user && level && (
+            <Link
+              href="/profile"
+              data-header-level={level.level}
+              className="shrink-0 rounded-full border border-amber-400/40 bg-amber-500/10 px-2 py-0.5 text-xs font-bold text-amber-200 transition-colors hover:bg-amber-500/20"
+              title={`เลเวล ${level.level} · โบนัสโอกาสดรอป Item +${level.dropBonusPercent}%`}
+            >
+              ⭐ Lv.{level.level}
+            </Link>
+          )}
           <NotificationBell />
           {/*
             พลังค้นหา/Coin — ผู้ใช้สั่ง 2026-09-26: "พลังงาน และเหรียญ ที่ Desktop ไม่แสดงตัวเลข"

@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { teamCardIds } from '@/services/battle-display';
-import { findDungeon } from '@/lib/dungeon-definitions';
+import { findDungeon, nextDungeonFloor } from '@/lib/dungeon-definitions';
 import { dungeonEnemyInfo, parseDungeonCardId } from '@/lib/dungeon-art';
 
 // GET /api/dungeons/run/[runId]/log — ประวัติ + replay การลุยดัน (ใช้หน้า battle เดิมได้)
@@ -57,7 +57,14 @@ export async function GET(
         decks: { A: deck ? { id: deck.id, name: deck.name } : null, B: null },
         isBotBattle: false,
         isDungeon: true,
-        dungeon: { code: run.dungeonCode, nameTh: dungeon?.nameTh ?? run.dungeonCode, floor: run.floor, icon: dungeon?.icon ?? '🏰' },
+        dungeon: {
+          code: run.dungeonCode, nameTh: dungeon?.nameTh ?? run.dungeonCode,
+          floor: run.floor, icon: dungeon?.icon ?? '🏰',
+          floors: dungeon?.floors.length ?? 0,
+          // Phase 38: ใช้ทำปุ่ม "ไปชั้นถัดไป" ต่อจากหน้าสนามรบได้เลย
+          nextFloor: nextDungeonFloor(run.floor, dungeon?.floors.length ?? 0),
+          coinCost: dungeon?.coinCost ?? 0,
+        },
         reward: {
           dust: run.dustEarned, shards: run.shardsEarned,
           itemDropped: run.itemDropped, itemNameTh: run.itemNameTh,

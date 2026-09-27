@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { SESSION_COOKIE, verifySession } from '@/lib/session';
 import { WalletService } from '@/services/wallet';
+import { itemDropBonusPercent, levelProgress } from '@/lib/level';
 
 // GET /api/auth/me — ข้อมูลผู้ใช้ปัจจุบันจาก session cookie
 export async function GET(request: NextRequest) {
@@ -18,7 +19,7 @@ export async function GET(request: NextRequest) {
         id: true, username: true, email: true, displayName: true,
         avatarUrl: true, role: true, discoveryEnergy: true, isActive: true, createdAt: true,
         // Phase 26: อวตารในเกม (อิโมจิ หรือภาพวาด 6×6)
-        avatarEmoji: true, avatarGrid: true,
+        avatarEmoji: true, avatarGrid: true, exp: true,
       },
     });
     if (!user || !user.isActive) {
@@ -26,7 +27,16 @@ export async function GET(request: NextRequest) {
     }
 
     const wallet = await WalletService.getWallet(user.id);
-    return NextResponse.json({ success: true, data: { user, wallet } });
+    // Phase 38: ส่งข้อมูลเลเวลไปกับ /me เลย (หัวเว็บโชว์ ⭐ Lv. ได้โดยไม่ต้องยิง API เพิ่ม)
+    const level = levelProgress(user.exp ?? 0);
+    return NextResponse.json({
+      success: true,
+      data: {
+        user,
+        wallet,
+        level: { ...level, dropBonusPercent: itemDropBonusPercent(level.level) },
+      },
+    });
   } catch (error) {
     console.error('Me error:', error);
     return NextResponse.json({ error: 'เกิดข้อผิดพลาดภายในเซิร์ฟเวอร์' }, { status: 500 });

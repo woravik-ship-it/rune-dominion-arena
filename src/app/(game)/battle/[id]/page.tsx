@@ -35,7 +35,11 @@ interface BattleData {
   isBotBattle: boolean;
   /** ศึกดันเจี้ยน: ซ่อนปุ่มต่อสู้อีกครั้งแบบ PvP แล้วโชว์ปุ่มลุยชั้นถัดไปแทน */
   isDungeon?: boolean;
-  dungeon?: { code: string; nameTh: string; floor: number; icon: string } | null;
+  dungeon?: {
+    code: string; nameTh: string; floor: number; icon: string;
+    /** Phase 38: จำนวนชั้นทั้งหมด + ชั้นถัดไป (null = อยู่ชั้นสุดท้าย) */
+    floors?: number; nextFloor?: number | null; coinCost?: number;
+  } | null;
   reward?: { dust: number; shards: number; itemDropped: string | null; itemNameTh: string | null; eligible?: boolean } | null;
 }
 
@@ -81,6 +85,8 @@ export default function BattleViewerPage() {
   /** สถานะของปุ่ม "ต่อสู้อีกครั้ง" (กำลังสร้างศึกใหม่) + ข้อความผิดพลาด */
   const [refighting, setRefighting] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
+  /** Phase 38: กำลังพาไปชั้นถัดไปของดันเจี้ยน */
+  const [nextBusy, setNextBusy] = useState(false);
   const { play, setMusicTrack } = useAudio();
   // Phase 21: เสียงผลการต่อสู้ — เล่นครั้งเดียวตอนเทปจบ
   const resultSfxRef = useRef(false);
@@ -166,6 +172,38 @@ export default function BattleViewerPage() {
     attackIndex.current = 0;
     // ให้ state รีเซ็ตก่อน แล้วค่อยเริ่ม interval (ไม่งั้นเฟรมแรกจะถูกข้าม)
     setTimeout(() => startPlay(), 0);
+  };
+
+  /**
+   * Phase 38: "ไปชั้นถัดไป" — ผู้ใช้สั่ง
+   *   "หลังต่อสู้ดันเจี้ยนชนะชั้นปัจจุบัน มีปุ่มกดไปสู่ชั้นต่อไป ไม่ต้องย้อนมาหน้าเลือกดันเจี้ยน"
+   * ⇒ ยิงลุยชั้นถัดไปด้วยเด็คเดิม แล้วพาไปหน้าสนามรบของชั้นนั้นทันที
+   */
+  const goNextFloor = async () => {
+    const next = battle?.dungeon?.nextFloor ?? null;
+    const deckId = battle?.decks.A?.id ?? null;
+    const code = battle?.dungeon?.code ?? null;
+    if (!next || !deckId || !code) {
+      setActionError('ไปชั้นถัดไปไม่ได้ — ไม่พบเด็คของศึกนี้');
+      return;
+    }
+    setActionError(null);
+    setNextBusy(true);
+    try {
+      const res = await apiFetch('/api/dungeons/run', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ dungeonCode: code, floor: next, deckId }),
+      });
+      const data = await res.json();
+      if (!res.ok || !data?.success) { setActionError(data?.error || 'ไปชั้นถัดไปไม่สำเร็จ'); return; }
+      window.location.href = data.data.battleUrl;
+    } catch (e) {
+      console.error(e);
+      setActionError('ไปชั้นถัดไปไม่สำเร็จ');
+    } finally {
+      setNextBusy(false);
+    }
   };
 
   /**
@@ -397,6 +435,19 @@ export default function BattleViewerPage() {
               <button data-battle-replay onClick={replayFromStart} className="btn-primary flex-1 text-sm">
                 🔁 ดู Replay
               </button>
+              {battle.isDungeon && battle.winner === 'A' && battle.dungeon?.nextFloor ? (
+                <button
+                  type="button"
+                  data-dungeon-next-floor={battle.dungeon.nextFloor}
+                  onClick={goNextFloor}
+                  disabled={nextBusy}
+                  className="btn-primary flex-1 text-sm font-bold"
+                >
+                  {nextBusy
+                    ? 'กำลังไปชั้นถัดไป…'
+                    : `▶ ลุยชั้น ${battle.dungeon.nextFloor} ต่อ${battle.dungeon.coinCost ? ` (${battle.dungeon.coinCost} Coin)` : ''}`}
+                </button>
+              ) : null}
               {battle.isDungeon ? (
                 <Link
                   data-dungeon-next={battle.dungeon?.code ?? 'dungeon'}
