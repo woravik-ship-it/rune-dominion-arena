@@ -257,7 +257,7 @@ export const EN: Record<string, string> = {
   'bag.noItems': 'No items yet — buy or craft them in the workshop',
   'bag.collectibles': 'Event collectibles',
   'bag.toWorkshop': 'Go to workshop',
-  'bag.toCards': 'Go to cards (equip items)',
+  'bag.toCards': 'Go to deck builder (equip items)',
   'bag.equippedCount': 'Equipped {n}',
 
   // Player ranking (Phase 28)

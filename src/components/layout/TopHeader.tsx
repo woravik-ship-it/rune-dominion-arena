@@ -35,7 +35,6 @@ export default function TopHeader() {
     { href: '/discover', key: 'nav.discover' },
     { href: '/quests', key: 'nav.quests' },
     { href: '/events', key: 'nav.events', className: 'text-purple-300 hover:text-purple-200' },
-    { href: '/cards', key: 'nav.cards' },
     { href: '/decks', key: 'nav.decks' },
     { href: '/battle', key: 'nav.battle' },
     { href: '/arena', key: 'nav.arena' },

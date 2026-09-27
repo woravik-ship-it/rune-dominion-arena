@@ -105,6 +105,12 @@ export default function DeckBuilderPage() {
   const [confirmLeave, setConfirmLeave] = useState(false);
   /** ลายเซ็นของเด็คที่บันทึกล่าสุด (ใช้เทียบว่ามีการแก้ไขค้างอยู่ไหม) */
   const [savedSig, setSavedSig] = useState('');
+  /** Phase 42: การ์ดในคลังที่กำลังเปิดชีต (ดูการ์ด+Item / ส่งเข้าทีม / ขาย) */
+  const [poolSheet, setPoolSheet] = useState<PoolCard | null>(null);
+  /** การ์ดที่กำลังยืนยันขาย + สถานะกำลังทำ */
+  const [confirmSellCard, setConfirmSellCard] = useState<PoolCard | null>(null);
+  const [busyCard, setBusyCard] = useState('');
+  const [cardNotice, setCardNotice] = useState('');
 
   useEffect(() => { loadAll(); }, [deckId]);
 
@@ -144,8 +150,10 @@ export default function DeckBuilderPage() {
         setSavedSig(signatureOf(deckData.data.name, arr));
       }
       if (cardsData.success) setPool(cardsData.data);
-      // Phase 41: ถ้ามี ?slot=N (กด "เอาออก" มาจากหน้าการ์ด) → เปิดฟองเลือกการ์ดให้ช่องนั้นทันที
-      const slotParam = Number(searchParams.get('slot'));
+      // Phase 41/42: เปิดฟองเลือกการ์ดให้ช่องนั้น **เฉพาะเมื่อมี ?slot=N ส่งมาจริง**
+      // ⚠️ บั๊กเดิม: Number(null) = 0 ⇒ เข้าหน้าเด็คแล้วฟองเลือกการ์ดเด้งบังเด็คทุกครั้ง
+      const slotRaw = searchParams.get('slot');
+      const slotParam = slotRaw === null ? Number.NaN : Number(slotRaw);
       if (Number.isInteger(slotParam) && slotParam >= 0 && slotParam < 5) setPickPos(slotParam);
     } catch (e) { console.error(e); }
     finally { setLoading(false); }
@@ -207,6 +215,26 @@ export default function DeckBuilderPage() {
       return;
     }
     setPickPos(pos);
+  };
+
+  /** ขายการ์ดจากคลัง (ยืนยันก่อน) — ได้ Veil Shards ตามความหายาก */
+  const sellCard = async () => {
+    if (!confirmSellCard) return;
+    setBusyCard(confirmSellCard.cardId);
+    setCardNotice('');
+    try {
+      const res = await apiFetch(`/api/cards/${confirmSellCard.cardId}/sell`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ quantity: 1 }),
+      });
+      const json = await res.json().catch(() => null);
+      if (!res.ok || !json?.success) { setErr(json?.error ?? 'ขายการ์ดไม่สำเร็จ'); return; }
+      setCardNotice(json.data?.message ?? `ขาย ${confirmSellCard.nameTh} แล้ว`);
+      setConfirmSellCard(null);
+      setPoolSheet(null);
+      await loadAll();
+    } finally { setBusyCard(''); }
   };
 
   /** ออกไปหน้าอื่น — ถ้ามีการแก้ไขค้างให้ถามก่อน (ผู้ใช้สั่ง) */
@@ -387,8 +415,12 @@ export default function DeckBuilderPage() {
             return (
               <button
                 key={c.cardId}
-                disabled={inTeam}
-                onClick={() => setSelectedPool(selected ? null : c.cardId)}
+                data-deck-pool-card={c.cardId}
+                onClick={() => {
+                  // Phase 42: กดการ์ดในคลัง = เปิดชีตจัดการ (ดูการ์ด+Item · ส่งเข้าทีม · ขาย)
+                  // การ์ดที่อยู่ในทีมแล้ว → ดู/ขายได้เท่านั้น · ที่ยังไม่อยู่ → ส่งเข้าทีมได้
+                  setPoolSheet(c);
+                }}
                 className={`rounded-xl p-2 text-left text-xs border-2 transition-all ${
                   inTeam ? 'opacity-40 border-gray-700 bg-gray-900'
                   : selected ? 'border-amber-400 bg-gray-700'
@@ -423,7 +455,8 @@ export default function DeckBuilderPage() {
                     ))}
                   </div>
                 )}
-                {inTeam && <div className="text-green-400 mt-1">อยู่ในทีมแล้ว</div>}
+                {inTeam && <div className="text-green-400 mt-1">อยู่ในทีมแล้ว (กดเพื่อดู/ขาย)</div>}
+                {!inTeam && <div className="text-amber-300 mt-1">กดเพื่อส่งเข้าทีม/ขาย</div>}
               </button>
             );
           })}
@@ -534,6 +567,79 @@ export default function DeckBuilderPage() {
             </div>
           )}
         </Modal>
+        {/* Phase 42: ชีตจัดการการ์ดในคลัง — รวมทุกอย่างที่หน้าการ์ดเดิมมี (ผู้ใช้สั่งให้รวมกับหน้าเด็ค) */}
+        <Modal
+          open={poolSheet !== null}
+          onClose={() => setPoolSheet(null)}
+          title={poolSheet ? `🎴 ${poolSheet.nameTh || poolSheet.name}` : ''}
+          subtitle={poolSheet ? `${poolSheet.element} · ${poolSheet.rarity} · ${poolSheet.role ?? '—'}` : ''}
+          size="sm"
+        >
+          {poolSheet && (
+            <div className="space-y-2">
+              <button
+                type="button"
+                data-pool-action="view"
+                onClick={() => { const card = poolSheet; setPoolSheet(null); setViewCard(card); }}
+                className="w-full rounded-xl bg-white/10 px-3 py-2 text-left text-sm text-gray-100 hover:bg-white/20"
+              >
+                👁 ดูการ์ด + ใส่/ถอด Item
+              </button>
+
+              {!placedIds.has(poolSheet.cardId) && (
+                <div className="rounded-xl bg-amber-500/10 p-2" data-pool-send>
+                  <p className="mb-1 text-xs font-bold text-amber-200">⚔ ส่งเข้าทีม — เลือกตำแหน่ง</p>
+                  <div className="flex flex-wrap gap-1.5">
+                    {placed.map((slotCard, position) => {
+                      const role = slotRole(position);
+                      const style = SLOT_ROLE_STYLE[role];
+                      return (
+                        <button
+                          key={position}
+                          type="button"
+                          data-pool-send-slot={position}
+                          onClick={() => {
+                            const card = poolSheet;
+                            setPoolSheet(null);
+                            placeCard(position, card);
+                          }}
+                          className="rounded-lg border border-amber-400/40 bg-amber-500/10 px-2 py-1 text-[11px] text-amber-100 hover:bg-amber-500/20"
+                          title={`${style.th}${slotCard ? ` — เปลี่ยน ${slotCard.nameTh || slotCard.name}` : ' (ว่าง)'}`}
+                        >
+                          {style.icon} ช่อง {position + 1}{slotCard ? ' (เปลี่ยน)' : ''}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+
+              <button
+                type="button"
+                data-pool-action="sell"
+                onClick={() => { setConfirmSellCard(poolSheet); setPoolSheet(null); }}
+                className="w-full rounded-xl bg-red-500/15 px-3 py-2 text-left text-sm text-red-200 hover:bg-red-500/25"
+              >
+                💠 ขายการ์ดคืนร้าน
+              </button>
+            </div>
+          )}
+        </Modal>
+
+        {/* ยืนยันขายการ์ด (ผู้ใช้สั่ง: การขายต้องมีหน้า Confirm) */}
+        <ConfirmDialog
+          open={confirmSellCard !== null}
+          danger
+          busy={busyCard !== ''}
+          title="ขายการ์ดใบนี้?"
+          message={confirmSellCard
+            ? `${confirmSellCard.nameTh || confirmSellCard.name}\nได้ Veil Shards ตามความหายาก — ขายแล้วนำกลับคืนไม่ได้`
+            : ''}
+          confirmLabel="ยืนยันขาย"
+          onConfirm={() => void sellCard()}
+          onCancel={() => setConfirmSellCard(null)}
+        />
+
         {/* ฟองดูการ์ดเต็มใบ + ช่างใส่ Item (รวมหน้าดูการ์ดเข้ากับหน้าจัดเด็ค) */}
         <CardPreviewModal
           card={viewCard}

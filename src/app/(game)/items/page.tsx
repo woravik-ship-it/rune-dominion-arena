@@ -196,7 +196,7 @@ export default function ItemsPage() {
             <span className="rounded-full bg-yellow-500/10 px-3 py-1 text-yellow-200" data-item-coins={coins}>
               🪙 {coins}
             </span>
-            <Link href="/cards" className="text-xs text-gray-300 underline hover:text-white">
+            <Link href="/decks" className="text-xs text-gray-300 underline hover:text-white">
               {t('nav.cards')} →
             </Link>
           </div>

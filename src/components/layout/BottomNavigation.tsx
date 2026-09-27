@@ -20,7 +20,6 @@ interface NavItem {
 const navItems: NavItem[] = [
   { href: '/', key: 'nav.home', icon: '🏠' },
   { href: '/discover', key: 'nav.discover', icon: '🔮' },
-  { href: '/cards', key: 'nav.cards', icon: '🃏' },
   { href: '/decks', key: 'nav.decks', icon: '📋' },
   { href: '/arena', key: 'nav.arena', icon: '⚔️' },
   { href: '/battle', key: 'nav.battle', icon: '🎯' },

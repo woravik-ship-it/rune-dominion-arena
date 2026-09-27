@@ -276,7 +276,7 @@ export default function InventoryPage() {
               )}
 
               {workshopItems.length > 0 && (
-                <Link href="/cards" className="mt-2 inline-block text-xs text-gray-300 underline">
+                <Link href="/decks" className="mt-2 inline-block text-xs text-gray-300 underline">
                   {t('bag.toCards')} →
                 </Link>
               )}

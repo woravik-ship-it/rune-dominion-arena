@@ -257,7 +257,7 @@ export const TH: Record<string, string> = {
   'bag.noItems': 'ยังไม่มีไอเทม — ซื้อหรือคราฟต์ได้ที่ร้านช่าง',
   'bag.collectibles': 'ของสะสมจากกิจกรรม',
   'bag.toWorkshop': 'ไปร้านช่าง',
-  'bag.toCards': 'ไปหน้าการ์ด (ใส่ไอเทม)',
+  'bag.toCards': 'ไปหน้าจัดเด็ค (ใส่ไอเทม)',
   'bag.equippedCount': 'ใส่อยู่ {n}',
 
   // ตาราง Ranking ผู้เล่น (Phase 28)
