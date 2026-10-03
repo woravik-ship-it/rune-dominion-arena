@@ -109,8 +109,8 @@ export default function BottomNavigation() {
                       : 'border-gray-700 bg-gray-800 text-gray-200'
                   }`}
                 >
-                  <span className="text-xl leading-none">{item.icon}</span>
-                  <span className="text-[11px] leading-tight">{t(item.key)}</span>
+                  <span className="flex h-7 w-7 items-center justify-center text-xl leading-none">{item.icon}</span>
+                  <span className="text-center text-[11px] leading-tight">{t(item.key)}</span>
                 </Link>
               ))}
             </div>
@@ -122,12 +122,16 @@ export default function BottomNavigation() {
         data-bottom-nav="true"
         className="fixed bottom-0 left-0 right-0 z-50 border-t border-white/10 bg-black/90 backdrop-blur-md"
       >
-        {/* มือถือ: 5 เมนูหลัก + เพิ่มเติม (แบ่งคอลัมน์เท่ากัน → ไม่ล้นขอบ) */}
-        <div className="grid h-16 grid-cols-6 px-1 md:hidden">
+        {/* มือถือ: เมนูหลัก + เพิ่มเติม (แบ่งคอลัมน์เท่ากันตามจำนวนจริง → กึ่งกลางจอ ไม่เช่นนั้น
+          ช่องสุดท้ายเป็นช่องว่าง − เพราะ grid-cols-6 แต่มีแค่ 4 หลัก + เพิ่มเติม = 5 → ไอคอนเยื้องซ้าย) */}
+        <div
+          className="grid h-16 px-1 md:hidden"
+          style={{ gridTemplateColumns: `repeat(${primary.length + 1}, minmax(0, 1fr))` }}
+        >
           {primary.map((item) => (
             <Link key={item.href} href={item.href} data-nav-item={item.href} className={itemClass(pathname === item.href)}>
-              <span className="text-lg leading-none">{item.icon}</span>
-              <span className="text-[10px] leading-none">{t(item.key)}</span>
+              <span className="flex h-6 w-6 items-center justify-center text-lg leading-none">{item.icon}</span>
+              <span className="text-center text-[10px] leading-none">{t(item.key)}</span>
             </Link>
           ))}
           <button
@@ -137,8 +141,8 @@ export default function BottomNavigation() {
             aria-expanded={sheetOpen}
             className={itemClass(inOthers || sheetOpen)}
           >
-            <span className="text-lg leading-none">☰</span>
-            <span className="text-[10px] leading-none">{t('nav.more')}</span>
+            <span className="flex h-6 w-6 items-center justify-center text-lg leading-none">☰</span>
+            <span className="text-center text-[10px] leading-none">{t('nav.more')}</span>
           </button>
         </div>
 
@@ -151,8 +155,8 @@ export default function BottomNavigation() {
               data-nav-item={item.href}
               className={`${itemClass(pathname === item.href)} shrink-0 px-2.5`}
             >
-              <span className="text-lg leading-none">{item.icon}</span>
-              <span className="text-[10px] leading-none">{t(item.key)}</span>
+              <span className="flex h-6 w-6 items-center justify-center text-lg leading-none">{item.icon}</span>
+              <span className="text-center text-[10px] leading-none">{t(item.key)}</span>
             </Link>
           ))}
         </div>

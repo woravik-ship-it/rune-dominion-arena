@@ -151,17 +151,17 @@ export default function DiscoverPage() {
   };
 
   return (
-    <main className="min-h-screen p-4">
-      <div className="max-w-4xl mx-auto">
-        <h1 className="text-3xl font-bold text-center mb-2">
+    <main className="min-h-screen px-3 py-4 sm:p-4">
+      <div className="mx-auto w-full max-w-4xl">
+        <h1 className="text-center text-2xl font-bold sm:mb-2 sm:text-3xl">
           ค้นหารูน
         </h1>
-        <p className="text-center text-gray-400 mb-6">
+        <p className="mb-4 text-center text-xs text-gray-400 sm:mb-6 sm:text-base">
           เลือกรูน 8-16 ตำแหน่งเพื่อเริ่มถอดรหัส
         </p>
 
         {/* Energy Display */}
-        <div className="flex justify-center mb-6">
+        <div className="mb-4 flex justify-center sm:mb-6">
           <div className="bg-gray-800 rounded-lg px-4 py-2 flex items-center gap-2">
             <span className="text-amber-400">⚡</span>
             <span className="text-sm text-gray-300">{t('discover.energy')}:</span>
@@ -208,7 +208,7 @@ export default function DiscoverPage() {
         </div>
 
         {/* Discovery Tips */}
-        <div className="mt-8 text-center text-sm text-gray-500">
+        <div className="mt-6 text-center text-sm text-gray-500 sm:mt-8">
           <p>{t('discover.tip')}</p>
         </div>
       </div>

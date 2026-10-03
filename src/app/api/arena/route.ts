@@ -1,36 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
-import {
-  ARENA_CREATE_COST,
-  ARENA_JOIN_COST,
-  ARENA_JOIN_DAILY_LIMIT,
-  arenaExpiryFrom,
-  calculateArenaReward,
-  validateRoomName,
-  countTodayJoins,
-  isArenaExpired,
-} from '@/services/arena';
-import { WalletService } from '@/services/wallet';
-
-async function resolveUserId(param: string): Promise<string | null> {
-  if (/^c[a-z0-9]+$/i.test(param)) {
-    const e = await prisma.user.findUnique({ where: { id: param }, select: { id: true } });
-    if (e) return e.id;
-  }
-  const u = await prisma.user.findUnique({ where: { username: param }, select: { id: true } });
-  return u?.id ?? null;
-}
-void resolveUserId;
-void ARENA_CREATE_COST;
-void ARENA_JOIN_COST;
-void ARENA_JOIN_DAILY_LIMIT;
-void arenaExpiryFrom;
-void validateRoomName;
-void countTodayJoins;
-void isArenaExpired;
-void WalletService;
+import { calculateArenaReward } from '@/services/arena';
 
 // GET /api/arena?filter=active|all — รายการห้อง
+// (ทำความสะอาด dead code ตาม CODE_REVIEW.md ข้อ 7 — ลบ imports/ฟังก์ชัน/`void` ที่ไม่ได้ใช้)
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);

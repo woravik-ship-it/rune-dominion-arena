@@ -71,6 +71,11 @@ export async function POST(
       return NextResponse.json({ error: 'คุณเป็นแชมป์อยู่แล้ว' }, { status: 400 });
     }
 
+    // TS: หลัง guard ข้างบน room.championId/championDeckId ถูก narrow เป็น string แล้ว
+    // แต่ narrowing จะ "หาย" เมื่อเข้า closure ของ $transaction → หนีบเป็น const ก่อนใช้ใน tx
+    const campId = room.championId;
+    const campDeckId = room.championDeckId;
+
     const teamA = await deckToCombatCards(deckId);
     const teamB = await deckToCombatCards(room.championDeckId);
     if (!teamA || !teamB) {
@@ -88,78 +93,96 @@ export async function POST(
     const challengerWins = result.winner === 'A';
     const winnerId = challengerWins ? userId : room.championId;
 
-    const battle = await prisma.battleLog.create({
-      data: {
-        attackerId: userId,
-        defenderId: room.championId,
-        attackerDeckId: deckId,
-        defenderDeckId: room.championDeckId,
-        winnerId,
-        battleData: {
-          seed,
-          combatVersion: result.combatVersion,
-          winner: result.winner,
-          roundsPlayed: result.roundsPlayed,
-          teamAHpRemaining: result.teamAHpRemaining,
-          teamBHpRemaining: result.teamBHpRemaining,
-          // Phase 10: snapshot ทีมสำหรับ replay verification (คำนวณซ้ำเทียบได้)
-          teams: { A: teamA, B: teamB },
-          log: JSON.parse(JSON.stringify(result.log)),
-        } as never,
-        rewardAmount: 0,
-      },
-    });
-
-    await prisma.arenaParticipant.updateMany({
-      where: { roomId: room.id, userId },
-      data: challengerWins ? { wins: { increment: 1 } } : { losses: { increment: 1 } },
-    });
-    if (!challengerWins) {
-      await prisma.arenaParticipant.updateMany({
-        where: { roomId: room.id, userId: room.championId },
-        data: { wins: { increment: 1 } },
-      });
-    } else {
-      await prisma.arenaRoom.update({
-        where: { id: room.id },
-        data: { championId: userId, championDeckId: deckId },
-      });
-    }
-
-    let challengeId: string;
-    try {
-      const challenge = await prisma.arenaChallenge.create({
+    // รวมทุกการเขียนเป็น transaction + ตั้งแชมป์แบบมีเงื่อนไข ⇒ ไม่มีทางที่ 2 คนท้าทายพร้อมกัน
+    // แล้ว "ชนะแชมป์" พร้อมกัน (ตาม CODE_REVIEW.md ข้อ 2 — race condition):
+    //   arenaRoom.updateMany WHERE championId = คนเก่า → ถ้าแชมป์เปลี่ยนไปกลางคันจะได้ 0 แถว
+    //   ⇒ คนแรกที่เรียบร้อยได้เป็นแชมป์จริง ฝ่ายที่เหลือยังอัด battle/challenge ไว้ พร้อมข้อความให้ลองใหม่
+    const txn = await prisma.$transaction(async (tx) => {
+      const battle = await tx.battleLog.create({
         data: {
-          roomId: room.id,
-          challengerId: userId,
-          challengerDeckId: deckId,
-          defenderId: room.championId,
-          defenderDeckId: room.championDeckId,
+          attackerId: userId,
+          defenderId: campId,
+          attackerDeckId: deckId,
+          defenderDeckId: campDeckId,
           winnerId,
-          battleLogId: battle.id,
-          idempotencyKey: idempotencyKey ?? null,
+          battleData: {
+            seed,
+            combatVersion: result.combatVersion,
+            winner: result.winner,
+            roundsPlayed: result.roundsPlayed,
+            teamAHpRemaining: result.teamAHpRemaining,
+            teamBHpRemaining: result.teamBHpRemaining,
+            // Phase 10: snapshot ทีมสำหรับ replay verification (คำนวณซ้ำเทียบได้)
+            teams: { A: teamA, B: teamB },
+            log: JSON.parse(JSON.stringify(result.log)),
+          } as never,
+          rewardAmount: 0,
         },
       });
-      challengeId = challenge.id;
-    } catch {
-      if (idempotencyKey) {
-        const dup = await prisma.arenaChallenge.findUniqueOrThrow({
-          where: { idempotencyKey },
+
+      await tx.arenaParticipant.updateMany({
+        where: { roomId: room.id, userId },
+        data: challengerWins ? { wins: { increment: 1 } } : { losses: { increment: 1 } },
+      });
+      if (!challengerWins) {
+        await tx.arenaParticipant.updateMany({
+          where: { roomId: room.id, userId: campId },
+          data: { wins: { increment: 1 } },
         });
-        challengeId = dup.id;
-      } else {
-        throw new Error('สร้าง challenge ไม่สำเร็จ');
       }
-    }
+
+      // ตั้งแชมป์แบบมีเงื่อนไข (เดิมใช้ arenaRoom.update —— แทนที่ด้วย updateMany กัน overwrite ซ้อน)
+      let championUpdated = true;
+      if (challengerWins) {
+        const res = await tx.arenaRoom.updateMany({
+          where: { id: room.id, championId: campId },
+          data: { championId: userId, championDeckId: deckId },
+        });
+        championUpdated = res.count === 1;
+      }
+
+      let challengeId: string;
+      try {
+        const challenge = await tx.arenaChallenge.create({
+          data: {
+            roomId: room.id,
+            challengerId: userId,
+            challengerDeckId: deckId,
+            defenderId: campId,
+            defenderDeckId: campDeckId,
+            winnerId,
+            battleLogId: battle.id,
+            idempotencyKey: idempotencyKey ?? null,
+          },
+        });
+        challengeId = challenge.id;
+      } catch {
+        if (idempotencyKey) {
+          const dup = await tx.arenaChallenge.findUniqueOrThrow({
+            where: { idempotencyKey },
+          });
+          challengeId = dup.id;
+        } else {
+          throw new Error('สร้าง challenge ไม่สำเร็จ');
+        }
+      }
+
+      return { battleLogId: battle.id, challengeId, championUpdated };
+    });
+
+    const becameChampion = challengerWins && txn.championUpdated;
 
     return NextResponse.json({
       success: true,
       data: {
-        challengeId,
-        battleLogId: battle.id,
+        challengeId: txn.challengeId,
+        battleLogId: txn.battleLogId,
         winner: result.winner,
-        becameChampion: challengerWins,
+        becameChampion,
         roundsPlayed: result.roundsPlayed,
+        ...(challengerWins && !txn.championUpdated
+          ? { message: 'แชมป์ถูกยึดโดยผู้ท้าทายคนอื่นก่อนแล้ว — ยังนับเป็นประวัติการต่อสู้ แต่ต้องท้าทายใหม่เพื่อเป็นแชมป์' }
+          : {}),
       },
     });
   } catch (error) {

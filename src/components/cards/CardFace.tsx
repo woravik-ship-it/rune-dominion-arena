@@ -60,31 +60,38 @@ export default function CardFace({
   }, [imageUrl, imageStatus]);
 
   // ยังไม่มีภาพ/กำลังสร้าง → poll /api/cards/[id]/art?probe=1 เพื่อรอจน "พร้อมใช้" จริง
+  // (ผู้ใช้สั่ง 2026-10-03 ตาม CODE_REVIEW.md ข้อ 3 — เดิม poll ตรึง 4 วิทุกรอบ ⇒ การ์ดหลายใบในหน้า
+  // เดียวกันกดฐานข้อมูลพร้อมกันหนัก · เปลี่ยนเป็น backoff 4→8→16→…→60 วิ — สำเร็จแล้วหยุด)
   useEffect(() => {
     if (artSrc) return;
-    if (imageStatus === 'FAILED') return;
-    // READY = สถานะบอกว่าภาพพร้อมแล้ว → ถ้าโหลดไม่ได้ก็ไม่ต้อง poll (กันหมุนค้างไม่รู้จบ)
-    if (imageStatus === 'READY') return;
+    if (imageStatus === 'FAILED' || imageStatus === 'READY') return;
 
     let cancelled = false;
-    const timer = setInterval(async () => {
+    let timer: ReturnType<typeof setTimeout>;
+    let delay = 4000;
+    const MAX_DELAY_MS = 60000;
+
+    const poll = async () => {
       try {
         const res = await fetch(`/api/cards/${cardId}/art?probe=${Date.now()}`, { cache: 'no-store' });
         if (res.ok && !cancelled) {
           setArtSrc(`/api/cards/${cardId}/art?v=${Date.now()}`);
-          clearInterval(timer);
           setWaited(0);
-        } else if (!cancelled) {
-          setWaited((n) => n + 1);
+          return; // พร้อมแล้ว → หยุด poll (ไม่ต้องนัดรอบถัดไป)
         }
+        if (!cancelled) setWaited((n) => n + 1);
       } catch {
         if (!cancelled) setWaited((n) => n + 1);
       }
-    }, 4000);
+      if (cancelled) return;
+      delay = Math.min(delay * 2, MAX_DELAY_MS);
+      timer = setTimeout(poll, delay);
+    };
 
+    timer = setTimeout(poll, delay);
     return () => {
       cancelled = true;
-      clearInterval(timer);
+      clearTimeout(timer);
     };
   }, [artSrc, cardId, imageStatus]);
 

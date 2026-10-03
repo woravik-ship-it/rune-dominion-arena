@@ -1,6 +1,6 @@
 'use client';
 
-import { useRef, useEffect, useState, useCallback } from 'react';
+import { useRef, useEffect, useLayoutEffect, useState, useCallback } from 'react';
 import { useI18n } from '@/components/providers/LocaleProvider';
 import {
   RUNE_GRID_SIZE,
@@ -27,9 +27,24 @@ const VIEW = RUNE_VIEW_SIZE;
  * เดิมตรึงไว้ 36px เท่ากันทุกจอ ⇒ บนจอใหญ่ตารางดูเล็ก และบนมือถือล้น/ถูกย่อจนกดยาก
  */
 const CELL_MAX_PX = 60;
-const CELL_MIN_PX = 20;
+/** ขั้นต่ำ 26px — กันตารางเล็กเกินไปจนกดยากบนมือถือ (เดิม 20px) */
+const CELL_MIN_PX = 26;
 /** ความกว้างที่กันไว้ให้คอลัมน์ปุ่มลูกศรสองข้าง (รวมช่องว่าง) */
 const NAV_COLUMN_PX = 42;
+/** จอแคบ (ความกว้าง < 480px ขึ้นไปถึง 640) แสดง 8×8 แทน 10×10 → ช่องใหญ่ กดง่าย */
+const VISIBLE_SMALL = 8;
+/** เกณฑ์จอแคบ: ใช้ Tailwind `sm` (640px) เป็นเส้นแบ่ง */
+const NARROW_BREAKPOINT_PX = 640;
+/**
+ * เหลือพื้นที่ความสูงต่ำกว่าเกณฑ์นี้ (จอสั้น/แนวนอน) → ใช้ "ความกว้าง" นำ
+ * เพื่อไม่เหลือที่ว่างด้านข้างบนจอแนวนอน (ผู้ใช้สั่ง 2026-10-02)
+ */
+const MIN_HEIGHT_BUDGET_PX = 120;
+/**
+ * เดสก์ท็อปกว้าง (≥1280px) → คงใช้ "พอดีจอ" (กว้าง×สูง) ไม่ให้ต้องเลื่อนเยอะ
+ * จอที่แคบกว่านั้น (มือถือ/แท็บเล็ตแนวนอน) → ใช้ความกว้างนำ ได้ช่องใหญ่เต็มจอ
+ */
+const DESKTOP_MIN_WIDTH_PX = 1280;
 /**
  * เลื่อนมุมมองแบบ "วนไม่สิ้นสุด" — ไม่มีขอบตัน จึงไม่มีค่า MAX offset ที่ต้องเช็ค
  * (ดู `wrapRuneOffset` ใน `src/lib/rune-grid.ts`)
@@ -140,23 +155,47 @@ export default function RuneCanvas({
   const [viewY, setViewY] = useState((GRID_SIZE - VIEW) / 2);
   /** ขนาดช่องที่พอดีกับจอปัจจุบัน (คำนวณใหม่เมื่อหมุนจอ/เปลี่ยนขนาดหน้าต่าง) */
   const [cellPx, setCellPx] = useState(CELL_MAX_PX);
-  const sizePx = VIEW * cellPx;
+  /** จำนวนช่องที่มองเห็นต่อด้าน: 10 บนจอใหญ่ · 8 บนมือถือแคบ (ช่องใหญ่ กดง่าย) */
+  const [visibleCells, setVisibleCells] = useState(VIEW);
+  const sizePx = visibleCells * cellPx;
 
   // ปรับขนาดตารางให้พอดีจอ: วัดระยะเหนือตารางจริง (หัวเว็บ/หัวข้อ) แล้วกันที่ว่างใต้ตารางไว้
-  useEffect(() => {
+  // ใช้ useLayoutEffect (รันก่อน paint) → หมุนจอ/ย่อขยาย ไม่เห็นตารางค้างขนาดเดิมแวบเดียว
+  useLayoutEffect(() => {
     /** ที่ว่างใต้ตารางที่ต้องกัน: ▼ + แถวปุ่มสุ่ม/ล้าง (+ ระยะห่าง) */
     const BELOW_CONTROLS_PX = 112;
     const fitToScreen = () => {
       const canvas = canvasRef.current;
-      // ระยะจากบนเอกสารถึงขอบบนของตาราง (ไม่ขึ้นกับ scroll และไม่ขึ้นกับขนาดตารางเอง)
-      const topDoc = (canvas?.getBoundingClientRect().top ?? 340) + window.scrollY;
+      // ระยะจากบนวิวพอรต์ถึงขอบบนของตาราง (ไม่ขึ้นกับ scroll และไม่ขึ้นกับขนาดตารางเอง)
+      const rectTop = canvas?.getBoundingClientRect().top ?? 300;
       // แถบเมนูล่างเป็น fixed — ต้องกันความสูงจริง ไม่งั้นปุ่มล่างจะถูกบัง
       const bottomNav = document.querySelector<HTMLElement>('[data-bottom-nav="true"]');
       const bottomNavPx = bottomNav?.getBoundingClientRect().height ?? 64;
-      const availW = window.innerWidth - 32 /* padding ของหน้า (p-4) */ - NAV_COLUMN_PX * 2;
-      const availH = window.innerHeight + window.scrollY - topDoc - BELOW_CONTROLS_PX - bottomNavPx;
-      const fitted = Math.floor(Math.min(availW, Math.max(availH, 240)) / VIEW);
+
+      // จอแคบ (มือถือตั้ง) → 8×8 ให้ช่องใหญ่ กดง่าย · จอ ≥640px → 10×10 ใช้พื้นที่เต็ม
+      const narrow = window.innerWidth < NARROW_BREAKPOINT_PX;
+      const v = narrow ? VISIBLE_SMALL : VIEW;
+      // กันที่ว่างไว้ให้ปุ่ม ◀ ▶ ด้านข้าง (จอแคบ เหลือช่องว่างน้อยกว่า)
+      const navReservePx = narrow ? 34 : NAV_COLUMN_PX;
+      const availW = window.innerWidth - 32 /* padding ของหน้า (px-3/p-4) */ - navReservePx * 2;
+      const availH = window.innerHeight - rectTop - BELOW_CONTROLS_PX - bottomNavPx;
+
+      let fitted: number;
+      const widthLed =
+        availH < MIN_HEIGHT_BUDGET_PX ||
+        (window.innerWidth < DESKTOP_MIN_WIDTH_PX && window.innerWidth > window.innerHeight);
+      if (widthLed) {
+        // จอสั้น/แนวนอน (มือถือ/แท็บเล็ต) → ใช้ความกว้างนำ: ได้ช่องใหญ่เต็มจอ ไม่เสียพื้นที่
+        // (หน้าเลื่อนลงเพื่อกดปุ่มช่วยได้ตามปกติ เพราะแถบเมนูล่างกันไว้แล้ว)
+        fitted = Math.floor(availW / v);
+      } else {
+        // จอตั้ง/จอสูง → ใช้ค่าน้อยกว่าระหว่างความกว้างกับความสูง (พอดีจอ ไม่ต้องกดปุ่มล่างโผล่จอ)
+        fitted = Math.min(Math.floor(availW / v), Math.floor(availH / v));
+      }
+
       setCellPx(clamp(fitted, CELL_MIN_PX, CELL_MAX_PX));
+      // ใช้ functional update — resize กลางคันไม่ติดค่าใน closure
+      setVisibleCells((prev) => (prev === v ? prev : v));
     };
     fitToScreen();
     window.addEventListener('resize', fitToScreen);
@@ -165,6 +204,7 @@ export default function RuneCanvas({
       window.removeEventListener('resize', fitToScreen);
       window.removeEventListener('orientationchange', fitToScreen);
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // ล้างรูนที่เลือกเมื่อ parent สั่ง (หลังถอดรหัส) — ข้ามรอบแรกตอน mount
@@ -181,8 +221,8 @@ export default function RuneCanvas({
     ctx.fillRect(0, 0, sizePx, sizePx);
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
-    for (let vx = 0; vx < VIEW; vx++) {
-      for (let vy = 0; vy < VIEW; vy++) {
+    for (let vx = 0; vx < visibleCells; vx++) {
+      for (let vy = 0; vy < visibleCells; vy++) {
         const gx = viewX + vx;
         const gy = viewY + vy;
         const index = gy * GRID_SIZE + gx;
@@ -210,7 +250,7 @@ export default function RuneCanvas({
         ctx.stroke();
       }
     }
-  }, [selectedRunes, viewX, viewY, sizePx, cellPx]);
+  }, [selectedRunes, viewX, viewY, sizePx, cellPx, visibleCells]);
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -230,7 +270,7 @@ export default function RuneCanvas({
     const scaleY = canvas.height / rect.height;
     const vx = Math.floor(((clientX - rect.left) * scaleX) / cellPx);
     const vy = Math.floor(((clientY - rect.top) * scaleY) / cellPx);
-    if (vx < 0 || vx >= VIEW || vy < 0 || vy >= VIEW) return -1;
+    if (vx < 0 || vx >= visibleCells || vy < 0 || vy >= visibleCells) return -1;
     return runeIndexAt(viewX, viewY, vx, vy);
   };
 
