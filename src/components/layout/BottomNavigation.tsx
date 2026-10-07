@@ -25,6 +25,7 @@ const navItems: NavItem[] = [
   { href: '/battle', key: 'nav.battle', icon: '🎯' },
   { href: '/items', key: 'nav.items', icon: '🛠️' },
   { href: '/dungeons', key: 'nav.dungeons', icon: '🏰' },
+  { href: '/map', key: 'nav.map', icon: '🗺️' },
   { href: '/ranking', key: 'nav.ranking', icon: '🏆' },
   { href: '/notifications', key: 'nav.notifications', icon: '🔔' },
   { href: '/wallet', key: 'nav.wallet', icon: '💰' },
