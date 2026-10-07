@@ -21,10 +21,10 @@ import { QuestService } from '@/services/quest';
 import { findItemDef } from '@/lib/item-definitions';
 import {
   DUNGEONS, findDungeon, findFloor, floorDustReward, formatFreeWindowsTh, freeEntryStatusTh,
-  floorBossCount, isFreeWindowOpen, isFloorCleared, isRewardFloor, isWinOnlyReward,
+  floorBossCount, floorDifficulty, floorHpBonus, isFreeWindowOpen, isFloorCleared, isRewardFloor, isWinOnlyReward,
   type DungeonDef,
 } from '@/lib/dungeon-definitions';
-import { dungeonEnemyInfo, dungeonEnemySlots } from '@/lib/dungeon-art';
+import { dungeonEnemyInfo, dungeonEnemySlots, floorEnemyPower } from '@/lib/dungeon-art';
 import { DUNGEON_LOSS_REFUND, FLOOR_BLOCK_SIZE } from '@/lib/dungeon-definitions';
 import { LevelService } from '@/services/level';
 import { EXP_REWARD, itemDropBonusPercent } from '@/lib/level';
@@ -114,23 +114,38 @@ export async function listDungeons(userId: string, now = new Date()): Promise<Du
       canAfford,
       winOnlyReward: isWinOnlyReward(d),
       floors: d.floors.length,
-      floorInfo: d.floors.map((f) => ({
-        floor: f.floor,
-        nameTh: f.nameTh,
-        unlocked: f.floor === 1 || bestFloor >= f.floor - 1,
-        cleared: isFloorCleared(bestFloor, f.floor),
-        dust: f.reward.dust,
-        lossDust: floorDustReward(d, f, false),
-        shards: f.reward.shards,
-        itemNameTh: floorItemNameTh(f.reward.itemDropCode),
-        itemDropChance: f.reward.itemDropChance,
-        bosses: floorBossCount(f),
-        minions: f.minions,
-        enemyNameTh: `บอส ${floorBossCount(f)} · ลูกน้อง ${f.minions}`,
-        scale: f.scale,
-        block: Math.floor((f.floor - 1) / FLOOR_BLOCK_SIZE) + 1,
-        blockFloor: ((f.floor - 1) % FLOOR_BLOCK_SIZE) + 1,
-      })),
+      floorInfo: d.floors.map((f, index, all) => {
+        // ระดับความยาก 1-10 ของชั้นนี้ (เทียบกับช่วงความยากของดันนี้) — ให้ผู้เล่นเห็น "เปลี่ยนระดับ" ชัด ๆ
+        const difficulties = all.map((row) => floorDifficulty(row));
+        const minD = Math.min(...difficulties);
+        const maxD = Math.max(...difficulties);
+        const value = difficulties[index];
+        const stars = maxD > minD ? 1 + Math.round((9 * (value - minD)) / (maxD - minD)) : 1;
+        return {
+          floor: f.floor,
+          nameTh: f.nameTh,
+          unlocked: f.floor === 1 || bestFloor >= f.floor - 1,
+          cleared: isFloorCleared(bestFloor, f.floor),
+          dust: f.reward.dust,
+          lossDust: floorDustReward(d, f, false),
+          shards: f.reward.shards,
+          itemNameTh: floorItemNameTh(f.reward.itemDropCode),
+          itemDropChance: f.reward.itemDropChance,
+          bosses: floorBossCount(f),
+          minions: f.minions,
+          enemyNameTh: `บอส ${floorBossCount(f)} · ลูกน้อง ${f.minions}`,
+          scale: f.scale,
+          hpBonus: floorHpBonus(f),
+          /** ความยากจริง (scale × จำนวนบอส × HP) — ตัวเลขเดียวที่เทียบข้ามชั้นได้ */
+          difficulty: value,
+          /** ระดับความยากที่ผู้เล่นเห็น (1 = ง่ายสุดของดันนี้, 10 = ยากสุด) */
+          difficultyStars: stars,
+          /** พลังรวมของทีมศัตรู (เทียบกับ "พลังทีม" ของผู้เล่นได้ตรง ๆ) */
+          enemyPower: floorEnemyPower(d, f),
+          block: Math.floor((f.floor - 1) / FLOOR_BLOCK_SIZE) + 1,
+          blockFloor: ((f.floor - 1) % FLOOR_BLOCK_SIZE) + 1,
+        };
+      }),
       bestFloor,
     };
   });

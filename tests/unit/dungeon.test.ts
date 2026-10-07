@@ -1,8 +1,9 @@
 // Dungeon (Phase 31) — นิยามดัน/สเกลทีมศัตรู/หน้าต่างเวลา/รางวัล
 import {
-  DUNGEONS, findDungeon, findFloor, floorBossCount, floorDifficulty, floorDustReward,
+  DUNGEONS, bossWeight, findDungeon, findFloor, floorBossCount, floorDifficulty, floorDustReward,
   freeEntryStatusTh, freeHourWindows, formatFreeWindowsTh, isFloorCleared, isFreeWindowOpen,
   isRewardFloor, isWinOnlyReward, nextDungeonFloor, nextFreeOpenAt, scaleStats, enemyTeamSize,
+  floorHpBonus,
   DUNGEON_TEAM_SIZE,
 } from '@/lib/dungeon-definitions';
 import { buildEnemyTeam } from '@/services/dungeon';
@@ -96,17 +97,26 @@ describe('dungeon-definitions', () => {
       expect(firstFloor.minions).toBe(DUNGEON_TEAM_SIZE - 1);
     }
   });
-  it('สเกลสถานะศัตรูสูงขึ้นตามชั้น (ชั้นที่มีบอสเพิ่มจะลดสเกลชดเชย — ความยากจริงดูจาก floorDifficulty)', () => {
+  it('ความยากไต่ขึ้นทุกชั้น · scale ชดเชย HP/จำนวนบอสให้ "งบความยาก" ไม่เกินเพดาน', () => {
     for (const d of DUNGEONS) {
-      // ภายในกลุ่มชั้นที่มีจำนวนบอสเท่ากัน สเกลต้องไต่ขึ้นเสมอ
+      // (ก) ความยากรวม (floorDifficulty) ต้องไม่ลดลงเลย — เป็นตัวเลขที่ผู้เล่นเห็นเป็น "ระดับ"
+      const diffs = d.floors.map((f) => floorDifficulty(f));
+      for (let i = 1; i < diffs.length; i += 1) {
+        expect(diffs[i]).toBeGreaterThanOrEqual(diffs[i - 1]);
+      }
+      // (ข) HP ที่เพิ่มขึ้นต้องถูก "หักชดเชย" จาก scale: งบ scale × น้ำหนักบอส ต้องไม่เกินความยากรวม
+      for (const f of d.floors) {
+        expect(f.scale * bossWeight(floorBossCount(f))).toBeLessThanOrEqual(floorDifficulty(f) + 0.001);
+      }
+      // (ค) ภายในกลุ่มชั้นที่จำนวนบอสเท่ากัน งบความยากต้องไต่ขึ้นเสมอ (บอสเพิ่ม = งบชดเชย ไม่ใช่ฟรี)
       const byBosses = new Map<number, number[]>();
       for (const floor of d.floors) {
         const list = byBosses.get(floorBossCount(floor)) ?? [];
-        list.push(floor.scale);
+        list.push(floorDifficulty(floor));
         byBosses.set(floorBossCount(floor), list);
       }
-      for (const scales of byBosses.values()) {
-        expect(scales).toEqual([...scales].sort((a, b) => a - b));
+      for (const values of byBosses.values()) {
+        expect(values).toEqual([...values].sort((a, b) => a - b));
       }
     }
   });
@@ -244,13 +254,18 @@ describe('dungeon-art — การ์ดศัตรู', () => {
   it('status บนใบการ์ด = ค่าเดียวกับที่ใช้ต่อสู้จริง (บอส/ลูกน้องตามชั้น)', () => {
     const dungeon = findDungeon('GILDED_ABYSS')!;
     const floor = findFloor(dungeon, 3)!;
+    // Phase 45.4: HP ไล่ขึ้นทุกชั้น (floorHpBonus) — การ์ดที่วาดกับทีมที่สู้จริงใช้ค่าเดียวกันเสมอ
+    const withHp = (stats: ReturnType<typeof scaleStats>) => ({
+      ...stats,
+      hp: Math.max(1, Math.floor(stats.hp * floorHpBonus(floor))),
+    });
     const boss = dungeonEnemyInfo(dungeon, { dungeonCode: dungeon.code, floor: 3, kind: 'boss', index: 1 })!;
-    expect(boss.stats).toEqual(scaleStats(dungeon.bossBase, floor.scale));
+    expect(boss.stats).toEqual(withHp(scaleStats(dungeon.bossBase, floor.scale)));
     expect(boss.rarity).toBe('LEGENDARY');
     expect(boss.nameTh).toContain('บอสชั้น 3');
 
     const minion = dungeonEnemyInfo(dungeon, { dungeonCode: dungeon.code, floor: 3, kind: 'minion', index: 2 })!;
-    expect(minion.stats).toEqual(scaleStats(dungeon.minionBase, floor.scale));
+    expect(minion.stats).toEqual(withHp(scaleStats(dungeon.minionBase, floor.scale)));
     expect(minion.rarity).toBe('RARE');
     // ทีมที่ใช้สู้จริงต้องตรงกับรหัสที่ใช้วาดการ์ด
     const team = buildEnemyTeam(dungeon, 3);

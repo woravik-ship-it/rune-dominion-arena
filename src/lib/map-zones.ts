@@ -191,6 +191,22 @@ export function nodesInZone(zoneId: MapZoneId): MapNode[] {
   return MAP_NODES.filter((node) => node.zone === zoneId);
 }
 
+/**
+ * โซนเริ่มต้นที่หน้าจอควรแสดง — **โซนของจุดที่ผู้เล่นยืนอยู่** ไม่ใช่โซนแรกเสมอ
+ *
+ * ผู้ใช้สั่ง 2026-10-07: *"ใน Map ให้แสดง Map ที่ผู้เล่นอยู่ เป็นหน้าปัจจุบัน"*
+ * (ของเดิมเริ่มที่ EMBERFIELD ทุกครั้ง ⇒ ต้องกดแท็บเองทุกครั้งที่เปิดหน้า ทั้งที่อยู่โซนอื่น)
+ */
+export function initialActiveZone(
+  nodes: ReadonlyArray<{ id: string; zone: string }>,
+  currentNodeId: string | null | undefined,
+  fallbackZone: string
+): string {
+  const current = currentNodeId ? nodes.find((node) => node.id === currentNodeId) : undefined;
+  if (current) return current.zone;
+  return nodes.some((node) => node.zone === fallbackZone) ? fallbackZone : (nodes[0]?.zone ?? fallbackZone);
+}
+
 /** จุดอ้างอิงใด ๆ — จุดจริง (มี zone) หรือพิกัดล้วน */
 export type MapPoint = { x: number; y: number; zone?: string | null } | MapNode;
 

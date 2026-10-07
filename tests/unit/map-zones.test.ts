@@ -8,6 +8,7 @@ import {
   STAMINA_PER_ENERGY,
   findMapNode,
   nodesInZone,
+  initialActiveZone,
   pickEnemyCount,
   travelStaminaCost,
 } from '@/lib/map-zones';
@@ -15,6 +16,24 @@ import { rollMapRewards } from '@/services/map-farm';
 import { findItemDef } from '@/lib/item-definitions';
 
 describe('map-zones — โครงสร้าง (5 แผนที่ × 15 จุด = 75)', () => {
+  // Phase 45.4 (ผู้ใช้สั่ง 2026-10-07): เปิดหน้า Map ต้องเห็น "แผนที่ที่ผู้เล่นยืนอยู่" เป็นหน้าปัจจุบัน
+  describe('initialActiveZone — แผนที่เริ่มต้น = แผนที่ของจุดที่ผู้เล่นยืนอยู่', () => {
+    it('ยืนอยู่จุดไหน → ได้แผนที่ของจุดนั้น (ไม่ใช่แผนที่แรกเสมอ)', () => {
+      const voiced = MAP_NODES.find((n) => n.zone === 'VOIDGATE')!;
+      expect(initialActiveZone(MAP_NODES, voiced.id, 'EMBERFIELD')).toBe('VOIDGATE');
+    });
+    it('ยังไม่รู้จุดปัจจุบัน (null) → แผนที่แรก', () => {
+      expect(initialActiveZone(MAP_NODES, null, 'EMBERFIELD')).toBe('EMBERFIELD');
+    });
+    it('id ที่ไม่รู้จัก → แผนที่แรก (ไม่พัง)', () => {
+      expect(initialActiveZone(MAP_NODES, 'ไม่มีจุดนี้', 'EMBERFIELD')).toBe('EMBERFIELD');
+    });
+    it('แผนที่ที่ให้มาไม่ถูกต้อง → ใช้แผนที่ของจุดแรกที่มีในลิสต์', () => {
+      const only = MAP_NODES.filter((n) => n.zone === 'MOONFALL');
+      expect(initialActiveZone(only, null, 'EMBERFIELD')).toBe('MOONFALL');
+    });
+  });
+
   it('Stamina คงที่ 100/20 · 75 จุด id ไม่ซ้ำ · 5 แผนที่', () => {
     expect(STAMINA_MAX).toBe(100);
     expect(STAMINA_PER_ENERGY).toBe(20);

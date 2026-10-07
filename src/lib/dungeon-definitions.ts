@@ -16,6 +16,13 @@ export interface DungeonFloorDef {
    * ใช้คง "งบ status รวมของทีมศัตรู" ให้เท่ากับทีมบอส 1 ตัว ⇒ จำนวนบอสไม่ทำให้ความยากแกว่ง
    */
   bossScale?: number;
+  /**
+   * ตัวคูณ HP ของศัตรูในชั้นนี้ (ไม่ระบุ = 1)
+   * ผู้ใช้สั่ง 2026-10-07: *"ปรับความยากดันเจี้ยน แต่ละชั้น ให้มีความต่างอย่างพอดี ให้รู้สึกว่าเปลี่ยนระดับ"*
+   * ⇒ ใช้ HP เป็น "แกนความอึด" ที่ไล่ขึ้นทุกชั้น (ต่อสู้ยาวขึ้น = รู้สึกว่ายากขึ้น) โดยไม่ดัน ATK
+   *   เกินเพดานที่วัดได้ (ATK สูงเกิน = ผู้เล่นแพ้ทันที ไม่ใช่ยากขึ้นอย่างพอดี)
+   */
+  hpBonus?: number;
   scale: number;
   reward: DungeonRewardDef;
 }
@@ -33,11 +40,23 @@ export const FLOOR_BLOCK_SIZE = 5;
 export interface DungeonDeepFloorsDef {
   /** จำนวนชั้นทั้งหมดของดัน (ไม่รวมชั้นที่เขียนมือที่ถูกเขียนทับด้วยความยากแบบบล็อกแล้ว) */
   extra: number;
-  /** ตัวคูณความยากต่อบล็อก (5 ชั้น) — ยิ่งมากยิ่งกระโดดชัด */
+  /** ตัวคูณความยากต่อบล็อก (5 ชั้น) — Phase 45.4: เลิกใช้เป็นบันไดความยาก เก็บไว้คิด "ปลายทางรางวัล" ให้เท่าเดิม */
   blockStep: number;
-  /** เพดาน "ความยากจริง" (effective difficulty = scale × น้ำหนักจำนวนบอส) */
+  /** เพดาน "ความยากจริง" (effective difficulty = scale × น้ำหนักจำนวนบอส × น้ำหนัก HP) */
   difficultyCap: number;
-  /** ตัวคูณรางวัล "ฝุ่นเวท" ต่อบล็อก (5 ชั้น) — รางวัลกระโดดตามความยาก */
+  /**
+   * สัดส่วนความยากของ "ชั้นแรก" เทียบกับเพดาน (ไม่ระบุ = 0.85)
+   * ผู้ใช้สั่ง 2026-10-07: "ปรับความยากดันเจี้ยน แต่ละชั้น ให้มีความต่างอย่างพอดี ให้รู้สึกว่าเปลี่ยนระดับ"
+   * ⇒ ทั้งดันไล่จาก cap×startRatio (ชั้น 1) → cap (ชั้นสุดท้าย) ทุกชั้น ไม่มีชั้นไหน status เท่ากันแล้ว
+   */
+  startRatio?: number;
+  /** รูปร่างเส้นโค้งความยาก (t^gamma · t = 0..1 ตามชั้น) — ไม่ระบุ = 0.9 (ไต่เร็วช่วงต้นแล้วค่อยนิ่ง) */
+  curveGamma?: number;
+  /** HP ศัตรูเพิ่มต่อชั้น (ไม่ระบุ = 0.012 = +1.2%/ชั้น · เพดานที่ hpCap) */
+  hpStep?: number;
+  /** เพดานตัวคูณ HP ของศัตรู (ไม่ระบุ = 1.45) */
+  hpCap?: number;
+  /** ตัวคูณรางวัล "ฝุ่นเวท" ต่อบล็อก (5 ชั้น) — ใช้เป็น "ปลายทาง" ของเส้นรางวัล */
   blockRewardStep: number;
   /**
    * สัดส่วนฝุ่นเวทเทียบกับค่าฐานในนิยาม (Phase 40)
@@ -225,7 +244,7 @@ const BUILD_DUNGEONS: DungeonDef[] = [
     // เพิ่มอีก 26 ชั้น → รวม 30 ชั้น
     deepFloors: {
       extra: 30, blockStep: 1.04, difficultyCap: 1.15, blockRewardStep: 1.35, blockShardStep: 1.25, dustRatio: 0.2,
-      doubleBossBlock: 4, tripleBossBlock: 7,
+      doubleBossBlock: 4, tripleBossBlock: 6,
       deepNames: ['บันไดทอง', 'คลังลึกลับ', 'เหวฉายทอง', 'โลงทองคำ', 'ก้นเหวสมบัติ', 'ก้นเหวมรณะ'],
       dropLadder: [
         { fromFloor: 5, code: 'DEF_TIDEWALL', chance: 20 },
@@ -301,9 +320,29 @@ export function bossWeight(bosses = 1): number {
   return 1;
 }
 
-/** ความยากจริงของชั้น = scale × น้ำหนักจำนวนบอส */
+/**
+ * น้ำหนักของ HP ต่อ "งบความยาก" — ใช้สองที่ให้สอดคล้องกัน:
+ *  1) คิดตัวคูณ scale ที่ต้อง "หักชดเชย" เมื่อ HP สูงขึ้น (ไม่ให้ความแข็งแกร่งรวมเกินเพดานเดิม)
+ *  2) ตัวเลขความยากที่โชว์ผู้เล่น (floorDifficulty)
+ * 0.9 = เพิ่ม HP 10% นับเป็นความยาก +9% (ใกล้เคียงการเพิ่ม ATK เพราะต่อสู้ยาวขึ้นเท่ากับเจ็บมากขึ้น)
+ * ค่าที่วัดได้จริง: ถ้าไม่หักชดเชย (ใช้ 0) ชั้นท้ายของดันกลาง-สูงจะชนะ 0%
+ *   → ดู tests/unit/dungeon-balance.test.ts เป็นด่านตรวจ
+ */
+export const HP_DIFFICULTY_WEIGHT = 0.9;
+
+/** ตัวคูณ HP ของชั้น (ค่าเริ่มต้น 1 = ไม่เพิ่ม) — ไล่ขึ้นทุกชั้นตาม hpStep ของดันนั้น */
+export function floorHpBonus(floor: DungeonFloorDef): number {
+  const raw = floor.hpBonus ?? 1;
+  return Math.min(3, Math.max(1, raw));
+}
+
+/**
+ * ความยากจริงของชั้น = scale × น้ำหนักจำนวนบอส × (HP ที่เพิ่มขึ้น × น้ำหนัก 0.5)
+ * ใช้คู่กับ floorDifficulty() เป็นตัวชี้วัดเดียวที่เทียบข้ามชั้นได้
+ */
 export function floorDifficultyRaw(floor: DungeonFloorDef): number {
-  return floor.scale * bossWeight(floorBossCount(floor));
+  const hpFactor = 1 + (floorHpBonus(floor) - 1) * HP_DIFFICULTY_WEIGHT;
+  return floor.scale * bossWeight(floorBossCount(floor)) * hpFactor;
 }
 
 /**
@@ -341,26 +380,40 @@ export function buildDeepFloors(dungeon: DungeonDef): DungeonFloorDef[] {
   const first = written[0];
   const totalFloors = def.extra;
   const floors: DungeonFloorDef[] = [];
+  // ---- Phase 45.4: เส้นความยาก "ไล่ทุกชั้น" (เดิมใช้บันไดบล็อก ⇒ 5 ชั้นติดกัน status เท่ากันเป๊ะ) ----
+  // ผู้ใช้สั่ง 2026-10-07: "ปรับความยากดันเจี้ยน แต่ละชั้น ให้มีความต่างอย่างพอดี ให้รู้สึกว่าเปลี่ยนระดับ"
+  //  - ความยากจริงของชั้น t (0=ชั้นแรก, 1=ชั้นสุดท้าย) = cap × (startRatio + (1−startRatio) × t^gamma)
+  //  - HP ศัตรูไล่ขึ้นทุกชั้นตาม hpStep (เพดาน hpCap) = แกน "ความอึด" ที่ทำให้รู้สึกว่ายากขึ้นโดยไม่ unfair
+  //  - จำนวนบอส (1 → 2 → 3) ยังเป็นหมุดหมายรายบล็อก ⇒ ผู้เล่นเห็น "ระดับใหม่" ชัดเป็นช่วง ๆ
+  const startRatio = def.startRatio ?? 0.85;
+  const gamma = def.curveGamma ?? 0.9;
+  const hpStep = def.hpStep ?? 0.012;
+  const hpCap = def.hpCap ?? 1.45;
+  const blocks = Math.max(1, Math.ceil(totalFloors / FLOOR_BLOCK_SIZE));
+  // ปลายทางรางวัล = ค่าเดิมของสูตรบล็อก (ชั้นสุดท้ายได้เท่าเดิม ⇒ เศรษฐกิจไม่เปลี่ยน)
+  const dustEnd = Math.pow(def.blockRewardStep, blocks - 1);
+  const shardEnd = Math.pow(def.blockShardStep, blocks - 1);
+  const dustRatio = def.dustRatio ?? 1;
 
   for (let floorNo = 1; floorNo <= totalFloors; floorNo += 1) {
-    // บล็อกที่ 1 = ชั้น 1-5, บล็อกที่ 2 = ชั้น 6-10, ... (ผู้ใช้สั่ง: Step 5 ชั้น)
+    // บล็อกที่ 1 = ชั้น 1-5, บล็อกที่ 2 = ชั้น 6-10, ... (หมุดหมายจำนวนบอส)
     const block = Math.floor((floorNo - 1) / FLOOR_BLOCK_SIZE) + 1;
     const bosses = block >= def.tripleBossBlock ? 3 : block >= def.doubleBossBlock ? 2 : 1;
-    // ความยากจริงของบล็อกนี้ — ไล่ทีละบล็อกจนถึงเพดานที่ "วัดได้จริง" ว่าเด็คเป้าหมายผ่านได้
-    // ⚠️ Phase 40 (ผู้ใช้สั่ง ให้ยากขึ้น ~50%): ฐาน status ศัตรู ×1.5 ⇒ เพดานสเกลต้องลดลงตาม
-    //    (เพดานที่วัดได้ ≈ 0.72-1.05 ตามดัน) ความยากที่เพิ่มมาจาก "ฐาน" ไม่ใช่การดันสเกลเกินเพดาน
-    // (วัดด้วย npm run calibrate:dungeons: เพดานของเด็คติดของครบอยู่ราวสเกล 1.10-1.30 แล้วแต่ดัน)
-    // ⇒ ดันสเกลเกินเพดาน = ชั้นท้ายผ่านไม่ได้ทุกเด็ค (เคยเกิดจริง) จึงตั้งเพดานตามค่าที่วัด
 
-    const difficulty = Number(
-      Math.min(def.difficultyCap, Math.pow(def.blockStep, block - 1)).toFixed(3)
-    );
-    const scale = Number((difficulty / bossWeight(bosses)).toFixed(3));
+    const t = totalFloors <= 1 ? 1 : (floorNo - 1) / (totalFloors - 1);
+    const shaped = Math.pow(t, gamma);
+    // "งบความยาก" ของชั้นนี้ = เพดานที่วัดได้ว่าเด็คเป้าหมายผ่าน (ไล่จาก cap×startRatio → cap ทุกชั้น)
+    const targetDifficulty = def.difficultyCap * (startRatio + (1 - startRatio) * shaped);
+    const hpBonus = Number(Math.min(hpCap, 1 + hpStep * (floorNo - 1)).toFixed(3));
+    // แบ่งงบเป็น 2 แกน: HP ที่อึดขึ้น + scale (ATK/DEF/SPD) — scale หักชดเชย HP ที่เพิ่มขึ้น
+    // ⇒ ความแข็งแกร่ง "รวม" ยังอยู่ใต้เพดานเดิม (ไม่ทำลายสมดุลที่วัดไว้) แต่ทุกชั้นยังต่างกันจริง
+    const hpWeight = 1 + (hpBonus - 1) * HP_DIFFICULTY_WEIGHT;
+    const scale = Number((targetDifficulty / bossWeight(bosses) / hpWeight).toFixed(3));
     const bossScale = 1;
-    // รางวัลกระโดดตาม "บล็อก" (ไม่ใช่ต่อชั้น) ⇒ คาดเดาได้ และไม่ระเบิดเป็นทวีคูณ
-    const dustRatio = def.dustRatio ?? 1;
-    const dust = Math.max(1, Math.round(first.reward.dust * Math.pow(def.blockRewardStep, block - 1) * dustRatio));
-    const shards = Math.max(1, Math.round(first.reward.shards * Math.pow(def.blockShardStep, block - 1)));
+
+    // รางวัลไล่ทุกชั้น (ปลายทางเท่าเดิม) — เดิมกระโดดเป็นบล็อก ทำให้ชั้นในบล็อกให้ของเท่ากันเป๊ะ
+    const dust = Math.max(1, Math.round(first.reward.dust * dustRatio * (1 + (dustEnd - 1) * shaped)));
+    const shards = Math.max(1, Math.round(first.reward.shards * (1 + (shardEnd - 1) * shaped)));
     const drop = [...def.dropLadder].reverse().find((row) => row.fromFloor <= floorNo);
     const writtenFloor = written.find((row) => row.floor === floorNo);
     floors.push({
@@ -371,6 +424,7 @@ export function buildDeepFloors(dungeon: DungeonDef): DungeonFloorDef[] {
         def.deepNames[(block - 1) % def.deepNames.length],
       bosses,
       bossScale,
+      hpBonus,
       minions: DUNGEON_TEAM_SIZE - bosses,
       scale,
       reward: {

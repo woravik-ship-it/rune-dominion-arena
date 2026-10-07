@@ -19,8 +19,10 @@ import {
 
 interface FloorView {
   floor: number; nameTh: string; unlocked: boolean; cleared: boolean;
-  /** Phase 37: ชั้นที่ N ของบล็อก (5 ชั้นต่อบล็อก) — ความยาก/รางวัลกระโดดเป็นบล็อก */
+  /** Phase 37: ชั้นที่ N ของบล็อก (5 ชั้นต่อบล็อก) — จำนวนบอสเป็นหมุดหมายรายบล็อก */
   block?: number; blockFloor?: number;
+  /** Phase 45.4: ความยากไล่ทุกชั้น — ดาว 1-10 (เทียบช่วงของดันนี้) · HP ศัตรูที่เพิ่มขึ้น · พลังรวมทีมศัตรู */
+  difficulty?: number; difficultyStars?: number; hpBonus?: number; enemyPower?: number;
   dust: number; lossDust: number; shards: number;
   itemNameTh: string | null; itemDropChance: number;
   minions: number; bosses: number; enemyNameTh: string;
@@ -286,11 +288,38 @@ export default function DungeonsPage() {
                 >
                   {floors.map((f) => (
                     <option key={f.floor} value={f.floor} disabled={!f.unlocked}>
-                      ชั้น {f.floor} · {f.nameTh}{f.cleared ? ' ✅' : ''}{f.bosses > 1 ? ` 👑×${f.bosses}` : ''}{f.block ? ` · ระดับ ${f.block}` : ''}{f.unlocked ? '' : ' 🔒'}
+                      ชั้น {f.floor} · {f.nameTh}
+                      {f.difficultyStars ? ` · ${'⭐'.repeat(Math.min(5, Math.ceil(f.difficultyStars / 2)))}` : ''}
+                      {f.cleared ? ' ✅' : ''}{f.bosses > 1 ? ` 👑×${f.bosses}` : ''}{f.block ? ` · ระดับ ${f.block}` : ''}{f.unlocked ? '' : ' 🔒'}
                     </option>
                   ))}
                 </select>
               </label>
+              {/* ระดับความยากของชั้นที่เลือก — ให้เห็นว่าแต่ละชั้นต่างกันจริง (ผู้ใช้สั่ง 2026-10-07)
+                  ⭐ = ระดับ 1-10 เทียบกับช่วงของดันนี้ · HP +N% = ศัตรูอึดขึ้นต่อชั้น */}
+              {selectedFloor && (
+                <span
+                  className="rounded-lg border border-gray-700 bg-gray-900/70 px-2 py-1 text-[11px] text-gray-300"
+                  data-dungeon-floor-difficulty={selectedFloor.floor}
+                >
+                  <span data-dungeon-floor-stars={selectedFloor.difficultyStars ?? 0} className="text-amber-300">
+                    {'⭐'.repeat(Math.max(1, Math.min(10, selectedFloor.difficultyStars ?? 1)))}
+                  </span>
+                  <span className="ml-1 text-gray-400">
+                    ระดับ {selectedFloor.difficultyStars ?? 1}/10
+                  </span>
+                  {typeof selectedFloor.enemyPower === 'number' && (
+                    <span className="ml-2 text-gray-300">
+                      · พลังศัตรู <span data-dungeon-floor-enemy-power={selectedFloor.enemyPower}>{selectedFloor.enemyPower.toLocaleString('th-TH')}</span>
+                    </span>
+                  )}
+                  {selectedFloor.hpBonus && selectedFloor.hpBonus > 1 && (
+                    <span className="ml-2 text-emerald-300" data-dungeon-floor-hp-bonus={selectedFloor.hpBonus}>
+                      · HP ศัตรู +{Math.round((selectedFloor.hpBonus - 1) * 100)}%
+                    </span>
+                  )}
+                </span>
+              )}
               {(() => {
                 const next = floors.find((f) => !f.cleared && f.unlocked) ?? null;
                 return next && next.floor !== (selectedFloor?.floor ?? floor) ? (

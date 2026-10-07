@@ -164,6 +164,8 @@ prisma/                    schema.prisma · migrations/0_init · seed.ts
 | `npm run e2e:flow` | E2E critical flow: Discovery → Deck → Battle → Arena → Quest (ยิง HTTP จริง) |
 | `npm run test:e2e` | E2E ด้วย Playwright บน Chromium (เบราว์เซอร์จริง) — สมัคร/login/discover/decks + เปิดหน้าเกมทั้งหมด · ต้องมีเซิร์ฟเวอร์รันอยู่ |
 | `npm run audit` | ตรวจว่าแผนพัฒนามีหลักฐานในโค้ดจริงกี่ข้อ |
+| `npm run verify:map-zone` | 🆕 ตรวจว่าเปิด `/map` แล้วเห็น "แผนที่ที่ผู้เล่นอยู่" เป็นหน้าปัจจุบัน (+ 📍 + ปุ่มกลับ) — เปิดเบราว์เซอร์จริง |
+| `npm run verify:dungeon-curve` | 🆕 ตรวจว่าความยากดันเจี้ยนไต่ขึ้นทุกชั้นจริงบนจอ (⭐/พลังคุกคาม/HP) — เปิดเบราว์เซอร์จริง |
 | `npm run load-test -- --users 120` | ทดสอบภาระ (ไม่ต้องติดตั้ง k6) |
 | `npm run backup` / `backup:verify` | สำรอง DB + ทดสอบ restore เข้า DB ชั่วคราว |
 | `npm run migrate:check` / `migrate:test` | ตรวจ drift ของ migration / ทดสอบ `migrate deploy` บน DB เปล่า |

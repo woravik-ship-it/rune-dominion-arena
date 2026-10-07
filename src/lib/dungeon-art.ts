@@ -12,7 +12,7 @@
 //  - ภาพ: ยืมภาพ AI ของการ์ดจริงในแคตตาล็อก (reuse ไม่ Gen ใหม่) โดยเลือกแบบ deterministic
 //    → ไฟล์นี้กำหนด "คีย์เลือกภาพ" ส่วนการเลือกใบจริงเป็นหน้าที่ของ services/dungeon-art.ts
 import {
-  findFloor, floorBossCount, scaleStats, enemyTeamSize,
+  findFloor, floorBossCount, floorHpBonus, bossWeight, scaleStats, enemyTeamSize,
   type DungeonDef, type DungeonFloorDef,
 } from '@/lib/dungeon-definitions';
 
@@ -121,6 +121,10 @@ export function dungeonEnemyInfo(dungeon: DungeonDef, ref: DungeonCardRef): Dung
   // ชั้นที่มีบอสหลายตัว: บอสถูกลด status ลงเพื่อคงงบทีม (ดู bossScale ในนิยามชั้น)
   const bossScale = isBoss ? Math.min(1, Math.max(0.2, floor.bossScale ?? 1)) : 1;
   const stats = scaleStats(scaleStats4(base, bossScale), floor.scale);
+  // Phase 45.4: HP ไล่ขึ้นทุกชั้น (hpBonus) ⇒ ต่อสู้นานขึ้น = ยากขึ้นอย่าง "พอดี"
+  // (ไม่ดัน ATK เกินเพดานที่วัดได้ ซึ่งจะทำให้แพ้ทันทีแทนที่จะรู้สึกว่ายากขึ้น)
+  const hpBonus = floorHpBonus(floor);
+  const scaled = hpBonus === 1 ? stats : { ...stats, hp: Math.max(1, Math.floor(stats.hp * hpBonus)) };
   const element = isBoss
     ? elements[(ref.index - 1) % elements.length]
     : elements[ref.index % elements.length];
@@ -135,7 +139,7 @@ export function dungeonEnemyInfo(dungeon: DungeonDef, ref: DungeonCardRef): Dung
     // บอส = ตำนาน (LEGENDARY) เพื่อให้กรอบ/แสงบนการ์ดดูเป็นบอสจริง · ลูกน้อง = หายาก (RARE)
     rarity: isBoss ? 'LEGENDARY' : 'RARE',
     role: isBoss ? 'WARRIOR' : 'ASSASSIN',
-    stats,
+    stats: scaled,
     manaCost: 0,
     descriptionTh: isBoss
       ? `ผู้พิทักษ์ชั้น ${ref.floor} ของ${dungeon.nameTh} — กำจัดให้ได้ก่อนถึงจะผ่านชั้น`
@@ -155,4 +159,24 @@ export function dungeonEnemySlots(floor: DungeonFloorDef): Array<{ kind: Dungeon
 /** จำนวนการ์ดศัตรูของชั้น (บอส + ลูกน้อง · ยึดขนาดทีม 5 ใบเสมอ) */
 export function dungeonEnemyCount(floor: DungeonFloorDef): number {
   return enemyTeamSize(floor);
+}
+
+/**
+ * พลังรวมของทีมศัตรูในชั้นนี้ (atk+def+hp+spd ของทุกใบ) — สูตรเดียวกับ "พลังทีม" ของผู้เล่น
+ * ใช้โชว์ในหน้าดันเจี้ยนให้ผู้เล่นเทียบกับทีมตัวเอง = "รู้สึกว่าเปลี่ยนระดับ" ชัดขึ้น
+ */
+export function floorEnemyPower(dungeon: DungeonDef, floor: DungeonFloorDef): number {
+  let power = 0;
+  for (const slot of dungeonEnemySlots(floor)) {
+    const info = dungeonEnemyInfo(dungeon, {
+      dungeonCode: dungeon.code,
+      floor: floor.floor,
+      kind: slot.kind,
+      index: slot.index,
+    });
+    if (info) power += info.stats.atk + info.stats.def + info.stats.hp + info.stats.spd;
+  }
+  // คูณ "น้ำหนักจำนวนบอส" (ค่าที่วัดจริงในเกม: บอสยิ่งมากยิ่งอันตรายกว่าตัวเลข status เท่ากัน เพราะยิงรวมศูนย์)
+  // ⇒ ตัวเลขนี้เป็น "พลังคุกคาม" ที่ไต่ขึ้นทุกชั้นจริง (ต่างจากผลรวม status ดิบที่ *ลด* ตอนบอสเพิ่มเพราะ scale ถูกหารชดเชย)
+  return Math.round(power * bossWeight(floorBossCount(floor)));
 }

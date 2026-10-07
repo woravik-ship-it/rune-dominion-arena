@@ -4,13 +4,13 @@
 //  - เส้นทางอิสระ: ยืนที่จุดไหน เลือกไปจุดไหนก็ได้ (ยกเว้นจุดที่ยืนอยู่) · Stamina หักตามระยะทางจริง
 //  - แผนที่ใหญ่ 5 โซน 15 จุด พร้อมภาพพื้นหลัง AI ของแต่ละโซน (gen ด้วย npm run images:maps)
 //  - ต่อสู้ → พาไปดู Replay เต็มที่ /battle/map-run:<runId> (เหมือนดันเจี้ยน) แล้วกลับมาฟาร์มต่อ
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { apiFetch } from '@/lib/api-client';
 import { useI18n } from '@/components/providers/LocaleProvider';
 import { useAudio } from '@/components/providers/AudioProvider';
 import { itemArtUrl } from '@/lib/item-art';
 import { mapArtUrl } from '@/lib/map-art';
-import { MAP_HEIGHT, MAP_WIDTH, MAP_ZONES, STAMINA_MAX } from '@/lib/map-zones';
+import { MAP_HEIGHT, MAP_WIDTH, MAP_ZONES, STAMINA_MAX, initialActiveZone } from '@/lib/map-zones';
 
 interface MapNodeView {
   id: string;
@@ -71,8 +71,11 @@ export default function MapPage() {
   const [selectedId, setSelectedId] = useState('');
   const [err, setErr] = useState('');
   const [redirecting, setRedirecting] = useState(false);
-  /** แผนที่ (โซน) ที่กำลังดู — 5 แผนที่แยกกัน */
+  /** แผนที่ (โซน) ที่กำลังดู — 5 แผนที่แยกกัน
+   *  ค่าเริ่มต้น = โซนของ "จุดที่ผู้เล่นยืนอยู่" (ผู้ใช้สั่ง 2026-10-07: ให้แผนที่ที่อยู่เป็นหน้าปัจจุบัน) */
   const [activeZone, setActiveZone] = useState<string>('EMBERFIELD');
+  /** ผู้เล่นกดแท็บเลือกโซนเองแล้วหรือยัง — ถ้าเลือกเองแล้ว ห้ามลากกลับไปโซนที่ยืนอยู่ */
+  const zoneTouched = useRef(false);
 
   const load = useCallback(async () => {
     try {
@@ -92,12 +95,11 @@ export default function MapPage() {
           ? prev
           : (data.nodes.find((n) => !n.current)?.id ?? '')
       );
-      // ค่าเริ่มต้น: แผนที่ที่เลือก = แผนที่ของจุดที่ยืนอยู่ (หรือใบแรก)
-      setActiveZone((prev) =>
-        data.nodes.some((n) => n.zone === prev)
-          ? prev
-          : (data.nodes.find((n) => n.id === data.current)?.zone ?? 'EMBERFIELD')
-      );
+      // ค่าเริ่มต้น: แผนที่ที่แสดง = **แผนที่ของจุดที่ยืนอยู่** (ผู้ใช้สั่ง 2026-10-07)
+      // ถ้าผู้เล่นกดแท็บเลือกโซนเองแล้วในรอบนี้ → ไม่แก้ให้
+      if (!zoneTouched.current) {
+        setActiveZone(initialActiveZone(data.nodes, data.current, 'EMBERFIELD'));
+      }
     } catch {
       setErr(t('common.error'));
     } finally {
@@ -188,6 +190,11 @@ export default function MapPage() {
   /** เฉพาะจุดของแผนที่ที่เลือก (แยกทีละใบ) */
   const zoneNodes = state?.nodes.filter((n) => n.zone === activeZone) ?? [];
   const bgZone = MAP_ZONES.find((z) => z.id === activeZone) ?? null;
+  /** โซนของจุดที่ผู้เล่นยืนอยู่ตอนนี้ (null = ยังไม่เคยย้ายไปจุดไหน — อยู่จุดเริ่มต้น) */
+  const currentZone =
+    state?.nodes.find((n) => n.id === state.current)?.zone ??
+    state?.nodes.find((n) => n.current)?.zone ??
+    null;
 
   return (
     <main className="min-h-screen p-4 pb-24">
@@ -234,14 +241,17 @@ export default function MapPage() {
               </div>
             </div>
 
-            {/* แท็บเลือกแผนที่ — 5 แผนที่แยกจากกัน แต่ละใบ 15 จุด */}
+            {/* แท็บเลือกแผนที่ — 5 แผนที่แยกจากกัน แต่ละใบ 15 จุด
+                📍 = แผนที่ที่ผู้เล่นยืนอยู่ตอนนี้ (ผู้ใช้สั่ง 2026-10-07: ให้แผนที่ที่อยู่เป็นหน้าปัจจุบัน) */}
             <div className="mb-2 grid grid-cols-5 gap-1.5" data-map-tabs>
               {MAP_ZONES.map((z) => (
                 <button
                   key={z.id}
                   type="button"
                   data-map-tab={z.id}
+                  data-map-tab-current={currentZone === z.id ? '1' : '0'}
                   onClick={() => {
+                    zoneTouched.current = true;
                     setActiveZone(z.id);
                     setErr('');
                   }}
@@ -251,11 +261,31 @@ export default function MapPage() {
                       : `${ZONE_CHIP[z.id] ?? 'border-gray-700 text-gray-300'} hover:brightness-125`
                   }`}
                 >
-                  <span className="block text-sm leading-none">{z.icon}</span>
+                  <span className="block text-sm leading-none">
+                    {z.icon}
+                    {currentZone === z.id && '📍'}
+                  </span>
                   {z.nameTh}
                 </button>
               ))}
             </div>
+
+            {/* ปุ่มกลับไปแผนที่ที่ผู้เล่นยืนอยู่ — โผล่เมื่อกำลังดูแผนที่อื่นอยู่ */}
+            {currentZone && currentZone !== activeZone && (
+              <button
+                type="button"
+                data-map-go-current
+                onClick={() => {
+                  zoneTouched.current = false;
+                  setActiveZone(currentZone);
+                  setErr('');
+                }}
+                className="mb-2 w-full rounded-lg border border-amber-400/60 bg-amber-500/15 px-2 py-1.5 text-[11px] font-bold text-amber-200"
+              >
+                📍 ไปแผนที่ที่คุณอยู่ตอนนี้
+                {state?.currentNameTh ? ` (${state.currentNameTh})` : ''}
+              </button>
+            )}
 
             {/* แผนที่ที่เลือก (โซนเดียว — 15 จุด) + พื้นหลังโซน (AI gen) */}
             <div
