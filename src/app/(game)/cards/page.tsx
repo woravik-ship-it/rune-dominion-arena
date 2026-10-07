@@ -18,6 +18,8 @@ import { apiFetch } from '@/lib/api-client';
 import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
 import CardFace from '@/components/cards/CardFace';
+import CardDetailModal from '@/components/cards/CardDetailModal';
+import { shouldOpenDetailInModal } from '@/lib/card-modal';
 import { useI18n } from '@/components/providers/LocaleProvider';
 import {
   COLLECTION_SORTS,
@@ -112,6 +114,13 @@ export default function CollectionPage() {
   const [searchInput, setSearchInput] = useState('');
   const [sort, setSort] = useState<CollectionSort>('power');
   const [page, setPage] = useState(1);
+  /**
+   * การ์ดที่กำลังเปิดดูรายละเอียดแบบป๊อปอัป
+   * 2026-10-07 (ผู้ใช้แจ้ง): *"อยู่หน้า 2 กดกลับคอลเลคชั่น จะกลับไปหน้า 1"*
+   * สาเหตุคือกดการ์ดแล้ว <Link> พาไป /cards/:id → หน้านี้ถูก unmount ⇒ page หาย
+   * ⇒ เปลี่ยนมาเปิด modal แล้วคง state ของรายการไว้
+   */
+  const [detailCardId, setDetailCardId] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     try {
@@ -373,6 +382,14 @@ export default function CollectionPage() {
               >
                 <Link
                   href={`/cards/${card.cardId}`}
+                  onClick={(e) => {
+                    // คลิกซ้าย/แตะ = เปิดป๊อปอัป (ไม่เปลี่ยน route → อยู่หน้าเดิม)
+                    // ctrl/cmd/shift/ปุ่มกลาง = ปล่อยให้เปิดแท็บใหม่ตาม href เหมือนเดิม
+                    if (!shouldOpenDetailInModal(e)) return;
+                    e.preventDefault();
+                    setDetailCardId(card.cardId);
+                  }}
+                  data-collection-cardlink={card.cardId}
                   className={`relative block aspect-[7/10] overflow-hidden rounded-xl border-2 ${
                     card.owned ? 'border-gray-700' : 'border-gray-800 opacity-70'
                   }`}
@@ -478,6 +495,11 @@ export default function CollectionPage() {
           </Link>
         </p>
       </div>
+
+      {/* รายละเอียดการ์ดแบบป๊อปอัป — ปิดแล้วอยู่หน้า/ตัวกรองเดิม ไม่เด้งกลับหน้า 1 */}
+      {detailCardId && (
+        <CardDetailModal cardId={detailCardId} onClose={() => setDetailCardId(null)} />
+      )}
     </main>
   );
 }

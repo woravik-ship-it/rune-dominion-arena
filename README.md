@@ -18,6 +18,21 @@ Fantasy Trading Card Game / Auto Battle / Competitive Arena — เกมแน�
 | Load test 120 ผู้ใช้ | `npm run load-test -- --users 120 --duration 10` | 6,679 คำขอ · ให้บริการ 197.9 req/s · success 100% · p95 795ms (ส่วนที่เหลือ 429 = rate limit ต่อ IP ทำงานถูกต้อง) |
 | Backup + restore จริง | `npm run backup && npm run backup:verify` | 30 ตาราง · checksum ตรง · restore สำเร็จ |
 
+## หลักฐานล่าสุด (2026-10-07) — หน้าคอลเลคชั่น: เปิดรายละเอียดการ์ดเป็นป๊อปอัป
+
+ผู้ใช้แจ้ง: *"เวลาอยู่หน้า 2 กดกลับคอลเลคชั่น จะกลับไปหน้า 1 แก้ให้เป็นดูแบบ Popup พอ จะได้ไม่ต้องกดกลับ"*
+สาเหตุ: การ์ดในกริดเป็น `<Link href="/cards/:id">` → หน้าคอลเลคชั่นถูก unmount ⇒ `page`/ตัวกรอง/search หายหมด
+แก้: เปิดรายละเอียดเป็น modal (`CardDetailModal` + `src/lib/card-modal.ts`) โดยไม่เปลี่ยน route · ctrl/⌘/shift/ปุ่มกลาง
+ยังเปิดหน้าเต็ม `/cards/:id` ในแท็บใหม่ได้เหมือนเดิม · modal ใช้ `z-[70]` + `pb-24` เพื่อไม่ให้แถบเมนูล่างทับปุ่มปิด
+
+| การตรวจ | คำสั่ง | ผล |
+|---|---|---|
+| Type check | `npx tsc --noEmit` | ผ่าน (exit 0) |
+| Unit tests | `npm test` | **829 passed / 59 suites** (เพิ่ม `tests/unit/card-modal.test.ts` 10 เคส) |
+| E2E (Playwright) | `npm run test:e2e` | **16/16 ผ่าน** (เพิ่ม `tests/e2e/collection-modal.spec.ts` 4 เคส: อยู่หน้า 2 → เปิด → ปิด → ยังอยู่หน้า 2 · Esc · ctrl+คลิกเปิดแท็บใหม่ · ไม่ล้นจอ 390×740) |
+| Production build | `npm run build` | ผ่าน |
+| ลิงก์จริง | `curl https://rune.e2sv.link/cards` | 200 |
+
 ## ฟีเจอร์เด่น (Phase 13)
 
 | ฟีเจอร์ | รายละเอียด |

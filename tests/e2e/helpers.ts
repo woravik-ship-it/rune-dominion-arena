@@ -48,6 +48,13 @@ const BENIGN_CONSOLE_PATTERNS: RegExp[] = [
   /play\(\) failed because the user didn't interact/i,
   /AudioContext/i,
   /net::ERR_ABORTED/i,
+  /**
+   * 2026-10-07: โซน e2sv.link มี Cloudflare Web Analytics ฉีดสคริปต์ beacon เข้ามาในหน้า
+   * แต่แอปตั้ง CSP เข้ม (`script-src 'self' 'unsafe-inline'` — ดู SECURITY.md) เบราว์เซอร์
+   * จึงบล็อกและขึ้น console error ทุกครั้งที่เปิดผ่าน https://rune.e2sv.link
+   * ⇒ เป็น noise ของ "ชั้น Cloudflare" ไม่ใช่บั๊กของแอป (เจอตอนรัน E2E ผ่านลิงก์สาธารณะ)
+   */
+  /static\.cloudflareinsights\.com/i,
 ];
 
 export function isBenignConsoleError(text: string): boolean {
