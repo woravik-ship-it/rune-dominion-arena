@@ -34,13 +34,19 @@ interface BattleData {
   decks: { A: BattleDeckRef | null; B: BattleDeckRef | null };
   isBotBattle: boolean;
   /** ศึกดันเจี้ยน: ซ่อนปุ่มต่อสู้อีกครั้งแบบ PvP แล้วโชว์ปุ่มลุยชั้นถัดไปแทน */
+  /** ศึกฟาร์มแผนที่ (Map 2026-10-03): ปุ่มกลับแผนที่ + ซ่อนต่อสู้อีกครั้งแบบ PvP */
+  isMap?: boolean;
+  map?: {
+    nodeId: string; nodeNameTh: string; zone: string | null;
+    zoneNameTh: string; icon: string;
+  } | null;
   isDungeon?: boolean;
   dungeon?: {
     code: string; nameTh: string; floor: number; icon: string;
     /** Phase 38: จำนวนชั้นทั้งหมด + ชั้นถัดไป (null = อยู่ชั้นสุดท้าย) */
     floors?: number; nextFloor?: number | null; coinCost?: number;
   } | null;
-  reward?: { dust: number; shards: number; itemDropped: string | null; itemNameTh: string | null; eligible?: boolean } | null;
+  reward?: { dust: number; shards: number; itemDropped: string | null; itemNameTh: string | null; jewel?: number; eligible?: boolean } | null;
 }
 
 // ความเร็วตามคำสั่งผู้ใช้: x1 ดูออก (ไม่เร่งใส) · x4/x8 เร็วขึ้น · ข้าม = รู้ผลเลย
@@ -126,6 +132,8 @@ export default function BattleViewerPage() {
           isBotBattle: Boolean(data.data.isBotBattle),
           isDungeon: Boolean(data.data.isDungeon),
           dungeon: data.data.dungeon ?? null,
+          isMap: Boolean(data.data.isMap),
+          map: data.data.map ?? null,
           reward: data.data.reward ?? null,
         });
       }
@@ -418,7 +426,13 @@ export default function BattleViewerPage() {
   return (
     <main className="min-h-screen p-4">
       <div className="mx-auto max-w-3xl">
-        <h1 className="text-2xl font-bold text-center mb-1">{battle.isDungeon && battle.dungeon ? `${battle.dungeon.icon} ${battle.dungeon.nameTh} ชั้น ${battle.dungeon.floor}` : 'สนามรบ'}</h1>
+        <h1 className="text-2xl font-bold text-center mb-1">
+          {battle.isMap && battle.map
+            ? `${battle.map.icon} ${battle.map.zoneNameTh} · ${battle.map.nodeNameTh}`
+            : battle.isDungeon && battle.dungeon
+              ? `${battle.dungeon.icon} ${battle.dungeon.nameTh} ชั้น ${battle.dungeon.floor}`
+              : 'สนามรบ'}
+        </h1>
         {/* ชื่อทีม = ชื่อ Deck จริงของแต่ละฝ่าย (ผู้ใช้สั่ง) */}
         <p className="text-center text-gray-400 text-sm mb-4">
           <span data-team-name="A" className="text-blue-300 font-bold">{battle.teamNames.A}</span>
@@ -448,7 +462,21 @@ export default function BattleViewerPage() {
                     : `▶ ลุยชั้น ${battle.dungeon.nextFloor} ต่อ${battle.dungeon.coinCost ? ` (${battle.dungeon.coinCost} Coin)` : ''}`}
                 </button>
               ) : null}
-              {battle.isDungeon ? (
+              {battle.isMap ? (
+                <Link
+                  data-map-return
+                  href="/map"
+                  className="btn-primary flex-1 text-center text-sm"
+                >
+                  🗺️ กลับแผนที่ (ฟาร์มต่อ)
+                  {battle.reward &&
+                  (battle.reward.dust > 0 || battle.reward.shards > 0 || battle.reward.itemDropped || (battle.reward.jewel ?? 0) > 0)
+                    ? ` · ✨ +${battle.reward.dust} · 💠 +${battle.reward.shards}${battle.reward.itemDropped ? ` · 🎁 ${battle.reward.itemNameTh}` : ''}${(battle.reward.jewel ?? 0) > 0 ? ` · 💎 +${battle.reward.jewel ?? 0}` : ''}`
+                    : battle.winner === 'A'
+                      ? ' · ไม่มีดรอปครั้งนี้'
+                      : ''}
+                </Link>
+              ) : battle.isDungeon ? (
                 <Link
                   data-dungeon-next={battle.dungeon?.code ?? 'dungeon'}
                   href="/dungeons"
@@ -474,9 +502,11 @@ export default function BattleViewerPage() {
                 </button>
               )}
             </div>
-            <p className="mt-2 text-center text-[11px] text-gray-400">
-              ต่อสู้อีกครั้ง = ศึกใหม่ด้วยทีมเดิม {battle.isBotBattle ? '(คู่ต่อสู้เป็นบอท)' : `(คู่ต่อสู้ ${battle.decks.B?.name ?? '-'})`}
-            </p>
+            {!battle.isMap && !battle.isDungeon && (
+              <p className="mt-2 text-center text-[11px] text-gray-400">
+                ต่อสู้อีกครั้ง = ศึกใหม่ด้วยทีมเดิม {battle.isBotBattle ? '(คู่ต่อสู้เป็นบอท)' : `(คู่ต่อสู้ ${battle.decks.B?.name ?? '-'})`}
+              </p>
+            )}
             {actionError && (
               <p className="mt-2 text-center text-xs text-red-400">{actionError}</p>
             )}
@@ -588,7 +618,11 @@ export default function BattleViewerPage() {
 
         <div className="flex gap-2">
           <Link href="/decks" className="btn-secondary text-sm flex-1 text-center">กลับไปจัดทีม</Link>
-          <Link href="/discover" className="btn-primary text-sm flex-1 text-center">ค้นหารูนต่อ</Link>
+          {battle.isMap ? (
+            <Link href="/map" className="btn-primary text-sm flex-1 text-center">🗺️ กลับแผนที่</Link>
+          ) : (
+            <Link href="/discover" className="btn-primary text-sm flex-1 text-center">ค้นหารูนต่อ</Link>
+          )}
         </div>
       </div>
     </main>

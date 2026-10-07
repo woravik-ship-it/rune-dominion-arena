@@ -1,5 +1,5 @@
 // Battle Route (Phase 31.1) — บั๊กจริง: id ใน URL ถูก percent-encode ทำให้หน้าดันเจี้ยนเปิดไม่ติด
-import { battleLogUrl, dungeonBattlePath, parseBattleRouteId } from '@/lib/battle-route';
+import { battleLogUrl, dungeonBattlePath, mapBattlePath, parseBattleRouteId } from '@/lib/battle-route';
 
 describe('parseBattleRouteId — อ่าน id ของหน้า /battle/[id]', () => {
   const runId = 'cmuj5dnpz002win6but075yhj:EMBER_CRYPT:f1:1790472972923';
@@ -13,6 +13,17 @@ describe('parseBattleRouteId — อ่าน id ของหน้า /battle/[
     expect(parseBattleRouteId(encoded)).toEqual({ kind: 'dungeon', id: runId });
     // ค่าที่ Next ส่งมาแบบ encode ทั้งพาธ (มี %3A แทน ':') ต้องไม่ตกไปเป็นศึกปกติ
     expect(parseBattleRouteId(`dungeon-run%3A${encodeURIComponent(runId)}`).kind).toBe('dungeon');
+  });
+
+  test('ฟาร์มแผนที่ (Map 2026-10-03): map-run: → API /api/map/run/… เปิดหน้า replay ได้', () => {
+    const mapRunId = `${runId}:n3`;
+    const raw = `map-run:${mapRunId}`;
+    expect(parseBattleRouteId(raw)).toEqual({ kind: 'map', id: mapRunId });
+    expect(parseBattleRouteId(encodeURIComponent(raw)).kind).toBe('map');
+    expect(battleLogUrl({ kind: 'map', id: mapRunId })).toBe(
+      `/api/map/run/${encodeURIComponent(mapRunId)}/log`
+    );
+    expect(mapBattlePath(mapRunId).split('/').filter(Boolean)).toHaveLength(2);
   });
 
   test('ศึกปกติ: คืน battleId เดิม (ไม่แตะพาธ)', () => {

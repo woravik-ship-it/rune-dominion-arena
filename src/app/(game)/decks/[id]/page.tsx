@@ -328,6 +328,15 @@ export default function DeckBuilderPage() {
               bonusTotal={report.bonusScore + report.affinityScore}
               onSlotClick={handleSlotClick}
             />
+            {/* ปุ่มบันทึกย้ายมาอยู่ใกล้ "ตรงที่เปลี่ยนการ์ด" (ผู้ใช้สั่ง 2026-10-03) — เดิมอยู่ท้ายหน้าต้องเลื่อนไกล */}
+            <button
+              onClick={() => void handleSave()}
+              disabled={saving || filledCount !== 5}
+              data-deck-save
+              className="btn-primary mt-2 w-full disabled:opacity-50"
+            >
+              {saving ? 'กำลังบันทึก...' : dirty ? 'บันทึกเด็ค (มีการแก้ไข)' : 'บันทึกเด็ค'}
+            </button>
           </div>
 
           {/* กราฟสถานะ 6 เหลี่ยม + คะแนนรวมตรงกลาง */}
@@ -461,14 +470,7 @@ export default function DeckBuilderPage() {
             );
           })}
         </div>
-        <button
-          onClick={() => void handleSave()}
-          disabled={saving || filledCount !== 5}
-          data-deck-save
-          className="btn-primary w-full disabled:opacity-50"
-        >
-          {saving ? 'กำลังบันทึก...' : dirty ? 'บันทึกเด็ค (มีการแก้ไข)' : 'บันทึกเด็ค'}
-        </button>
+        {/* หมายเหตุ: ปุ่มบันทึกย้ายไปอยู่ใต้ "วงแหวนการจัดทีม" แล้ว (ใกล้ที่เปลี่ยนการ์ด) — ดูด้านบน */}
         {/* ===== ฟอง/ป็อปอัปทั้งหมดของหน้าจัดเด็ค (Phase 41) ===== */}
 
         {/* ชีตตัวเลือกเมื่อแตะช่องที่มีการ์ดอยู่ */}

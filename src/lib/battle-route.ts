@@ -6,11 +6,13 @@
 //   (`dungeon-run%3Acmuj…%3AEMBER_CRYPT%3Af1%3A…`) ทำให้ `startsWith('dungeon-run:')` เป็น false
 //   → หน้าเว็บยิงไปที่ /api/battle/dungeon-run%3A…/log (404) → ขึ้น "ไม่พบการต่อสู้" ทุกครั้ง
 // ⇒ ไฟล์นี้เป็นที่เดียวที่ถอดรหัส/ประกอบ URL (ใช้ร่วมกับเทสต์ได้ ไม่ต้อง render)
+// โหมดที่รองรับ: dungeon-run: (ดันเจี้ยน) · map-run: (ฟาร์มแผนที่ 2026-10-03) · battle (ศึกปกติ)
 const DUNGEON_PREFIX = 'dungeon-run:';
+const MAP_PREFIX = 'map-run:';
 
 export interface BattleRouteRef {
-  kind: 'dungeon' | 'battle';
-  /** runId ของดันเจี้ยน หรือ battleId ของศึกปกติ */
+  kind: 'dungeon' | 'map' | 'battle';
+  /** runId ของดันเจี้ยน/แผนที่ หรือ battleId ของศึกปกติ */
   id: string;
 }
 
@@ -23,11 +25,14 @@ function safeDecode(value: string): string {
   }
 }
 
-/** อ่าน id ของหน้า /battle/[id] → รู้ว่าเป็นศึกดันเจี้ยนหรือศึกปกติ พร้อม id ที่ถอดรหัสแล้ว */
+/** อ่าน id ของหน้า /battle/[id] → รู้ว่าศึกนี้มาจากไหน พร้อม id ที่ถอดรหัสแล้ว */
 export function parseBattleRouteId(rawId: string | null | undefined): BattleRouteRef {
   const decoded = safeDecode(String(rawId ?? ''));
   if (decoded.startsWith(DUNGEON_PREFIX)) {
     return { kind: 'dungeon', id: decoded.slice(DUNGEON_PREFIX.length) };
+  }
+  if (decoded.startsWith(MAP_PREFIX)) {
+    return { kind: 'map', id: decoded.slice(MAP_PREFIX.length) };
   }
   return { kind: 'battle', id: decoded };
 }
@@ -35,10 +40,17 @@ export function parseBattleRouteId(rawId: string | null | undefined): BattleRout
 /** URL ของ API log ที่ต้องเรียกตามชนิดของศึก (encode id เพื่อให้ id ที่มี ':' ส่งถึงเซิร์ฟเวอร์ถูกต้อง) */
 export function battleLogUrl(ref: BattleRouteRef): string {
   const id = encodeURIComponent(ref.id);
-  return ref.kind === 'dungeon' ? `/api/dungeons/run/${id}/log` : `/api/battle/${id}/log`;
+  if (ref.kind === 'dungeon') return `/api/dungeons/run/${id}/log`;
+  if (ref.kind === 'map') return `/api/map/run/${id}/log`;
+  return `/api/battle/${id}/log`;
 }
 
 /** URL หน้าเว็บของศึกดันเจี้ยน (ที่เดียวที่ประกอบ path นี้) */
 export function dungeonBattlePath(runId: string): string {
   return `/battle/${DUNGEON_PREFIX}${runId}`;
+}
+
+/** URL หน้าเว็บของศึกฟาร์มแผนที่ (ที่เดียวที่ประกอบ path นี้) */
+export function mapBattlePath(runId: string): string {
+  return `/battle/${MAP_PREFIX}${runId}`;
 }
