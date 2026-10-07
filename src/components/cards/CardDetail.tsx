@@ -1,3 +1,18 @@
+'use client';
+
+/**
+ * CardDetail — เนื้อหารายละเอียดการ์ด (ใช้ในป๊อปอัปของหน้าคอลเลคชั่น)
+ *
+ * 2026-10-07 (ผู้ใช้ติ): *"พอกดดูแล้วกรอบการ์ดมันหาย"*
+ * เดิมที่นี่วาดแค่ `<img>` ของ "ภาพ AI" ดิบ ๆ ⇒ ไม่มีกรอบ/ชื่อ/ดาว/สเตตัสของการ์ด
+ * แก้: ใช้ `CardFace` ในกล่องสัดส่วน 7:10 เหมือนในกริดคอลเลคชั่น
+ * (CardFace = ภาพ AI ในช่องภาพ + เลเยอร์กรอบจาก `/api/cards/:id/image?mode=overlay`
+ *  + ชั้นเลื่อม/aura) ⇒ ป๊อปอัปเห็นการ์ดเหมือนในกริดเป๊ะ
+ *
+ * ⚠️ CardFace ต้องอยู่ในกล่อง `position: relative` + สัดส่วนการ์ด (`aspect-[7/10]`)
+ *    ไม่งั้นเลเยอร์ absolute จะสูง 0 แล้วรูป/กรอบหายทั้งหมด
+ */
+import CardFace from '@/components/cards/CardFace';
 import { CardDefinition } from '@/types';
 
 interface CardDetailProps {
@@ -23,6 +38,25 @@ const rarityNames: Record<string, string> = {
   MYTHIC: 'Mythic',
 };
 
+/** พื้นหลัง/แสงเรืองตามธาตุ+ความหายาก — ชุดเดียวกับ CardRevealModal ให้การ์ดหน้าตาเดียวกันทั้งเกม */
+const elementGradients: Record<string, string> = {
+  EMBERBOUND: 'from-orange-600 to-red-700',
+  TIDEBORN: 'from-blue-500 to-cyan-600',
+  SKYRIVEN: 'from-green-400 to-emerald-600',
+  ROOTFORGED: 'from-yellow-600 to-amber-700',
+  DAWNSWORN: 'from-pink-400 to-purple-600',
+  VEILMARKED: 'from-gray-600 to-slate-800',
+};
+
+const rarityGlow: Record<string, string> = {
+  COMMON: 'shadow-gray-400/50',
+  UNCOMMON: 'shadow-green-400/50',
+  RARE: 'shadow-blue-400/50',
+  EPIC: 'shadow-purple-400/50',
+  LEGENDARY: 'shadow-amber-400/50',
+  MYTHIC: 'shadow-red-400/50',
+};
+
 export default function CardDetail({ card, onClose }: CardDetailProps) {
   return (
     <div className="bg-gray-900 rounded-xl p-6 max-w-md mx-auto">
@@ -44,25 +78,22 @@ export default function CardDetail({ card, onClose }: CardDetailProps) {
         )}
       </div>
 
-      {/* Card Image */}
-      <div className="w-full aspect-[7/10] bg-gradient-to-b from-gray-700 to-gray-800 rounded-lg mb-4 flex items-center justify-center">
-        {card.imageUrl ? (
-          <img src={card.imageUrl} alt={card.name} className="w-full h-full object-contain rounded-lg" />
-        ) : (
-          <div className="w-full h-full flex flex-col items-center justify-center gap-2">
-            <img
-              src={`/api/cards/${card.id}/image?v=2`}
-              alt={card.nameTh || card.name}
-              className="w-full h-full object-contain rounded-lg"
-            />
-          </div>
-        )}
+      {/* การ์ดเต็มใบ — กรอบ/ชื่อ/ดาว/สเตตัส มาจากเลเยอร์ overlay ของ CardFace
+          (ผู้ใช้ติ 2026-10-07: "พอกดดูแล้วกรอบการ์ดมันหาย" — เดิมเป็น <img> ภาพดิบ) */}
+      <div
+        data-card-face
+        className={`relative mx-auto mb-4 aspect-[7/10] w-full max-w-[264px] overflow-hidden rounded-xl bg-gradient-to-b ${
+          elementGradients[card.element] ?? 'from-gray-700 to-gray-800'
+        } shadow-lg ${rarityGlow[card.rarity] ?? 'shadow-gray-500/40'}`}
+      >
+        <CardFace
+          cardId={card.id}
+          imageUrl={card.imageUrl}
+          imageStatus={card.imageStatus}
+          rarity={card.rarity}
+          alt={card.nameTh || card.name}
+        />
       </div>
-      {!card.imageUrl && (
-        <p className="text-xs text-center text-gray-400 -mt-3 mb-2">
-          <span className="animate-pulse">⏳</span> กำลังสร้างภาพด้วย AI...
-        </p>
-      )}
 
       {/* Info */}
       <div className="space-y-3">

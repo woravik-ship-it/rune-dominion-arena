@@ -54,6 +54,24 @@ test.describe('คอลเลคชั่น: เปิดรายละเอ
     // และต้องไม่นำทางออกจากหน้าคอลเลคชั่น
     expect(new URL(page.url()).pathname, 'URL ต้องยังเป็น /cards').toBe('/cards');
 
+    // ── การ์ดในป๊อปอัปต้อง "มีกรอบ" เหมือนการ์ดในกริด ──
+    // (ผู้ใช้ติ 2026-10-07: "พอกดดูแล้วกรอบการ์ดมันหาย" — เดิมป๊อปอัปโชว์แค่ภาพ AI ดิบ)
+    const gridFrame = page.locator(`[data-collection-card="${cardId}"] img[src*="mode=overlay"]`);
+    await expect(gridFrame).toHaveAttribute('src', /mode=overlay/);
+    const gridFrameSrc = await gridFrame.getAttribute('src');
+
+    const modalCard = modal.locator('[data-card-face]');
+    const modalFrame = modalCard.locator('img[src*="mode=overlay"]');
+    await expect(modalFrame).toBeVisible();
+    expect(await modalFrame.getAttribute('src'), 'กรอบการ์ดในป๊อปอัปต้องเป็นเลเยอร์เดียวกับในกริด').toBe(gridFrameSrc);
+
+    // กล่องการ์ดต้องมีขนาดจริง — กับดักเดิม: เลเยอร์ absolute ในกล่องสูง 0 ⇒ รูป+กรอบหายทั้งใบ
+    const box = await modalCard.boundingBox();
+    expect(box, 'การ์ดในป๊อปอัปต้องมีกล่องให้วัด').not.toBeNull();
+    expect(box!.width, 'ความกว้างการ์ด').toBeGreaterThan(100);
+    expect(box!.height, 'ความสูงการ์ด').toBeGreaterThan(150);
+    expect(box!.height / box!.width, 'สัดส่วนการ์ดควรใกล้ 7:10').toBeGreaterThan(1.2);
+
     await page.locator('[data-card-detail-close]').click();
     await expect(modal).toBeHidden();
 

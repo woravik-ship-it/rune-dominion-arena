@@ -30,8 +30,10 @@ Fantasy Trading Card Game / Auto Battle / Competitive Arena — เกมแน�
 | Type check | `npx tsc --noEmit` | ผ่าน (exit 0) |
 | Unit tests | `npm test` | **829 passed / 59 suites** (เพิ่ม `tests/unit/card-modal.test.ts` 10 เคส) |
 | E2E (Playwright) | `npm run test:e2e` | **16/16 ผ่าน** (เพิ่ม `tests/e2e/collection-modal.spec.ts` 4 เคส: อยู่หน้า 2 → เปิด → ปิด → ยังอยู่หน้า 2 · Esc · ctrl+คลิกเปิดแท็บใหม่ · ไม่ล้นจอ 390×740) |
+| การ์ดในป๊อปอัปมีกรอบจริง | E2E เคสที่ 1 + DOM ที่จอ 390×740 | กล่องการ์ด **264×377** (สัดส่วน 1.43 ≈ 7:10) · มีเลเยอร์กรอบ `img[src*=mode=overlay]` เดียวกับในกริด · aura canvas 327×468 · ไม่ล้นจอ |
 | Production build | `npm run build` | ผ่าน |
 | ลิงก์จริง | `curl https://rune.e2sv.link/cards` | 200 |
+| E2E ผ่านลิงก์สาธารณะ | `E2E_BASE_URL=https://rune.e2sv.link npx playwright test tests/e2e/collection-modal.spec.ts` | **4/4 ผ่าน** |
 
 ## ฟีเจอร์เด่น (Phase 13)
 
