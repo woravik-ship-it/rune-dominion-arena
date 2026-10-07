@@ -88,16 +88,25 @@ check('P2 filter element/rarity/search', () => {
   return /element/.test(s) && /rarity/.test(s) && /search/.test(s);
 });
 check('P2 GET /api/cards/[id]/owners', () => exists('src/app/api/cards/[id]/owners/route.ts'));
-// 2026-10-07: Phase 42 ให้รวมหน้าการ์ดเข้า /decks แล้ว ⇒ /cards เหลือ redirect
-// คลังการ์ด (grid + filter) ต้องมีจริงที่หน้าจัดเด็ค
-check('P2 คลังการ์ด (grid) + filters ใน UI — /cards redirect ไป /decks (Phase 42)', () => {
+// 2026-10-07 (Phase 45.2): /cards กลับมาเป็นหน้า "คอลเลคชั่นการ์ด" จริง (ผู้ใช้สั่ง)
+// และคลังการ์ดในหน้าจัดเด็คยังมีตัวกรองครบเหมือนเดิม
+check('P2 คอลเลคชั่นการ์ด (/cards) + ตัวกรองครบ + คลังการ์ดในหน้าจัดเด็ค', () => {
   const cards = read('src/app/(game)/cards/page.tsx');
   const decks = read('src/app/(game)/decks/[id]/page.tsx');
-  const isRedirect = /router\.replace\('\/decks'\)/.test(cards);
+  const isCollection =
+    /data-collection-card/.test(cards) &&
+    /data-collection-tab/.test(cards) &&
+    /ELEMENT_FILTERS/.test(cards) &&
+    /RARITY_FILTERS/.test(cards) &&
+    /COLLECTION_SORTS/.test(cards);
   const hasFilters = /ELEMENT_FILTERS|ELEMENTS/.test(decks) && /RARITY_FILTERS|RARITIES/.test(decks)
     && /roleFilter/.test(decks) && /setSearch/.test(decks);
-  return isRedirect && hasFilters;
+  return isCollection && hasFilters;
 });
+check('P2 GET /api/collection (การ์ดทั้งเกม + owned + สรุปความคืบหน้า)', () =>
+  exists('src/app/api/collection/route.ts') &&
+  /collectionSummary/.test(read('src/app/api/collection/route.ts')) &&
+  /owned/.test(read('src/app/api/collection/route.ts')));
 check('P2 หน้า /cards/[id] (detail + stats + skills)', () => {
   const s = read('src/app/(game)/cards/[id]/page.tsx');
   return /atk/.test(s) && /manaCost/.test(s) && /skills/.test(s);

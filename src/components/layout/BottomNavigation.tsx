@@ -20,6 +20,9 @@ interface NavItem {
 const navItems: NavItem[] = [
   { href: '/', key: 'nav.home', icon: '🏠' },
   { href: '/discover', key: 'nav.discover', icon: '🔮' },
+  // Phase 45.2 (2026-10-07): เมนูคอลเลคชั่นการ์ดกลับมา (ผู้ใช้สั่ง) — เดิม /cards เป็น redirect
+  // ไป /decks และหายจาก navItems ทำให้แถบล่างมือถือเหลือแค่ 4 เมนูหลัก
+  { href: '/cards', key: 'nav.cards', icon: '📇' },
   { href: '/decks', key: 'nav.decks', icon: '📋' },
   { href: '/arena', key: 'nav.arena', icon: '⚔️' },
   { href: '/battle', key: 'nav.battle', icon: '🎯' },

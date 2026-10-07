@@ -38,6 +38,8 @@ export default function TopHeader() {
   // เมนูบนจอใหญ่ — ป้ายเปลี่ยนตามภาษาที่เลือก
   const desktopNav: { href: string; key: string; className?: string }[] = [
     { href: '/discover', key: 'nav.discover' },
+    // Phase 45.2: เมนูคอลเลคชั่นการ์ดกลับมาแล้ว (ผู้ใช้สั่ง 2026-10-07) — เดิม /cards เป็น redirect
+    { href: '/cards', key: 'nav.cards' },
     { href: '/quests', key: 'nav.quests' },
     { href: '/events', key: 'nav.events', className: 'text-purple-300 hover:text-purple-200' },
     { href: '/decks', key: 'nav.decks' },

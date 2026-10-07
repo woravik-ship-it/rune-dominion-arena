@@ -60,6 +60,16 @@ const PAGES: Array<{ path: string; label: string; check: (page: import('@playwri
       await expect(page.getByRole('heading', { name: '🗺️ แผนที่ฟาร์ม' })).toBeVisible();
     },
   },
+  {
+    // Phase 45.2 (2026-10-07): เมนูคอลเลคชั่นการ์ดกลับมา (เดิม /cards เป็น redirect ไป /decks)
+    path: '/cards',
+    label: 'คอลเลคชั่นการ์ด',
+    check: async (page) => {
+      await expect(page.getByRole('heading', { name: 'คอลเลคชั่นการ์ด' })).toBeVisible();
+      await expect(page.locator('[data-collection-summary]')).toBeVisible();
+      await expect(page.locator('[data-collection-card]').first()).toBeVisible();
+    },
+  },
 ];
 
 test.describe('หน้าเกม — เปิดได้ไม่ error', () => {

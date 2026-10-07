@@ -47,6 +47,7 @@
     "inspect:item-tabs": "node scripts/inspect-item-tabs.mjs",
     "verify:phase43": "node scripts/verify-phase43.mjs",
     "verify:admin-events": "node scripts/verify-admin-events.mjs",
+    "verify:collection": "node scripts/verify-collection.mjs",
     "clean:test-users": "node scripts/clean-test-users.mjs",
     "shoot:aura": "node scripts/shoot-aura-preview.mjs",
     "inspect:audio": "node scripts/inspect-audio.mjs",

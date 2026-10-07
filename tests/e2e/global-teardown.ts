@@ -39,9 +39,21 @@ export default async function globalTeardown() {
       console.log('[global-teardown] ไม่มีผู้ใช้ทดสอบของรอบนี้ให้ลบ');
       return;
     }
-    const { count } = await prisma.user.deleteMany({ where: { id: { in: stale.map((u) => u.id) } } });
+
+    // ตารางที่ FK เป็น RESTRICT (ไม่ cascade) ต้องลบลูกก่อน — ไม่งั้นลบผู้ใช้ไม่ผ่าน
+    // (เทสต์สายต่อสู้/อารีน่าสร้าง battle_logs + arena_rooms ผูกกับผู้ใช้ทดสอบ)
+    const ids = stale.map((u) => u.id);
+    const battles = await prisma.battleLog.deleteMany({
+      where: { OR: [{ attackerId: { in: ids } }, { defenderId: { in: ids } }] },
+    });
+    const rooms = await prisma.arenaRoom.deleteMany({ where: { hostId: { in: ids } } });
+
+    const { count } = await prisma.user.deleteMany({ where: { id: { in: ids } } });
     // eslint-disable-next-line no-console
-    console.log(`[global-teardown] ลบผู้ใช้ทดสอบของรอบนี้ ${count} บัญชี (${stale.map((u) => u.username).join(', ')})`);
+    console.log(
+      `[global-teardown] ลบผู้ใช้ทดสอบของรอบนี้ ${count} บัญชี ` +
+        `(ประวัติต่อสู้ ${battles.count} แถว · ห้องอารีน่า ${rooms.count} ห้อง) — ${stale.map((u) => u.username).join(', ')}`
+    );
   } finally {
     await prisma.$disconnect();
   }
