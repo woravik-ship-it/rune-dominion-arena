@@ -1,0 +1,18 @@
+[Unit]
+Description=Rune Dominion Arena — สำรองฐานข้อมูลอัตโนมัติ (pg_dump + ตรวจความสมบูรณ์ + ลบไฟล์เก่า)
+Documentation=file:/home/woravik/E2_Lab/Game_Card/rune-dominion-arena/scripts/backup-db.sh
+After=network-online.target rune-dominion-postgres.service
+Wants=rune-dominion-postgres.service
+
+[Service]
+Type=oneshot
+WorkingDirectory=/home/woravik/E2_Lab/Game_Card/rune-dominion-arena
+Environment=HOME=/home/woravik
+Environment=PATH=/home/woravik/.local/bin:/usr/bin:/bin:/usr/local/bin
+# เก็บไฟล์สำรอง 14 วัน (ค่าเริ่มต้นของสคริปต์คือ 7)
+Environment=KEEP_DAYS=14
+ExecStart=/bin/bash scripts/backup-db.sh
+TimeoutStartSec=900
+
+[Install]
+WantedBy=default.target

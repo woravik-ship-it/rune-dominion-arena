@@ -1,0 +1,15 @@
+[Unit]
+Description=Rune Dominion Arena — timer สำรองฐานข้อมูลรายวัน (04:30 น.)
+Documentation=file:/home/woravik/E2_Lab/Game_Card/rune-dominion-arena/docs/DEPLOYMENT.md
+
+[Timer]
+# ทุกวัน 04:30 (เวลาเครื่อง) — Persistent=true = ถ้าเครื่องปิดช่วงนั้น เปิดมาแล้วรันชดเชยให้ทันที
+OnCalendar=*-*-* 04:30:00
+# รันครั้งแรกหลังบูต 10 นาที (กันไปชนกับงานอื่นตอนบูต)
+OnBootSec=10min
+Persistent=true
+AccuracySec=1min
+RandomizedDelaySec=5min
+
+[Install]
+WantedBy=timers.target

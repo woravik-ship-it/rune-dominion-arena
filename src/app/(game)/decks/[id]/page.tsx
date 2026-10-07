@@ -69,6 +69,32 @@ const ROLE_FILTERS: Array<{ key: 'ALL' | DeckSlotRole; label: string }> = [
   { key: 'SUPPORT', label: `✨ ${SLOT_ROLE_STYLE.SUPPORT.th}` },
 ];
 
+/**
+ * Phase 45 (2026-10-07): ตัวกรองธาตุ/ระดับหายากในคลังการ์ด
+ * เดิมมีอยู่ที่หน้า /cards แต่หายไปตอนรวมหน้าการ์ดเข้าเด็ค (Phase 42)
+ * ผู้ใช้สั่งให้ "ตรวจสอบความสมบูรณ์" → เติมกลับให้ครบชุดเดียวกับหน้าเก่า
+ */
+const ELEMENT_FILTERS: Array<{ key: string; label: string }> = [
+  { key: 'ALL', label: 'ทุกธาตุ' },
+  { key: 'EMBERBOUND', label: '🔥 เพลิง' },
+  { key: 'TIDEBORN', label: '💧 น้ำ' },
+  { key: 'SKYRIVEN', label: '🌪️ ลม' },
+  { key: 'ROOTFORGED', label: '🪨 ดิน' },
+  { key: 'DAWNSWORN', label: '✨ แสง' },
+  { key: 'VEILMARKED', label: '🌑 เงา' },
+];
+
+/** ระดับหายาก — ใช้ชื่อไทยชุดเดียวกับกรอบการ์ด (image-placeholder.ts RARITY_FRAME) */
+const RARITY_FILTERS: Array<{ key: string; label: string }> = [
+  { key: 'ALL', label: 'ทุกระดับ' },
+  { key: 'COMMON', label: 'ทั่วไป' },
+  { key: 'UNCOMMON', label: 'ไม่ธรรมดา' },
+  { key: 'RARE', label: 'หายาก' },
+  { key: 'EPIC', label: 'มหากาพย์' },
+  { key: 'LEGENDARY', label: 'ตำนาน' },
+  { key: 'MYTHIC', label: 'เทพนิยาย' },
+];
+
 /** การ์ดบทบาทนี้ "เข้าช่อง" บทบาทไหนได้โบนัสตรงบทบาทบ้าง (ใช้ติดป้ายในคลังการ์ด) */
 const CARD_ROLE_AFFINITY: Array<{ role: DeckSlotRole; cardRoles: readonly string[] }> = [
   { role: 'ATTACK', cardRoles: ROLE_AFFINITY.ATTACK },
@@ -97,6 +123,10 @@ export default function DeckBuilderPage() {
   const [err, setErr] = useState<string | null>(null);
   const [search, setSearch] = useState('');
   const [roleFilter, setRoleFilter] = useState<'ALL' | DeckSlotRole>('ALL');
+  /** Phase 45: ตัวกรองธาตุ/ระดับหายาก + ซ่อนใบที่เข้าทีมแล้ว (คลังการ์ด) */
+  const [elementFilter, setElementFilter] = useState('ALL');
+  const [rarityFilter, setRarityFilter] = useState('ALL');
+  const [hideInTeam, setHideInTeam] = useState(false);
   // Phase 41: UI แบบ "ฟอง" + กันแก้แล้วลืมบันทึก
   const [sheetPos, setSheetPos] = useState<number | null>(null);
   const [pickPos, setPickPos] = useState<number | null>(null);
@@ -279,6 +309,10 @@ export default function DeckBuilderPage() {
       const wanted = ROLE_AFFINITY[roleFilter];
       if (!c.role || !wanted.includes(c.role)) return false;
     }
+    // Phase 45: ธาตุ / ระดับหายาก / ซ่อนใบที่เข้าทีมแล้ว (ผู้ใช้สั่ง 2026-10-07)
+    if (elementFilter !== 'ALL' && c.element !== elementFilter) return false;
+    if (rarityFilter !== 'ALL' && c.rarity !== rarityFilter) return false;
+    if (hideInTeam && placedIds.has(c.cardId)) return false;
     if (!search) return true;
     const q = search.toLowerCase();
     return c.name.toLowerCase().includes(q) || (c.nameTh || '').includes(search);
@@ -395,11 +429,13 @@ export default function DeckBuilderPage() {
         )}
         {msg && <p className="text-green-400 text-sm mb-4">{msg}</p>}
         <h2 className="font-bold mb-2">คลังการ์ด (แตะเพื่อเลือก แล้วแตะช่องในวง)</h2>
-        <div className="mb-2 flex flex-wrap gap-1.5">
+        {/* Phase 45: ตัวกรองครบชุด (บทบาท · ธาตุ · ระดับหายาก) + ซ่อนใบที่เข้าทีมแล้ว */}
+        <div className="mb-1.5 flex flex-wrap gap-1.5">
           {ROLE_FILTERS.map((filter) => (
             <button
               key={filter.key}
               type="button"
+              data-deck-role-filter={filter.key}
               onClick={() => setRoleFilter(filter.key)}
               className={`rounded-full border px-2.5 py-1 text-[11px] transition-colors ${
                 roleFilter === filter.key
@@ -410,6 +446,55 @@ export default function DeckBuilderPage() {
               {filter.label}
             </button>
           ))}
+        </div>
+        <div className="mb-1.5 flex flex-wrap gap-1.5">
+          {ELEMENT_FILTERS.map((filter) => (
+            <button
+              key={filter.key}
+              type="button"
+              data-deck-element-filter={filter.key}
+              onClick={() => setElementFilter(filter.key)}
+              className={`rounded-full border px-2.5 py-1 text-[11px] transition-colors ${
+                elementFilter === filter.key
+                  ? 'border-sky-400 bg-sky-400/20 text-sky-200'
+                  : 'border-gray-700 bg-gray-800 text-gray-300 hover:border-gray-500'
+              }`}
+            >
+              {filter.label}
+            </button>
+          ))}
+        </div>
+        <div className="mb-2 flex flex-wrap items-center gap-1.5">
+          {RARITY_FILTERS.map((filter) => (
+            <button
+              key={filter.key}
+              type="button"
+              data-deck-rarity-filter={filter.key}
+              onClick={() => setRarityFilter(filter.key)}
+              className={`rounded-full border px-2.5 py-1 text-[11px] transition-colors ${
+                rarityFilter === filter.key
+                  ? 'border-fuchsia-400 bg-fuchsia-400/20 text-fuchsia-200'
+                  : 'border-gray-700 bg-gray-800 text-gray-300 hover:border-gray-500'
+              }`}
+            >
+              {filter.label}
+            </button>
+          ))}
+          <button
+            type="button"
+            data-deck-hide-in-team={hideInTeam ? '1' : '0'}
+            onClick={() => setHideInTeam((v) => !v)}
+            className={`rounded-full border px-2.5 py-1 text-[11px] transition-colors ${
+              hideInTeam
+                ? 'border-emerald-400 bg-emerald-400/20 text-emerald-200'
+                : 'border-gray-700 bg-gray-800 text-gray-300 hover:border-gray-500'
+            }`}
+          >
+            {hideInTeam ? '☑' : '☐'} ซ่อนใบที่อยู่ในทีมแล้ว
+          </button>
+          <span data-deck-pool-count className="ml-auto text-[11px] text-gray-400">
+            แสดง {filteredPool.length}/{pool.length} ใบ
+          </span>
         </div>
         <input
           value={search}

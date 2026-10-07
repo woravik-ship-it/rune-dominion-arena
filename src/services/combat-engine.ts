@@ -15,6 +15,34 @@ import {
   toUnit,
 } from './combat';
 
+/**
+ * ตัดสินผู้ชนะเมื่อจบการต่อสู้ (pure — เทสต์ได้ตรง ๆ)
+ *
+ * CODE_REVIEW #6 (2026-09-28) ชี้ว่า "ครบ BATTLE_MAX_TURNS แล้วอาจ DRAW"
+ * ⇒ ไล่ตัวตัดสินเป็นชั้น ๆ แทนที่จะยอม DRAW ทันที:
+ *   1) เหลือรอดฝั่งเดียว = ชนะ
+ *   2) HP รวมที่เหลือมากกว่า = ชนะ
+ *   3) HP เท่ากัน → จำนวนใบที่ยังรอด
+ *   4) ยังเท่ากัน → พลังโจมตีรวมที่เหลือ (effectiveAtk = คิด debuff weaken แล้ว)
+ *   5) เท่ากันทุกตัวชี้วัด = DRAW จริง ๆ (แทบไม่เกิด)
+ */
+export function decideWinner(input: {
+  hpA: number;
+  hpB: number;
+  aliveA: number;
+  aliveB: number;
+  atkA: number;
+  atkB: number;
+}): { winner: BattleResult['winner']; reasonTh: string } {
+  const { hpA, hpB, aliveA, aliveB, atkA, atkB } = input;
+  if (aliveA > 0 && aliveB === 0) return { winner: 'A', reasonTh: 'อีกฝ่ายหมดสภาพ' };
+  if (aliveB > 0 && aliveA === 0) return { winner: 'B', reasonTh: 'อีกฝ่ายหมดสภาพ' };
+  if (hpA !== hpB) return { winner: hpA > hpB ? 'A' : 'B', reasonTh: 'HP รวมที่เหลือ' };
+  if (aliveA !== aliveB) return { winner: aliveA > aliveB ? 'A' : 'B', reasonTh: 'จำนวนใบที่ยังรอด' };
+  if (atkA !== atkB) return { winner: atkA > atkB ? 'A' : 'B', reasonTh: 'พลังโจมตีรวมที่เหลือ' };
+  return { winner: 'DRAW', reasonTh: 'เสมอจริง ๆ ทุกตัวชี้วัด' };
+}
+
 export function simulateBattle(
   teamA: CombatCard[],
   teamB: CombatCard[],
@@ -155,10 +183,24 @@ export function simulateBattle(
   const aliveA = unitsA.filter((u) => u.alive).length;
   const aliveB = unitsB.filter((u) => u.alive).length;
 
-  let winner: BattleResult['winner'] = 'DRAW';
-  if (aliveA > 0 && aliveB === 0) winner = 'A';
-  else if (aliveB > 0 && aliveA === 0) winner = 'B';
-  else if (hpA !== hpB) winner = hpA > hpB ? 'A' : 'B';
+  // ตัดสินผู้ชนะ — รายละเอียดกติกาไล่ชั้นอยู่ใน decideWinner() (pure + มีเทสต์)
+  // บันทึกเหตุผลลง log "เฉพาะกรณีที่ผลต่างจากกติกาเดิม" (HP รวมเท่ากันเป๊ะ = เดิมออก DRAW)
+  // ทำแบบนี้เพื่อไม่ให้ log ของการต่อสู้เดิม (ที่ตัดสินด้วย HP ตามปกติ) เปลี่ยน → replay ยัง VERIFIED
+  const atkA = unitsA.reduce((s, u) => s + (u.alive ? effectiveAtk(u) : 0), 0);
+  const atkB = unitsB.reduce((s, u) => s + (u.alive ? effectiveAtk(u) : 0), 0);
+  const decision = decideWinner({ hpA, hpB, aliveA, aliveB, atkA, atkB });
+  const winner: BattleResult['winner'] = decision.winner;
+
+  if (hpA === hpB && aliveA > 0 && aliveB > 0) {
+    log.push({
+      round: roundsPlayed,
+      order: ++order,
+      actorId: 'system',
+      actorSide: 'A',
+      action: 'info',
+      messageTh: `HP รวมเท่ากัน — ผู้ตัดสิน: ${decision.reasonTh}`,
+    });
+  }
 
   return {
     winner, roundsPlayed,

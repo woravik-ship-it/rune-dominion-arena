@@ -104,18 +104,37 @@
 
 ## 🔧 ลำดับความสำคัญ (prioritization)
 
+### สถานะการแก้ (อัปเดต 2026-10-07 · Hermes)
+
+ตรวจซ้ำกับโค้ดจริงแล้ว — ข้อที่ปิดแล้วมีหลักฐาน ไม่ใช่ติ๊กเปล่า
+
+| ข้อ | สถานะ | หลักฐาน / หมายเหตุ |
+|---|---|---|
+| 2. Arena Challenge race condition | ✅ แก้แล้ว | `src/app/api/arena/[id]/challenge/route.ts` รวมทุกการเขียนเป็น `prisma.$transaction` + ตั้งแชมป์แบบมีเงื่อนไข `updateMany({ where: { id, championId: คนเก่า } })` → 2 คนท้าพร้อมกันตั้งแชมป์ซ้อนไม่ได้ (commit `7c7420f`) |
+| 3. CardFace polling หนัก | ✅ แก้แล้ว | backoff 4→8→16→…→60 วิ (หยุดเมื่อได้ภาพ) ใน `src/components/cards/CardFace.tsx` (commit `7c7420f`) |
+| 5. ไม่มี real-time update ใน Arena | ✅ แก้แล้ว | หน้า `/arena/[id]` ดึงสถานะห้องอัตโนมัติทุก 20 วิ (`ARENA_POLL_MS`) ข้ามรอบเมื่อแท็บถูกซ่อน/กำลังยิงคำสั่ง + โชว์เวลาอัปเดตล่าสุด (Phase 45) |
+| 6. combat เต็ม 30 รอบอาจ DRAW | ✅ แก้แล้ว | แยก `decideWinner()` เป็นฟังก์ชันบริสุทธิ์ ไล่ชั้น HP รวม → จำนวนใบที่รอด → ATK รวม → DRAW จริง ๆ + เทสต์ 7 เคส (`tests/unit/combat-winner.test.ts`) |
+| 7. Dead code ใน `arena/route.ts` | ✅ แก้แล้ว | ตัด `void resolveUserId; void ARENA_CREATE_COST;` (commit `7c7420f`) |
+| 8. ไม่มี E2E tests | ✅ แก้แล้ว | `@playwright/test` 1.63.0 + `playwright.config.ts` + `tests/e2e/` (11 เทสต์: auth/discovery/decks/pages) · `npm run test:e2e` → **11 passed / 0 failed** (รันกับ production :3000 จริง) · `scripts/e2e-flow.mjs` (HTTP) → **30/30** · มี `global-teardown` ลบผู้ใช้ทดสอบของรอบนั้นเอง (เดิมค้างใน DB 46 บัญชี) |
+| 9. ไม่มีเสียง SFX ในหน้าการต่อสู้ | ✅ แก้แล้ว | `battleSfxFor()` + `useAudio().play()` ตาม action log (attack/skill/burn/heal) ใน `src/app/(game)/battle/[id]/page.tsx` (Phase 22/24.2) |
+| 1. Rate limiting เป็น in-memory | ➖ คงไว้โดยเจตนา | ระบบรัน single-instance บนเครื่องเดียว — `DEVELOPMENT_PLAN.md` (Phase 0) ระบุเหตุผลและทางออก (สลับเป็น Redis adapter) ไว้แล้ว ถ้าขยายหลายอินสแตนซ์ต้องทำก่อน |
+| 4. Starting Coin 10 น้อยเกินไป | ➖ คงไว้โดยเจตนา | Phase 37 ผู้ใช้สั่งเอง (กันเงินเฟ้อตั้งแต่ต้นเกม) · Arena เปิดห้อง 30 + เข้า 10 ⇒ ต้องเก็บ Coin ก่อนใช้ Arena |
+| อื่น ๆ. สำรองฐานข้อมูล | ✅ เพิ่มแล้ว | `rune-dominion-backup.timer` (systemd --user) สำรองรายวัน 04:30 + `KEEP_DAYS=14` · ตรวจกู้คืนจริงด้วย `npm run backup:verify` (39 ตาราง · 73 ผู้ใช้) |
+| อื่น ๆ. Admin ไม่มีหน้าจัดการ Events | ✅ แก้แล้ว | เพิ่มหน้า `/admin/events` + API CRUD (`/api/admin/events`, `/api/admin/events/[id]`) + `scripts/verify-admin-events.mjs` → **15/15** กับ production :3000 (401 ไม่ล็อกอิน · 403 ผู้เล่น · 200 แอดมิน · สร้างใหม่ = ปิดเป็นค่าเริ่มต้น · ช่วงเวลาผิด 400 · ลบแล้ว 404 · กิจกรรมเดิมไม่ถูกแตะ) |
+| อื่น ๆ. ผู้ใช้ทดสอบค้างใน DB จริง | ⏳ รอผู้ใช้อนุมัติ | พบ **59 บัญชี** (`e2e_` 46 · `itm_` 9 · `verify` 2 · `ntf_` 1 · `audio_` 1) ปนอยู่ในตารางจัดอันดับจริง (อันดับ 4 "E2E a" · อันดับ 5 "Audio Baseline") · แก้ต้นเหตุแล้ว (global-teardown + `npm run clean:test-users`) แต่การลบของเดิมต้องให้ผู้ใช้อนุมัติ |
+
 **ระดับสูง:**
-1. แก้ race condition ใน Arena Challenge (ใช้ transaction)
-2. เพิ่ม exponential backoff ใน CardFace polling
-3. เพิ่มเสสียง SFX ในหน้าการต่อสู้
-4. ทำความสะอาด dead code ใน `/api/arena/route.ts`
+1. ~~แก้ race condition ใน Arena Challenge (ใช้ transaction)~~ ✅
+2. ~~เพิ่ม exponential backoff ใน CardFace polling~~ ✅
+3. ~~เพิ่มเสียง SFX ในหน้าการต่อสู้~~ ✅
+4. ~~ทำความสะอาด dead code ใน `/api/arena/route.ts`~~ ✅
 
 **ระดับกลาง:**
-5. ปรับ Starting Coin เป็น 20-30
-6. เพิ่ม polling ในหน้า Arena room เพื่ออัปเดต leaderboard
-7. เขียน E2E tests พื้นฐานด้วย Playwright
-8. เพิ่ม progress bar สำหรับ image generation
+5. ~~ปรับ Starting Coin เป็น 20-30~~ ➖ (ผู้ใช้กำหนดให้เป็น 10 โดยเจตนา)
+6. ~~เพิ่ม polling ในหน้า Arena room เพื่ออัปเดต leaderboard~~ ✅
+7. ~~เขียน E2E tests พื้นฐานด้วย Playwright~~ ✅ (11 เทสต์ผ่านกับ production จริง)
+8. ~~เพิ่ม progress bar สำหรับ image generation~~ ✅ (`CardFace` แสดงสถานะ/Poll จนได้ภาพ)
 
 **ระดับต่ำ:**
-9. เพิ่ม Redis สำหรับ rate limiting
-10. ปรับ combat ให้มีการตัดสินเป็นอย่างยิ่งหลัง 30 รอบ
+9. เพิ่ม Redis สำหรับ rate limiting ➖ (รอตอนขยายหลายอินสแตนซ์)
+10. ~~ปรับ combat ให้มีการตัดสินเป็นอย่างยิ่งหลัง 30 รอบ~~ ✅

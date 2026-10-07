@@ -2,11 +2,12 @@
 
 import { apiFetch } from '@/lib/api-client';
 import { useAudio } from '@/components/providers/AudioProvider';
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import CardFace from '@/components/cards/CardFace';
 import { arenaJoinMessage } from '@/services/arena';
+import { ARENA_POLL_MS } from '@/lib/constants';
 
 interface BoardEntry {
   rank: number;
@@ -59,9 +60,25 @@ export default function ArenaRoomPage() {
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
   const [err, setErr] = useState<string | null>(null);
+  /** Phase 45: อัปเดตห้องอัตโนมัติ (CODE_REVIEW #5 — เดิมต้องกดรีเฟรชเองเท่านั้น) */
+  const [syncedAt, setSyncedAt] = useState<number>(0);
+  const busyRef = useRef(false);
+  busyRef.current = busy;
 
   // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => { loadRoom(); loadDecks(); }, [roomId]);
+
+  /** ตั้งเวลาดึงสถานะห้องทุก ARENA_POLL_MS — ข้ามรอบเมื่อแท็บถูกซ่อนหรือกำลังยิงคำสั่งอื่น */
+  useEffect(() => {
+    const timer = setInterval(async () => {
+      if (typeof document !== 'undefined' && document.visibilityState === 'hidden') return;
+      if (busyRef.current) return;
+      await loadRoom();
+      setSyncedAt(Date.now());
+    }, ARENA_POLL_MS);
+    return () => clearInterval(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [roomId]);
 
   const loadRoom = async () => {
     try {
@@ -169,8 +186,12 @@ export default function ArenaRoomPage() {
           ← กลับล็อบบี้
         </button>
         <h1 className="text-2xl font-bold">{room.name}</h1>
-        <p className="text-sm text-gray-400 mb-4">
+        <p className="text-sm text-gray-400 mb-4" data-arena-room-summary>
           👥 {room.participantCount} คน • 🏆 {room.rewardPool} Coin • สถานะ {room.status}
+          {/* Phase 45: บอกว่าข้อมูลเพิ่งดึงล่าสุดเมื่อไร (ผู้เล่นรู้ว่าไม่ต้องรีเฟรชเอง) */}
+          <span data-arena-synced-at={syncedAt} className="ml-1 text-[11px] text-gray-500">
+            {syncedAt ? `• อัปเดต ${new Date(syncedAt).toLocaleTimeString('th-TH')}` : '• กำลังดึงข้อมูล…'}
+          </span>
         </p>
 
         {msg && <p className="text-green-400 text-sm mb-3">{msg}</p>}

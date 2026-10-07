@@ -41,6 +41,12 @@ export const STARTING_ENERGY = 5;
 export const MAX_ENERGY = 10;
 
 // Arena
+/**
+ * Phase 45 (2026-10-07): คาบดึงสถานะห้องอารีน่าอัตโนมัติในหน้าจอผู้เล่น
+ * CODE_REVIEW #5 ชี้ว่าเดิม "ไม่มี real-time" (leaderboard/แชมป์ไม่อัปเดตจนกว่าจะรีเฟรชเอง)
+ * 20 วิ = เร็วพอให้รู้ตัวเมื่อถูกท้าทาย แต่ไม่กดฐานข้อมูลหนัก (ข้ามรอบเมื่อแท็บถูกซ่อน)
+ */
+export const ARENA_POLL_MS = 20_000;
 export const ARENA_CREATE_FEE = 30;
 export const ARENA_ENTRY_FEE = 10;
 export const ARENA_DURATION_HOURS = 24;

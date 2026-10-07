@@ -67,7 +67,13 @@ check('P1 seed script 100 การ์ด', () => /cardCount\s*=\s*100/.test(rea
 check('P1 หน้า /discover + RuneCanvas (Canvas API)', () =>
   exists('src/app/discover/page.tsx') && /getContext\('2d'\)/.test(read('src/components/rune/RuneCanvas.tsx')));
 check('P1 เลือกรูน 8–16 + แสดง sequence', () => /minRunes.*8|maxRunes.*16/.test(read('src/app/discover/page.tsx')));
-check('P1 ปุ่มถอดรหัสรูน + loading state', () => /ถอดรหัสรูน/.test(read('src/app/discover/page.tsx')) && /กำลังอ่านบันทึกแห่งรูน/.test(read('src/app/discover/page.tsx')));
+// 2026-10-07: ข้อความย้ายไป i18n แล้ว ⇒ เช็คที่คีย์จริง ไม่ใช่ literal ในหน้า
+check('P1 ปุ่มถอดรหัสรูน + loading state', () => {
+  const th = read('src/lib/i18n/dict-th.ts');
+  const page = read('src/app/discover/page.tsx');
+  return /'discover\.decode':/.test(th) && /'discover\.decoding':/.test(th)
+    && /t\('discover\.decode'\)/.test(page) && /discover\.decoding/.test(page);
+});
 check('P1 Card Reveal Modal', () => exists('src/components/cards/CardRevealModal.tsx'));
 check('P1 badge ผู้ค้นพบคนแรก/ถูกค้นพบแล้ว', () => grepCount('isFirstDiscovery') >= 3);
 check('P1 reduced motion', () => grepCount('prefers-reduced-motion|reduceMotion|reduceIntense') >= 1);
@@ -82,9 +88,15 @@ check('P2 filter element/rarity/search', () => {
   return /element/.test(s) && /rarity/.test(s) && /search/.test(s);
 });
 check('P2 GET /api/cards/[id]/owners', () => exists('src/app/api/cards/[id]/owners/route.ts'));
-check('P2 หน้า /cards (grid) + filters ใน UI', () => {
-  const s = read('src/app/(game)/cards/page.tsx');
-  return /ELEMENTS/.test(s) && /RARITIES/.test(s) && /search/.test(s);
+// 2026-10-07: Phase 42 ให้รวมหน้าการ์ดเข้า /decks แล้ว ⇒ /cards เหลือ redirect
+// คลังการ์ด (grid + filter) ต้องมีจริงที่หน้าจัดเด็ค
+check('P2 คลังการ์ด (grid) + filters ใน UI — /cards redirect ไป /decks (Phase 42)', () => {
+  const cards = read('src/app/(game)/cards/page.tsx');
+  const decks = read('src/app/(game)/decks/[id]/page.tsx');
+  const isRedirect = /router\.replace\('\/decks'\)/.test(cards);
+  const hasFilters = /ELEMENT_FILTERS|ELEMENTS/.test(decks) && /RARITY_FILTERS|RARITIES/.test(decks)
+    && /roleFilter/.test(decks) && /setSearch/.test(decks);
+  return isRedirect && hasFilters;
 });
 check('P2 หน้า /cards/[id] (detail + stats + skills)', () => {
   const s = read('src/app/(game)/cards/[id]/page.tsx');
