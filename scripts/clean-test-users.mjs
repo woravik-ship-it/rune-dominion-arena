@@ -36,8 +36,13 @@ const args = process.argv.slice(2);
 const DO_DELETE = args.includes('--yes');
 const onlyPrefix = args.find((a) => a.startsWith('--prefix='))?.split('=')[1] ?? null;
 
-/** prefix ที่สคริปต์/เทสต์ในโปรเจกต์นี้ใช้ตั้งชื่อบัญชีชั่วคราว */
-const KNOWN_PREFIXES = ['e2e_', 'verify', 'ntf_', 'audio_', 'itm_', 'vae_', 'map_', 'item_'];
+/** prefix ที่สคริปต์/เทสต์ในโปรเจกต์นี้ใช้ตั้งชื่อบัญชีชั่วคราว
+ *  (2026-10-07: เดิมลบไม่ครบ — สคริปต์ inspect ใช้ prefix อีกชุด เช่น adm_, rnk_, dun_, raid_,
+ *   prof_, mg_, ui_, lv_, dbg) */
+const KNOWN_PREFIXES = [
+  'e2e_', 'verify', 'vae_', 'ntf_', 'audio_', 'itm_', 'item_', 'map_',
+  'adm_', 'rnk_', 'dun_', 'raid_', 'prof_', 'mg_', 'ui_', 'lv_', 'dbg',
+];
 
 async function main() {
   const prefixes = onlyPrefix ? [onlyPrefix] : KNOWN_PREFIXES;
@@ -75,8 +80,18 @@ async function main() {
     console.log('\nไม่มีบัญชีทดสอบให้ลบ');
     return;
   }
+
+  // ตารางที่ FK เป็น RESTRICT (ไม่ cascade) ต้องลบลูกก่อน ไม่งั้นลบผู้ใช้ไม่ผ่าน:
+  //   battle_logs.attacker_id / defender_id  ·  arena_rooms.host_id
+  // (ตารางอื่น ๆ ผูกกับ users แบบ onDelete: Cascade อยู่แล้ว — users ลบแล้วหายตาม)
+  const battles = await prisma.battleLog.deleteMany({
+    where: { OR: [{ attackerId: { in: deletable } }, { defenderId: { in: deletable } }] },
+  });
+  const rooms = await prisma.arenaRoom.deleteMany({ where: { hostId: { in: deletable } } });
+  console.log(`\n🧽 ลบข้อมูลลูกก่อน: ประวัติต่อสู้ ${battles.count} แถว · ห้องอารีน่า ${rooms.count} ห้อง`);
+
   const { count } = await prisma.user.deleteMany({ where: { id: { in: deletable } } });
-  console.log(`\n🧹 ลบบัญชีทดสอบแล้ว ${count} บัญชี (เหลือผู้ใช้ ${await prisma.user.count()} คน)`);
+  console.log(`🧹 ลบบัญชีทดสอบแล้ว ${count} บัญชี (เหลือผู้ใช้ ${await prisma.user.count()} คน)`);
 }
 
 main()
