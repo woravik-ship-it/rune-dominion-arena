@@ -18,10 +18,16 @@ import type { CardDefinition } from '@/types';
 
 interface CardDetailModalProps {
   cardId: string;
+  /**
+   * URL ของหน้าคอลเลคชั่น ณ ตอนเปิดป๊อปอัป (มี page/ตัวกรองติดไปด้วย)
+   * ส่งต่อไปกับปุ่ม "เปิดหน้าเต็ม" เป็น `?from=` เพื่อให้กดกลับจากหน้ารายละเอียด
+   * แล้วได้ **หน้าของการ์ดที่เปิดดูอยู่** ไม่ใช่หน้า 1 (ผู้ใช้แจ้ง 2026-10-07)
+   */
+  fromHref?: string;
   onClose: () => void;
 }
 
-export default function CardDetailModal({ cardId, onClose }: CardDetailModalProps) {
+export default function CardDetailModal({ cardId, fromHref, onClose }: CardDetailModalProps) {
   const [card, setCard] = useState<CardDefinition | null>(null);
   const [err, setErr] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -86,8 +92,13 @@ export default function CardDetailModal({ cardId, onClose }: CardDetailModalProp
         )}
 
         <div className="mt-2 flex items-center justify-center gap-3 text-[11px]">
-          {/* ลิงก์ไปหน้าเต็มสำหรับคนที่ต้องการร้านไอเทม/สถานะภาพ AI */}
-          <a data-card-detail-fullpage href={`/cards/${cardId}`} className="text-gray-400 underline">
+          {/* ลิงก์ไปหน้าเต็มสำหรับคนที่ต้องการร้านไอเทม/สถานะภาพ AI
+              ส่ง fromHref ติดไปด้วย ⇒ ปุ่ม "กลับไปคอลเลคชั่น" ในหน้านั้นพากลับมาหน้านี้ */}
+          <a
+            data-card-detail-fullpage
+            href={`/cards/${cardId}${fromHref ? `?from=${encodeURIComponent(fromHref)}` : ''}`}
+            className="text-gray-400 underline"
+          >
             เปิดหน้าเต็ม
           </a>
           <button type="button" data-card-detail-close onClick={onClose} className="text-gray-400 underline">

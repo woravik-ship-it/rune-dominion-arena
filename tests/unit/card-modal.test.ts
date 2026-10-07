@@ -1,4 +1,10 @@
-import { shouldOpenDetailInModal, toCardDefinition } from '@/lib/card-modal';
+import {
+  buildCollectionUrl,
+  parseCollectionView,
+  sanitizeCollectionFrom,
+  shouldOpenDetailInModal,
+  toCardDefinition,
+} from '@/lib/card-modal';
 
 /**
  * 2026-10-07 (ผู้ใช้แจ้ง): "อยู่หน้า 2 กดกลับคอลเลคชั่น จะกลับไปหน้า 1
@@ -84,5 +90,71 @@ describe('toCardDefinition — แปลง payload ของ GET /api/cards/:id
     expect(toCardDefinition('nope')).toBeNull();
     expect(toCardDefinition({ name: 'ไม่มี id' })).toBeNull();
     expect(toCardDefinition({ id: 'x' })).toBeNull();
+  });
+});
+
+/**
+ * 2026-10-07 รอบ 2 (ผู้ใช้แจ้ง): "กดเปิดเต็มจอ พอกดกลับคอลเลคชั่น จะกลับไปหน้า 1 อีก
+ * แก้ด้วย ให้กลับไปหน้าที่การ์ดที่เปิดดูอยู่"
+ */
+describe('buildCollectionUrl / parseCollectionView — มุมมองคอลเลคชั่นต้องติดไปกับ URL', () => {
+  test('ค่าเริ่มต้นทั้งหมด → /cards เปล่า ๆ (URL สั้น)', () => {
+    expect(buildCollectionUrl({ page: 1, tab: 'all', sort: 'power', element: 'ALL', rarity: 'ALL', role: 'ALL', search: '' })).toBe('/cards');
+    expect(buildCollectionUrl({})).toBe('/cards');
+  });
+
+  test('หน้า 2 → ติด page=2', () => {
+    expect(buildCollectionUrl({ page: 2 })).toBe('/cards?page=2');
+  });
+
+  test('ตัวกรอง+คำค้น+เรียง → ครบทุกตัวที่ต่างจากค่าเริ่มต้น', () => {
+    const url = buildCollectionUrl({ page: 3, tab: 'owned', sort: 'atk', element: 'EMBERBOUND', rarity: 'RARE', role: 'MAGE', search: 'อัศวิน' });
+    const params = new URLSearchParams(url.split('?')[1]);
+    expect(url.startsWith('/cards?')).toBe(true);
+    expect(params.get('page')).toBe('3');
+    expect(params.get('tab')).toBe('owned');
+    expect(params.get('sort')).toBe('atk');
+    expect(params.get('element')).toBe('EMBERBOUND');
+    expect(params.get('rarity')).toBe('RARE');
+    expect(params.get('role')).toBe('MAGE');
+    expect(params.get('search')).toBe('อัศวิน');
+  });
+
+  test('parse: อ่านค่ากลับได้ตรงกับที่ build ไว้ (ไป-กลับไม่เพี้ยน)', () => {
+    const view = { page: 2, tab: 'missing', sort: 'name', element: 'TIDEBORN', rarity: 'EPIC', role: 'TANK', search: 'sea' };
+    expect(parseCollectionView(new URLSearchParams(buildCollectionUrl(view).split('?')[1]))).toEqual(view);
+  });
+
+  test('parse: ค่าที่ผิดรูปถูกทิ้ง ไม่ทำให้หน้าพัง', () => {
+    const bad = new URLSearchParams('page=-3&tab=hack&element=<script>&rarity=RARE&search=' + 'x'.repeat(200));
+    const view = parseCollectionView(bad);
+    expect(view.page).toBeUndefined();       // page ต้อง >= 2
+    expect(view.tab).toBeUndefined();        // ไม่อยู่ในแท็บที่รู้จัก
+    expect(view.element).toBeUndefined();    // มีอักขระที่ไม่ใช่ตัวอักษร
+    expect(view.rarity).toBe('RARE');
+    expect(view.search!.length).toBe(60);    // ตัดความยาว
+  });
+});
+
+describe('sanitizeCollectionFrom — กัน open redirect ให้ปุ่มกลับไปคอลเลคชั่น', () => {
+  test('รับ URL คอลเลคชั่นของเราเอง (มี query ได้)', () => {
+    expect(sanitizeCollectionFrom('/cards?page=2')).toBe('/cards?page=2');
+    expect(sanitizeCollectionFrom('/cards')).toBe('/cards');
+    expect(sanitizeCollectionFrom('/cards?page=2&element=EMBERBOUND')).toBe('/cards?page=2&element=EMBERBOUND');
+  });
+
+  test('ปฏิเสธลิงก์นอกเว็บ/ลิงก์ที่พาวนไปหน้ารายละเอียด', () => {
+    expect(sanitizeCollectionFrom('https://evil.example/x')).toBeNull();
+    expect(sanitizeCollectionFrom('//evil.example')).toBeNull();
+    expect(sanitizeCollectionFrom('/cards/abc123')).toBeNull();   // วนกลับไปหน้ารายละเอียด
+    expect(sanitizeCollectionFrom('/decks?page=2')).toBeNull();
+    expect(sanitizeCollectionFrom('')).toBeNull();
+    expect(sanitizeCollectionFrom(null)).toBeNull();
+    expect(sanitizeCollectionFrom(undefined)).toBeNull();
+  });
+
+  test('ปฏิเสธ query ที่เราไม่ได้สร้าง (กัน parameter แปลกปลอม)', () => {
+    expect(sanitizeCollectionFrom('/cards?next=https://evil.example')).toBeNull();
+    expect(sanitizeCollectionFrom('/cards?page=2&weird=1')).toBeNull();
   });
 });

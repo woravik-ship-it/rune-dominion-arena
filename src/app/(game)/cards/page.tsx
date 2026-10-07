@@ -15,11 +15,11 @@
  *  - จัดการได้ในหน้าเดียว: เปิดรายละเอียด · ติดดาว (favorite) · เพิ่มลงทีม (quick-add)
  */
 import { apiFetch } from '@/lib/api-client';
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import CardFace from '@/components/cards/CardFace';
 import CardDetailModal from '@/components/cards/CardDetailModal';
-import { shouldOpenDetailInModal } from '@/lib/card-modal';
+import { buildCollectionUrl, parseCollectionView, shouldOpenDetailInModal } from '@/lib/card-modal';
 import { useI18n } from '@/components/providers/LocaleProvider';
 import {
   COLLECTION_SORTS,
@@ -122,6 +122,53 @@ export default function CollectionPage() {
    */
   const [detailCardId, setDetailCardId] = useState<string | null>(null);
 
+  /**
+   * 2026-10-07 (ผู้ใช้แจ้งรอบ 2): *"กดเปิดเต็มจอ พอกดกลับคอลเลคชั่น จะกลับไปหน้า 1 อีก"*
+   * ⇒ เอาสถานะมุมมอง (หน้า/แท็บ/ตัวกรอง/คำค้น) เก็บลง URL แทนที่จะอยู่ใน useState อย่างเดียว
+   *    - ตอน mount: อ่านค่าจาก URL แล้วกลับมาที่มุมมองเดิม (ทำงานหลัง hydrate ไม่ใช้ useSearchParams
+   *      เพื่อเลี่ยงข้อกำหนด Suspense ของ Next และไม่ให้ HTML ฝั่ง server ไม่ตรงกับ client)
+   *    - ตอนเปลี่ยนมุมมอง: เขียนกลับลง URL ด้วย history.replaceState (ไม่ navigate)
+   *    ⇒ ปุ่ม "กลับไปคอลเลคชั่น" ในหน้ารายละเอียด และปุ่ม back ของเบราว์เซอร์ พากลับมาถูกหน้า
+   */
+  const bootstrapped = useRef(false);
+  const urlSyncedOnce = useRef(false);
+  /** ต้องรอ bootstrap (อ่าน ?page= จาก URL) ก่อนค่อยยิง API — ไม่งั้นจะยิง 2 ครั้งต่อการเปิดหน้า
+   *  (ครั้งแรกด้วยค่าเริ่มต้น แล้วอีกครั้งหลังได้ค่าจาก URL) ซึ่งกินโควตา rate limit ของ middleware เปล่า ๆ */
+  const [ready, setReady] = useState(false);
+
+  useEffect(() => {
+    if (bootstrapped.current) return;
+    bootstrapped.current = true;
+    const view = parseCollectionView(new URLSearchParams(window.location.search));
+    if (view.page) setPage(view.page);
+    if (view.tab) setTab(view.tab as CollectionTab);
+    if (view.sort) setSort(view.sort as CollectionSort);
+    if (view.element) setElement(view.element);
+    if (view.rarity) setRarity(view.rarity);
+    if (view.role) setRole(view.role);
+    if (view.search) {
+      setSearch(view.search);
+      setSearchInput(view.search);
+    }
+    setReady(true);
+  }, []);
+
+  /** URL ปัจจุบันของมุมมองนี้ — ใช้เป็น href ให้ "เปิดหน้าเต็ม" พากลับมาได้ */
+  const collectionHref = useMemo(
+    () => buildCollectionUrl({ page, tab, sort, element, rarity, role, search }),
+    [page, tab, sort, element, rarity, role, search],
+  );
+
+  useEffect(() => {
+    // รอบแรกข้ามไปก่อน: ยังไม่ทัน bootstrap (URL ยังมีค่าเดิมอยู่แล้ว)
+    if (!urlSyncedOnce.current) {
+      urlSyncedOnce.current = true;
+      return;
+    }
+    if (window.location.pathname + window.location.search === collectionHref) return;
+    window.history.replaceState(null, '', collectionHref);
+  }, [collectionHref]);
+
   const load = useCallback(async () => {
     try {
       setLoading(true);
@@ -150,13 +197,23 @@ export default function CollectionPage() {
   }, [page, tab, sort, element, rarity, role, search]);
 
   useEffect(() => {
+    if (!ready) return; // รออ่านมุมมองจาก URL ก่อน (ยิง API ครั้งเดียวต่อการเปิดหน้า)
     load();
-  }, [load]);
+  }, [load, ready]);
 
-  /** หน่วง 300 ms ก่อนยิงค้นหา (พิมพ์ติดกัน = ยิงครั้งเดียว) แล้วกลับไปหน้าแรก */
+  /**
+   * หน่วง 300 ms ก่อนยิงค้นหา (พิมพ์ติดกัน = ยิงครั้งเดียว) แล้วกลับไปหน้าแรก
+   * ⚠️ 2026-10-07: ต้อง "ไม่รีเซ็ตหน้า" เมื่อคำค้นไม่เปลี่ยน — เดิม effect นี้ทำงานทุกครั้งที่
+   * mount (searchInput = '') แล้วสั่ง setPage(1) ⇒ กลับมาจากหน้ารายละเอียดแล้ว URL พา
+   * ?page=2 มาก็ยังโดนตีกลับเป็นหน้า 1 อยู่ดี
+   */
+  const searchRef = useRef(search);
+  searchRef.current = search;
   useEffect(() => {
     const timer = setTimeout(() => {
-      setSearch(searchInput.trim());
+      const next = searchInput.trim();
+      if (next === searchRef.current) return; // คำค้นเท่าเดิม = ไม่ต้องยิงใหม่ ไม่ต้องรีเซ็ตหน้า
+      setSearch(next);
       setPage(1);
     }, 300);
     return () => clearTimeout(timer);
@@ -381,7 +438,7 @@ export default function CollectionPage() {
                 className="rounded-xl"
               >
                 <Link
-                  href={`/cards/${card.cardId}`}
+                  href={`/cards/${card.cardId}?from=${encodeURIComponent(collectionHref)}`}
                   onClick={(e) => {
                     // คลิกซ้าย/แตะ = เปิดป๊อปอัป (ไม่เปลี่ยน route → อยู่หน้าเดิม)
                     // ctrl/cmd/shift/ปุ่มกลาง = ปล่อยให้เปิดแท็บใหม่ตาม href เหมือนเดิม
@@ -498,7 +555,11 @@ export default function CollectionPage() {
 
       {/* รายละเอียดการ์ดแบบป๊อปอัป — ปิดแล้วอยู่หน้า/ตัวกรองเดิม ไม่เด้งกลับหน้า 1 */}
       {detailCardId && (
-        <CardDetailModal cardId={detailCardId} onClose={() => setDetailCardId(null)} />
+        <CardDetailModal
+          cardId={detailCardId}
+          fromHref={collectionHref}
+          onClose={() => setDetailCardId(null)}
+        />
       )}
     </main>
   );

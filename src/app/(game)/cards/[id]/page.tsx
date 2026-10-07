@@ -7,6 +7,7 @@ import Link from 'next/link';
 import CardFace from '@/components/cards/CardFace';
 import CardArtStatus from '@/components/cards/CardArtStatus';
 import CardItemWorkshop from '@/components/cards/CardItemWorkshop';
+import { sanitizeCollectionFrom } from '@/lib/card-modal';
 
 interface CardDetail {
   id: string;
@@ -72,6 +73,17 @@ export default function CardDetailPage() {
   const [deckMsg, setDeckMsg] = useState<string | null>(null);
   const [deckErr, setDeckErr] = useState<string | null>(null);
   const [addingToDeck, setAddingToDeck] = useState(false);
+  /**
+   * ปลายทางของปุ่ม "กลับไปคอลเลคชั่น"
+   * อ่าน `?from=` (URL ของหน้าคอลเลคชั่นตอนที่ผู้ใช้กดเปิดการ์ดใบนี้) แล้วตรวจความปลอดภัย
+   * ⇒ กลับไป **หน้าที่การ์ดใบนั้นอยู่** พร้อมตัวกรองเดิม ไม่ใช่หน้า 1 (ผู้ใช้แจ้ง 2026-10-07)
+   * อ่านใน effect เพื่อไม่ให้ HTML ฝั่ง server กับ client ไม่ตรงกัน
+   */
+  const [backHref, setBackHref] = useState('/cards');
+  useEffect(() => {
+    const safe = sanitizeCollectionFrom(new URLSearchParams(window.location.search).get('from'));
+    if (safe) setBackHref(safe);
+  }, []);
 
   /** "เพิ่มลงทีม" — เติมเข้าทีมเดิม/สร้างทีมใหม่ให้ แล้วพาไปหน้าจัดทีม */
   const handleAddToDeck = async () => {
@@ -155,7 +167,7 @@ export default function CardDetailPage() {
       <main className="min-h-screen p-4 flex items-center justify-center">
         <div className="text-center">
           <p className="text-gray-400">ไม่พบการ์ด</p>
-          <Link href="/cards" className="btn-primary mt-4 inline-block">
+          <Link href={backHref} data-card-detail-back className="btn-primary mt-4 inline-block">
             กลับไปคอลเลคชั่น
           </Link>
         </div>
@@ -169,7 +181,13 @@ export default function CardDetailPage() {
   return (
     <main className="min-h-screen p-4">
       <div className="max-w-2xl mx-auto">
-        <Link href="/cards" className="text-gray-400 hover:text-white mb-4 inline-block">
+        {/* "กลับไปคอลเลคชั่น" ต้องพากลับไป **หน้าที่การ์ดใบนี้อยู่** + ตัวกรองเดิม
+            (?from= ถูกส่งมาจากหน้าคอลเลคชั่น · ถ้าไม่มี/ไม่ปลอดภัยก็กลับ /cards ปกติ) */}
+        <Link
+          href={backHref}
+          data-card-detail-back
+          className="text-gray-400 hover:text-white mb-4 inline-block"
+        >
           ← กลับไปคอลเลคชั่น
         </Link>
 

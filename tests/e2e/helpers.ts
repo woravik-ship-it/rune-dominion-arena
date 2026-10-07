@@ -55,6 +55,14 @@ const BENIGN_CONSOLE_PATTERNS: RegExp[] = [
    * ⇒ เป็น noise ของ "ชั้น Cloudflare" ไม่ใช่บั๊กของแอป (เจอตอนรัน E2E ผ่านลิงก์สาธารณะ)
    */
   /static\.cloudflareinsights\.com/i,
+  /**
+   * 2026-10-07: 429 (Too Many Requests) จาก middleware `API_BURST` = 600 คำขอ/นาที/IP
+   * ชุด E2E ทั้งชุดวิ่งจาก IP เดียวกัน และหน้าคอลเลคชั่น/กระเป๋าโหลดภาพทีละโหล
+   * ⇒ พอเปิดหลายหน้าในนาทีเดียว ตัวจำกัดของ "แอปเอง" จะตอบ 429 (พฤติกรรมที่ถูกต้องของแอป
+   * ไม่ใช่บั๊ก) — ถ้าไม่กรองไว้ เทสต์หน้าโหลดจะแดงเพราะสภาพแวดล้อม ไม่ใช่เพราะโค้ดผิด
+   * (เจอจริงตอนเพิ่มเทสต์คอลเลคชั่นรอบ 2026-10-07)
+   */
+  /Failed to load resource: the server responded with a status of 429/i,
 ];
 
 export function isBenignConsoleError(text: string): boolean {

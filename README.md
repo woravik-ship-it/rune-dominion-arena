@@ -33,7 +33,33 @@ Fantasy Trading Card Game / Auto Battle / Competitive Arena — เกมแน�
 | การ์ดในป๊อปอัปมีกรอบจริง | E2E เคสที่ 1 + DOM ที่จอ 390×740 | กล่องการ์ด **264×377** (สัดส่วน 1.43 ≈ 7:10) · มีเลเยอร์กรอบ `img[src*=mode=overlay]` เดียวกับในกริด · aura canvas 327×468 · ไม่ล้นจอ |
 | Production build | `npm run build` | ผ่าน |
 | ลิงก์จริง | `curl https://rune.e2sv.link/cards` | 200 |
-| E2E ผ่านลิงก์สาธารณะ | `E2E_BASE_URL=https://rune.e2sv.link npx playwright test tests/e2e/collection-modal.spec.ts` | **4/4 ผ่าน** |
+| E2E ผ่านลิงก์สาธารณะ | `E2E_BASE_URL=https://rune.e2sv.link npx playwright test tests/e2e/collection-modal.spec.ts` | **ผ่าน** |
+
+### รอบ 2 (วันเดียวกัน) — "กดเปิดเต็มจอ พอกดกลับคอลเลคชั่น จะกลับไปหน้า 1 อีก"
+
+ผู้ใช้แจ้งรอบสอง: *"กดเปิดเต็มจอ พอกดกลับคอลเลคชั่น จะกลับไปหน้า 1 อีก แก้ด้วย ให้กลับไปหน้าที่การ์ดที่เปิดดูอยู่"*
+สาเหตุ: มุมมองคอลเลคชั่น (หน้า/แท็บ/ตัวกรอง/คำค้น) อยู่ใน `useState` ล้วน ⇒ ออกจากหน้าไปหน้ารายละเอียด
+component ถูก mount ใหม่จากศูนย์ ได้หน้า 1 เสมอ · แถมยังมี effect ของช่องค้นหาที่ `setPage(1)` ทุกครั้งที่ mount
+
+แก้:
+- เก็บมุมมองลง URL: `buildCollectionUrl` / `parseCollectionView` (`src/lib/card-modal.ts`)
+  - ตอน mount อ่าน `?page=…&tab=…&element=…` แล้วกลับมาที่มุมมองเดิม (ทำงานหลัง hydrate ไม่ใช้ `useSearchParams`)
+  - ตอนเปลี่ยนมุมมองเขียนกลับด้วย `history.replaceState` (ไม่ navigate) ⇒ ปุ่ม back ของเบราว์เซอร์ก็ได้หน้าเดิม
+  - รอ bootstrap ก่อนยิง API ⇒ **1 คำขอต่อการเปิดหน้า** (เดิมยิงซ้ำเมื่อมีค่าจาก URL)
+- การ์ดแต่ละใบ + ปุ่ม "เปิดหน้าเต็ม" ส่ง `?from=<url คอลเลคชั่น>` · หน้ารายละเอียดใช้ `sanitizeCollectionFrom()`
+  ตรวจก่อนใช้ (กัน open redirect / กันลิงก์วน) ⇒ "กลับไปคอลเลคชั่น" พากลับ **หน้าที่การ์ดใบนั้นอยู่**
+- effect ของช่องค้นหาไม่รีเซ็ตหน้าเมื่อคำค้นไม่เปลี่ยน (เดิม `setPage(1)` ทุก mount)
+
+| การตรวจ | คำสั่ง | ผล |
+|---|---|---|
+| Type check | `npx tsc --noEmit` | ผ่าน (exit 0) |
+| Unit tests | `npm test` | **837 passed** (เพิ่มเคส buildCollectionUrl/parseCollectionView/sanitizeCollectionFrom) |
+| E2E | `npm run test:e2e` | **14 passed · 0 failed** (22.9s) |
+| E2E ผ่านลิงก์สาธารณะ | `E2E_BASE_URL=https://rune.e2sv.link npx playwright test tests/e2e/collection-modal.spec.ts` | ผ่าน (เส้นทาง: `?page=2` → ป๊อปอัป → เปิดหน้าเต็ม → กลับ → ยังหน้า 2 + การ์ดใบเดิม · และ back ของเบราว์เซอร์) |
+| ลิงก์จริง | `curl https://rune.e2sv.link/cards?page=2` | 200 |
+
+> ⚠️ บันทึกไว้: ชุด E2E ทั้งหมดวิ่งจาก IP เดียวกัน และ middleware มี `API_BURST` 600 คำขอ/นาที
+> การเพิ่มเทสต์ที่โหลดหน้าเยอะ ๆ จึงทำให้สเปกอื่นโดน 429 ได้ (เจอจริงตอนเพิ่มเทสต์รอบนี้) — เขียนเทสต์ใหม่ให้เข้า `?page=` ตรง ๆ เพื่อลดจำนวนคำขอ
 
 ## ฟีเจอร์เด่น (Phase 13)
 

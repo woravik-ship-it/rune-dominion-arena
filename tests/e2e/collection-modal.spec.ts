@@ -1,14 +1,23 @@
 /**
  * E2E — รายละเอียดการ์ดเป็น "ป๊อปอัป" ในหน้าคอลเลคชั่น
  *
- * ที่มา 2026-10-07 (ผู้ใช้แจ้ง): *"เวลาอยู่หน้า 2 กดกลับคอลเลคชั่น จะกลับไปหน้า 1
+ * ที่มา 2026-10-07 (ผู้ใช้แจ้งรอบ 1): *"เวลาอยู่หน้า 2 กดกลับคอลเลคชั่น จะกลับไปหน้า 1
  * แก้ให้เป็นดูแบบ Popup พอ จะได้ไม่ต้องกดกลับ"*
+ * รอบ 2 (วันเดียวกัน): *"กดเปิดเต็มจอ พอกดกลับคอลเลคชั่น จะกลับไปหน้า 1 อีก
+ * แก้ด้วย ให้กลับไปหน้าที่การ์ดที่เปิดดูอยู่"*
  *
  * เกณฑ์ผ่าน (วัดได้):
  *   1) อยู่หน้า 2 → แตะการ์ด → modal ขึ้น **และ URL ยังเป็น /cards** (ไม่นำทางไป /cards/:id)
- *   2) ปิด modal → ยังอยู่หน้า 2 · ตัวกรอง/จำนวนคงเดิม (state ไม่หาย)
- *   3) ปิดได้ด้วย Esc และด้วยปุ่มปิด
- *   4) Ctrl+คลิก ยังเปิดหน้าเต็ม /cards/:id ได้ตามเดิม (deep link ไม่พัง)
+ *   2) การ์ดในป๊อปอัปมี "กรอบ" (overlay layer) เดียวกับในกริด + กล่องมีขนาดจริง (ไม่สูง 0)
+ *   3) ปิด modal (ปุ่ม/Esc) → ยังอยู่หน้า 2 · ตัวกรอง/จำนวนคงเดิม (state ไม่หาย)
+ *   4) เปิดหน้าเต็มจากป๊อปอัป → "กลับไปคอลเลคชั่น" ต้องได้ **หน้า 2 + การ์ดใบเดิม** (?from=)
+ *   5) back ของเบราว์เซอร์จากหน้าเต็ม ก็กลับมาหน้าเดิม
+ *   6) Ctrl+คลิก ยังเปิดหน้าเต็ม /cards/:id ในแท็บใหม่ได้ตามเดิม (deep link ไม่พัง)
+ *   7) จอ 390×740: modal ไม่ล้นจอ
+ *
+ * NOTE (สำคัญ): ทุกสเปกวิ่งจาก IP เดียวกัน และ middleware มี API_BURST 600 คำขอ/นาที/IP
+ * หน้าคอลเลคชั่นโหลดภาพการ์ดทีละโหล (art + overlay frame) ⇒ **ต้องประหยัดจำนวนครั้งที่เปิดหน้า**
+ * จึงรวมหลายเส้นทางไว้ในเทสต์เดียว และเข้า `?page=…` ตรง ๆ แทนการกด "ถัดไป" เพิ่มรอบ
  */
 import { test, expect } from '@playwright/test';
 import { STORAGE_STATE, collectErrors, seedOnboardingDismissed, dismissOnboardingIfPresent } from './helpers';
@@ -20,26 +29,19 @@ test.beforeEach(async ({ context }) => {
   await seedOnboardingDismissed(context);
 });
 
-/** เปิด /cards แล้วไปหน้า 2 — คืนตัวอ่านข้อความ "หน้า/ทั้งหมด" */
-async function gotoPage2(page: import('@playwright/test').Page) {
-  await page.goto('/cards');
-  await dismissOnboardingIfPresent(page);
-
-  const pageInfo = page.locator('[data-collection-pageinfo]');
-  await expect(pageInfo).toBeVisible({ timeout: 20_000 });
-
-  const totalPages = Number((await pageInfo.innerText()).split('/')[1] ?? '1');
-  test.skip(totalPages < 2, `คอลเลคชั่นมีแค่ ${totalPages} หน้า — ทดสอบ "กลับไปหน้า 1" ไม่ได้`);
-
-  await page.locator('[data-collection-page="next"]').click();
-  await expect(pageInfo).toHaveText(/^2\//);
-  return pageInfo;
-}
-
 test.describe('คอลเลคชั่น: เปิดรายละเอียดการ์ดเป็นป๊อปอัป', () => {
-  test('อยู่หน้า 2 → แตะการ์ด → ปิด → ยังอยู่หน้า 2 (ไม่เปลี่ยน route)', async ({ page }) => {
+  test('[A] popup ไม่เสีย state ของหน้า/ตัวกรอง · กรอบการ์ดครบ · จอ 390 ไม่ล้น', async ({ page }) => {
     const errors = collectErrors(page);
-    const pageInfo = await gotoPage2(page);
+
+    // เข้า /cards?page=2 ตรง ๆ (ทดสอบการอ่านมุมมองจาก URL ไปในตัว) = 1 คำขอ
+    await page.goto('/cards?page=2');
+    await dismissOnboardingIfPresent(page);
+
+    const pageInfo = page.locator('[data-collection-pageinfo]');
+    await expect(pageInfo).toBeVisible({ timeout: 20_000 });
+    const totalPages = Number((await pageInfo.innerText()).split('/')[1] ?? '1');
+    test.skip(totalPages < 2, `คอลเลคชั่นมีแค่ ${totalPages} หน้า — ทดสอบ "กลับไปหน้า 1" ไม่ได้`);
+    await expect(pageInfo, 'URL ?page=2 ต้องพากลับมาหน้า 2').toHaveText(/^2\//);
 
     const cardLink = page.locator('[data-collection-cardlink]').first();
     const cardId = await cardLink.getAttribute('data-collection-cardlink');
@@ -49,8 +51,9 @@ test.describe('คอลเลคชั่น: เปิดรายละเอ
 
     const modal = page.locator('[data-card-detail-modal="true"]');
     await expect(modal).toBeVisible();
-    // modal ต้องเป็นการ์ดใบที่กดจริง
-    await expect(page.locator('[data-card-detail-fullpage]')).toHaveAttribute('href', `/cards/${cardId}`);
+    // modal ต้องเป็นการ์ดใบที่กดจริง (href มี ?from= ติดมาได้ — ดูเทสต์ B)
+    const fullHref = await page.locator('[data-card-detail-fullpage]').getAttribute('href');
+    expect(fullHref?.startsWith(`/cards/${cardId}`)).toBe(true);
     // และต้องไม่นำทางออกจากหน้าคอลเลคชั่น
     expect(new URL(page.url()).pathname, 'URL ต้องยังเป็น /cards').toBe('/cards');
 
@@ -79,58 +82,10 @@ test.describe('คอลเลคชั่น: เปิดรายละเอ
     await expect(pageInfo).toHaveText(/^2\//);
     expect(new URL(page.url()).pathname).toBe('/cards');
 
-    expect(errors.pageErrors(), 'uncaught exception').toEqual([]);
-    expect(errors.seriousConsoleErrors(), 'console error ร้ายแรง').toEqual([]);
-  });
-
-  test('ปิดด้วย Esc ได้ และตัวกรองที่เลือกไว้ยังอยู่', async ({ page }) => {
-    await page.goto('/cards');
-    await dismissOnboardingIfPresent(page);
-    await expect(page.locator('[data-collection-pageinfo]')).toBeVisible({ timeout: 20_000 });
-
-    // เลือกตัวกรองเพื่อพิสูจน์ว่า state ของรายการไม่หายไปพร้อม modal
-    await page.locator('[data-collection-element="EMBERBOUND"]').click();
-    await expect(page.locator('[data-collection-element="EMBERBOUND"]')).toHaveClass(/border-sky-400/);
-
-    await page.locator('[data-collection-cardlink]').first().click();
-    const modal = page.locator('[data-card-detail-modal="true"]');
-    await expect(modal).toBeVisible();
-    await page.keyboard.press('Escape');
-    await expect(modal).toBeHidden();
-
-    // ตัวกรองที่เลือกไว้ต้องยังเลือกอยู่ (ไม่ถูก reset เพราะ modal ไม่ได้ unmount หน้า)
-    await expect(page.locator('[data-collection-element="EMBERBOUND"]')).toHaveClass(/border-sky-400/);
-    expect(new URL(page.url()).pathname).toBe('/cards');
-  });
-
-  test('Ctrl+คลิก ยังเปิดหน้าเต็ม /cards/:id ในแท็บใหม่ได้ตามเดิม', async ({ page, context }) => {
-    await page.goto('/cards');
-    await dismissOnboardingIfPresent(page);
-
-    const cardLink = page.locator('[data-collection-cardlink]').first();
-    const cardId = await cardLink.getAttribute('data-collection-cardlink');
-
-    // ctrl/⌘+คลิก = เบราว์เซอร์เปิดแท็บใหม่ (ปล่อยให้ href ทำงาน) ไม่ใช่ modal
-    const [popup] = await Promise.all([
-      context.waitForEvent('page'),
-      cardLink.click({ modifiers: ['Control'] }),
-    ]);
-    // รอให้แท็บใหม่นำทางจริงก่อนอ่าน URL (ห้ามอ่านทันที — จะยังเป็น about:blank)
-    await popup.waitForURL((url) => url.pathname === `/cards/${cardId}`, { timeout: 20_000 });
-    await expect(popup.locator('[data-card-detail-modal="true"]')).toHaveCount(0);
-    await popup.close();
-  });
-
-  test('จอมือถือ 390×740: modal ไม่ล้นจอ (แนวนอน)', async ({ page }) => {
-    // กฎของโปรเจกต์: UI ต้องไม่ล้นจอ 390px
+    // ── จอมือถือ (390×740): modal ต้องไม่ล้นจอแนวนอน — วัดต่อในหน้าเดิม ไม่เปิดหน้าใหม่ ──
     await page.setViewportSize({ width: 390, height: 740 });
-    await page.goto('/cards');
-    await dismissOnboardingIfPresent(page);
-
-    await page.locator('[data-collection-cardlink]').first().click();
-    const modal = page.locator('[data-card-detail-modal="true"]');
+    await cardLink.click();
     await expect(modal).toBeVisible();
-
     const overflow = await page.evaluate(() => ({
       innerWidth: window.innerWidth,
       scrollWidth: document.documentElement.scrollWidth,
@@ -139,5 +94,70 @@ test.describe('คอลเลคชั่น: เปิดรายละเอ
       overflow.scrollWidth,
       `modal ล้นจอแนวนอน (innerWidth=${overflow.innerWidth})`,
     ).toBeLessThanOrEqual(overflow.innerWidth + 1);
+    await page.locator('[data-card-detail-close]').click();
+    await expect(modal).toBeHidden();
+
+    // ── ตัวกรอง: เลือกแล้วต้องคงอยู่ (modal ไม่ได้ unmount หน้า) และติดไปกับ URL ──
+    await page.locator('[data-collection-element="EMBERBOUND"]').click();
+    await expect(page.locator('[data-collection-element="EMBERBOUND"]')).toHaveClass(/border-sky-400/);
+    await expect.poll(() => new URL(page.url()).searchParams.get('element')).toBe('EMBERBOUND');
+    expect(new URL(page.url()).pathname).toBe('/cards');
+
+    expect(errors.pageErrors(), 'uncaught exception').toEqual([]);
+    expect(errors.seriousConsoleErrors(), 'console error ร้ายแรง').toEqual([]);
+  });
+
+  /**
+   * 2026-10-07 รอบ 2 (ผู้ใช้แจ้ง): "กดเปิดเต็มจอ พอกดกลับคอลเลคชั่น จะกลับไปหน้า 1 อีก
+   * แก้ด้วย ให้กลับไปหน้าที่การ์ดที่เปิดดูอยู่"
+   *
+   * เข้า `/cards?page=2` ตรง ๆ = 1 คำขอ/รอบ (และทดสอบการอ่านมุมมองจาก URL ไปในตัว)
+   * รวม 3 เส้นทาง (ปุ่มกลับ / ctrl+คลิก / back ของเบราว์เซอร์) ไว้เทสต์เดียวเพื่อลดจำนวนคำขอสะสม
+   */
+  test('เปิดหน้าเต็มจากป๊อปอัป → กลับได้หน้าเดิม (ปุ่มกลับคอลเลคชั่น · ctrl+คลิก · back ของเบราว์เซอร์)', async ({ page, context }) => {
+    await page.goto('/cards?page=2');
+    await dismissOnboardingIfPresent(page);
+
+    const pageInfo = page.locator('[data-collection-pageinfo]');
+    await expect(pageInfo, 'ต้องเปิดมาแล้วอยู่หน้า 2 ตาม URL').toHaveText(/^2\//, { timeout: 20_000 });
+
+    const cardId = await page.locator('[data-collection-cardlink]').first().getAttribute('data-collection-cardlink');
+    test.skip(!cardId, 'ไม่มีการ์ดให้ทดสอบ');
+    const cardLink = page.locator(`[data-collection-cardlink="${cardId}"]`);
+
+    // ── 1) ปุ่ม "กลับไปคอลเลคชั่น" ในหน้ารายละเอียด ──
+    await cardLink.click();
+    await expect(page.locator('[data-card-detail-modal="true"]')).toBeVisible();
+    await page.locator('[data-card-detail-fullpage]').click();
+    await page.waitForURL((url) => url.pathname === `/cards/${cardId}`, { timeout: 20_000 });
+    expect(
+      new URL(page.url()).searchParams.get('from'),
+      'ปุ่มเปิดหน้าเต็มต้องส่ง URL คอลเลคชั่นติดไปด้วย',
+    ).toBe('/cards?page=2');
+
+    await page.locator('[data-card-detail-back]').click();
+    await page.waitForURL((url) => url.pathname === '/cards', { timeout: 20_000 });
+    await expect(pageInfo, 'กลับมาต้องได้หน้า 2 ไม่ใช่หน้า 1').toHaveText(/^2\//);
+    await expect(
+      page.locator(`[data-collection-card="${cardId}"]`),
+      'การ์ดใบเดิมต้องอยู่หน้าเดิม',
+    ).toBeVisible();
+
+    // ── 2) ctrl+คลิก ยังเปิดหน้าเต็มในแท็บใหม่ (ไม่ใช่ modal) — ไม่เปิดหน้าคอลเลคชั่นซ้ำ ──
+    const [popup] = await Promise.all([
+      context.waitForEvent('page'),
+      cardLink.click({ modifiers: ['Control'] }),
+    ]);
+    await popup.waitForURL((url) => url.pathname === `/cards/${cardId}`, { timeout: 20_000 });
+    await expect(popup.locator('[data-card-detail-modal="true"]')).toHaveCount(0);
+    await popup.close();
+
+    // ── 3) ปุ่ม back ของเบราว์เซอร์ ──
+    await cardLink.click();
+    await page.locator('[data-card-detail-fullpage]').click();
+    await page.waitForURL((url) => url.pathname === `/cards/${cardId}`, { timeout: 20_000 });
+    await page.goBack();
+    await page.waitForURL((url) => url.pathname === '/cards', { timeout: 20_000 });
+    await expect(pageInfo, 'กด back ของเบราว์เซอร์ก็ต้องได้หน้า 2').toHaveText(/^2\//);
   });
 });

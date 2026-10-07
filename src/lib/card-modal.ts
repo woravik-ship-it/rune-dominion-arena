@@ -24,6 +24,96 @@ export interface ClickLike {
 }
 
 /**
+ * สถานะมุมมองของหน้าคอลเลคชั่นที่ต้อง "ติดไปกับ URL"
+ * ที่มา 2026-10-07 (ผู้ใช้แจ้งรอบ 2): *"กดเปิดเต็มจอ พอกดกลับคอลเลคชั่น จะกลับไปหน้า 1 อีก
+ * แก้ด้วย ให้กลับไปหน้าที่การ์ดที่เปิดดูอยู่"*
+ *
+ * เดิมสถานะ (หน้า/แท็บ/ตัวกรอง/คำค้น) อยู่ใน useState ล้วน ⇒ พอออกไปหน้ารายละเอียด
+ * แล้วกลับมา (ทั้งกดปุ่มกลับ และกด back ของเบราว์เซอร์) component ถูก mount ใหม่จากศูนย์
+ * ⇒ ได้หน้า 1 เสมอ · ทำให้ URL พา "มุมมอง" กลับมาได้
+ */
+export interface CollectionView {
+  page?: number;
+  tab?: string;
+  sort?: string;
+  element?: string;
+  rarity?: string;
+  role?: string;
+  search?: string;
+}
+
+const DEFAULT_VIEW: Required<CollectionView> = {
+  page: 1,
+  tab: 'all',
+  sort: 'power',
+  element: 'ALL',
+  rarity: 'ALL',
+  role: 'ALL',
+  search: '',
+};
+
+const KEY_PATTERN = /^[A-Za-z_]{2,24}$/;
+
+/** ประกอบ URL ของหน้าคอลเลคชั่นจากสถานะปัจจุบัน (ตัดค่าที่เป็นค่าเริ่มต้นออก ให้ URL สั้น) */
+export function buildCollectionUrl(view: CollectionView): string {
+  const params = new URLSearchParams();
+  const entries: Array<[keyof CollectionView, string | number | undefined]> = [
+    ['page', view.page],
+    ['tab', view.tab],
+    ['sort', view.sort],
+    ['element', view.element],
+    ['rarity', view.rarity],
+    ['role', view.role],
+    ['search', view.search],
+  ];
+  for (const [key, value] of entries) {
+    if (value === undefined || value === null) continue;
+    const str = String(value);
+    if (str === '' || str === String(DEFAULT_VIEW[key])) continue;
+    params.set(key, str);
+  }
+  const query = params.toString();
+  return query ? `/cards?${query}` : '/cards';
+}
+
+/** อ่านสถานะมุมมองจาก query string (ค่าที่ไม่รู้จัก/ผิดรูปจะถูกทิ้ง ไม่ทำให้หน้าพัง) */
+export function parseCollectionView(params: URLSearchParams): CollectionView {
+  const view: CollectionView = {};
+  const page = Number(params.get('page'));
+  if (Number.isFinite(page) && page >= 2) view.page = Math.floor(page);
+  const tab = params.get('tab');
+  if (tab === 'all' || tab === 'owned' || tab === 'missing') view.tab = tab;
+  const sort = params.get('sort');
+  if (sort && KEY_PATTERN.test(sort) && sort.length > 0) view.sort = sort.toLowerCase();
+  for (const key of ['element', 'rarity', 'role'] as const) {
+    const raw = params.get(key);
+    if (raw && KEY_PATTERN.test(raw)) view[key] = raw.toUpperCase();
+  }
+  const search = params.get('search');
+  if (search) view.search = search.slice(0, 60);
+  return view;
+}
+
+/**
+ * ตรวจค่า `?from=` ที่ส่งต่อมาจากหน้ารายละเอียด — คืน URL ภายในของหน้าคอลเลคชั่น
+ * หรือ null ถ้าไม่ปลอดภัย/ไม่ใช่หน้าคอลเลคชั่น (กัน open redirect + กันลิงก์วนไปหน้ารายละเอียด)
+ */
+export function sanitizeCollectionFrom(from: string | null | undefined): string | null {
+  if (!from) return null;
+  if (!from.startsWith('/cards')) return null;
+  if (from.startsWith('/cards/')) return null;
+  const [path, query] = from.split('?');
+  if (path !== '/cards') return null;
+  if (!query) return '/cards';
+  const params = new URLSearchParams(query);
+  const allowed = new Set(['page', 'tab', 'sort', 'element', 'rarity', 'role', 'search']);
+  for (const key of params.keys()) {
+    if (!allowed.has(key)) return null;
+  }
+  return `/cards?${params.toString()}`;
+}
+
+/**
  * true = เปิด modal (คลิกซ้ายธรรมดา/แตะบนมือถือ)
  * false = ปล่อยให้ <Link> ทำงานตามปกติ (ctrl/cmd/shift/Alt คลิก = เปิดแท็บใหม่,
  * ปุ่มกลาง = เปิดแท็บใหม่, หรือมีคน preventDefault ไปแล้ว)
