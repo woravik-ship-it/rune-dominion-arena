@@ -19,6 +19,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
     { href: '/admin', label: '📊 Dashboard' },
     { href: '/admin/cards', label: '🃏 การ์ด' },
     { href: '/admin/quests', label: '📜 เควส' },
+    { href: '/admin/events', label: '🎉 กิจกรรม' },
     { href: '/admin/users', label: '👥 ผู้เล่น' },
     { href: '/admin/images', label: '🖼️ ภาพ' },
   ];

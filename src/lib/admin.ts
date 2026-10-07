@@ -17,7 +17,7 @@ export function getAdminSession(request: NextRequest): SessionPayload | null {
 export async function auditAdminAction(
   session: SessionPayload,
   action: string,
-  targetType: 'CARD' | 'QUEST' | 'USER' | 'IMAGE' | 'SYSTEM',
+  targetType: 'CARD' | 'QUEST' | 'USER' | 'IMAGE' | 'SYSTEM' | 'EVENT',
   targetId?: string,
   detail?: unknown
 ): Promise<void> {
