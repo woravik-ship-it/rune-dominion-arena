@@ -56,6 +56,19 @@ curl -s localhost:3000/api/health | grep '"status":"ok"'
 npm run load-test -- --users 60 --duration 10
 ```
 
+### 6) E2E ด้วย Playwright (เบราว์เซอร์จริง — ไม่บังคับ)
+
+หลัง deploy บน environment ใดก็ตาม สามารถรันชุดเทสต์ E2E บนเบราว์เซอร์จริงได้ (ต้องมีเซิร์ฟเวอร์รันอยู่ก่อน — ชุดเทสต์ไม่สั่ง build/restart):
+
+```bash
+npm run test:e2e                       # ยิงที่ http://127.0.0.1:3000
+E2E_BASE_URL=https://rune.e2sv.link npm run test:e2e   # ยิงที่โดเมนสาธารณะ
+```
+
+- ครอบ: สมัคร/ล็อกอินผ่าน UI · ถอดรหัสรูน `/discover` · จัดเด็ค `/decks` · เปิดหน้า `/arena` `/dungeons` `/items` `/inventory` `/profile` `/map` โดยไม่มี error ร้ายแรง
+- config: `playwright.config.ts` · เทสต์: `tests/e2e/` · ผู้ใช้ทดสอบเป็นบัญชีสุ่มใหม่ทุกครั้ง (ไม่แตะบัญชีจริง)
+- ⚠️ ทดสอบกับ production ควรใช้ชุดข้อมูลทดสอบ — เทสต์จะสร้างผู้ใช้ทดสอบ + เด็คจริงลง DB (ชื่อขึ้นต้น `e2e_`)
+
 ### Migration (baseline)
 
 โปรเจกต์นี้เริ่มจาก `db push` จึงมี **baseline migration** ชื่อ `0_init` (สร้างจาก schema ปัจจุบันและตรวจแล้วว่าไม่มี drift):
@@ -174,6 +187,7 @@ node scripts/inspect-cards-page.mjs --token "<session>" --path /cards --out /tmp
 | `npm run build` | ผ่าน (26 หน้า · shared JS 87.3 kB) |
 | `npm run e2e:flow` (localhost) | **25/25 ผ่าน** |
 | `npm run e2e:flow --base <public URL>` | **25/25 ผ่าน** (ผ่าน Cloudflare) |
+| `npm run test:e2e` (Playwright, Chromium) | **11/11 ผ่าน** (auth · discovery · decks · pages) |
 | `npm run backup` | 30 ตาราง · gzip/checksum ผ่าน |
 | `npm run load-test -- --users 120 --duration 10` | 197.9 req/s ที่ให้บริการ · success 100% · p95 795ms (429 = rate limit ต่อ IP) |
 | `/api/health` ผ่าน tunnel | `{"status":"ok", database ok}` |

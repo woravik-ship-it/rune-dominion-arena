@@ -14,6 +14,7 @@ Fantasy Trading Card Game / Auto Battle / Competitive Arena — เกมแน�
 | Production build | `npm run build` | ผ่าน — 26 หน้า · shared JS 87.3 kB · middleware 28.1 kB |
 | E2E critical flow (local) | `npm run e2e:flow` | **31/31 ผ่าน** |
 | E2E critical flow (ผ่าน tunnel สาธารณะ) | `npm run e2e:flow -- --base https://…trycloudflare.com` | **25/25 ผ่าน** |
+| E2E (Playwright — เบราว์เซอร์จริง Chromium) | `npm run test:e2e` | **11/11 ผ่าน** (ใช้เซิร์ฟเวอร์ที่รันอยู่ที่ `127.0.0.1:3000`) |
 | Load test 120 ผู้ใช้ | `npm run load-test -- --users 120 --duration 10` | 6,679 คำขอ · ให้บริการ 197.9 req/s · success 100% · p95 795ms (ส่วนที่เหลือ 429 = rate limit ต่อ IP ทำงานถูกต้อง) |
 | Backup + restore จริง | `npm run backup && npm run backup:verify` | 30 ตาราง · checksum ตรง · restore สำเร็จ |
 
@@ -61,6 +62,23 @@ npm run tunnel                  # (ทางเลือก) เปิด public
 - Public URL (เมื่อเปิด tunnel): `~/.rune-dominion-tunnel/url.txt`
 - runbook / rollback / migration: [`docs/DEPLOYMENT.md`](docs/DEPLOYMENT.md)
 
+### ทดสอบ E2E ด้วย Playwright (เบราว์เซอร์จริง)
+
+เทสต์ E2E รันจริงบน Chromium ผ่าน Playwright ครอบ critical flow:
+สมัครผ่านหน้า `/register` → ล็อกอิน → ถอดรหัสรูนที่ `/discover` → จัดเด็คที่ `/decks`
+และเปิดหน้าเกม `/arena` `/dungeons` `/items` `/inventory` `/profile` `/map` โดยไม่มี error ร้ายแรง
+
+```bash
+# ต้องมีเซิร์ฟเวอร์รันอยู่ก่อน (ชุดเทสต์ไม่สั่ง build/restart เอง)
+npm run test:e2e        # เท่ากับ npx playwright test
+npx playwright test --ui
+```
+
+- config: `playwright.config.ts` (baseURL `http://127.0.0.1:3000` · Chromium เท่านั้น · ไม่ใช้ `webServer`)
+- เทสต์อยู่ที่ `tests/e2e/` — ผู้ใช้ทดสอบเป็น **บัญชีสุ่มใหม่ทุกครั้ง** (ไม่แตะบัญชีจริง) ผ่าน `global-setup.ts`
+- ชี้ไปโดเมนอื่นได้ด้วย `E2E_BASE_URL=https://rune.e2sv.link npm run test:e2e`
+- artifacts (`test-results/`, `playwright-report/`, `tests/e2e/.auth/`) ถูก ignore แล้วใน `.gitignore`
+
 ## Tech Stack (ตรงกับโค้ดจริง)
 
 | ชั้น | ที่ใช้จริง | หมายเหตุ |
@@ -74,7 +92,7 @@ npm run tunnel                  # (ทางเลือก) เปิด public
 | State/Data | React state + `src/lib/api-client.ts` | ไม่ใช้ Zustand/TanStack Query |
 | Queue/งานเบื้องหลัง | ตาราง `image_jobs` (DB-backed) + webhook | ไม่ใช้ Redis/BullMQ (single instance) |
 | เสียง | Web Audio API สังเคราะห์ใน `src/lib/sfx.ts` | ไม่มีไฟล์เสียง/License |
-| เทสต์ | Jest + ts-jest (unit/route) · `scripts/e2e-flow.mjs` (E2E ยิง HTTP จริง) | Playwright ไม่ได้ติดตั้ง (แทนด้วย E2E ผ่าน API) |
+| เทสต์ | Jest + ts-jest (unit/route) · Playwright (E2E เบราว์เซอร์จริง) · `scripts/e2e-flow.mjs` (E2E ยิง HTTP จริง) | `npm test` = unit · `npm run test:e2e` = Playwright |
 
 ## โครงสร้างโปรเจกต์
 
@@ -90,6 +108,7 @@ src/
 └── services/              seed · discovery · deck · combat-engine · battle-verify · arena · wallet · quest · event · image
 deploy/systemd/            unit files สำหรับรันถาวร (postgres · arena · tunnel)
 scripts/                   e2e-flow · audit-plan · load-test · backup-db · verify-backup · start-tunnel
+tests/e2e/                 Playwright E2E: auth · discovery · decks · pages (config: playwright.config.ts)
 prisma/                    schema.prisma · migrations/0_init · seed.ts
 ```
 
@@ -100,6 +119,7 @@ prisma/                    schema.prisma · migrations/0_init · seed.ts
 | `npm run dev` / `build` / `start` | รัน dev · build production · รัน production |
 | `npm test` | unit + route tests (Jest) |
 | `npm run e2e:flow` | E2E critical flow: Discovery → Deck → Battle → Arena → Quest (ยิง HTTP จริง) |
+| `npm run test:e2e` | E2E ด้วย Playwright บน Chromium (เบราว์เซอร์จริง) — สมัคร/login/discover/decks + เปิดหน้าเกมทั้งหมด · ต้องมีเซิร์ฟเวอร์รันอยู่ |
 | `npm run audit` | ตรวจว่าแผนพัฒนามีหลักฐานในโค้ดจริงกี่ข้อ |
 | `npm run load-test -- --users 120` | ทดสอบภาระ (ไม่ต้องติดตั้ง k6) |
 | `npm run backup` / `backup:verify` | สำรอง DB + ทดสอบ restore เข้า DB ชั่วคราว |

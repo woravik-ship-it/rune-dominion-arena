@@ -46,6 +46,8 @@
     "inspect:items": "node scripts/inspect-item-workshop.mjs",
     "inspect:item-tabs": "node scripts/inspect-item-tabs.mjs",
     "verify:phase43": "node scripts/verify-phase43.mjs",
+    "verify:admin-events": "node scripts/verify-admin-events.mjs",
+    "clean:test-users": "node scripts/clean-test-users.mjs",
     "shoot:aura": "node scripts/shoot-aura-preview.mjs",
     "inspect:audio": "node scripts/inspect-audio.mjs",
     "inspect:profile": "node scripts/inspect-profile-avatar.mjs",
@@ -60,6 +62,7 @@
     "zod": "^3.25.76"
   },
   "devDependencies": {
+    "@playwright/test": "^1.63.0",
     "@prisma/client": "^5.22.0",
     "@types/jest": "^30.0.0",
     "@types/node": "^20.14.0",

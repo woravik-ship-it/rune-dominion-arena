@@ -6,6 +6,13 @@ node_modules/
 # Testing
 coverage/
 
+# Playwright E2E artifacts (สร้างใหม่ได้ด้วย npm run test:e2e)
+test-results/
+playwright-report/
+blob-report/
+playwright/.cache/
+tests/e2e/.auth/
+
 # Next.js
 .next/
 out/
