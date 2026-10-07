@@ -107,3 +107,40 @@ export function avatarKind(avatar: AvatarState): AvatarKind {
   if (paintedCells(avatar.grid) > 0) return 'grid';
   return 'default';
 }
+
+// ===== กรอบอวตารจาก "เครื่องประดับ" (Phase 43 — Event ของแต่งตัว) =====
+// หน้าตาล้วน (CSS ring/glow) — แมปจาก code ของเครื่องประดับที่สวม กับชื่อที่ตั้งเรื่อง
+export interface AvatarFrameTheme {
+  key: string;
+  labelTh: string;
+  ringClass: string;
+  glowClass: string;
+}
+
+const AVATAR_FRAME_THEMES: AvatarFrameTheme[] = [
+  {
+    key: 'AVATAR_FRAME', labelTh: 'กรอบม่านไร้จันทร์',
+    ringClass: 'ring-2 ring-purple-400', glowClass: 'shadow-[0_0_16px_rgba(192,132,252,0.6)]',
+  },
+  {
+    key: 'SHADOW_CARD_ART_VARIANT', labelTh: 'ภาพเงาแห่งรอยแยก',
+    ringClass: 'ring-2 ring-slate-300', glowClass: 'shadow-[0_0_16px_rgba(203,213,225,0.6)]',
+  },
+  {
+    key: 'COSMETIC_BANNER', labelTh: 'แบนเนอร์ประดับ',
+    ringClass: 'ring-2 ring-amber-400', glowClass: 'shadow-[0_0_16px_rgba(251,191,36,0.55)]',
+  },
+];
+
+/** ธีมเริ่มต้นเมื่อมิ code เครื่องประดับที่รู้จัก (ของที่ได้จากร้าน/ที่อื่น) */
+const AVATAR_FRAME_FALLBACK: AvatarFrameTheme = {
+  key: '__DEFAULT__', labelTh: 'เครื่องประดับ',
+  ringClass: 'ring-2 ring-sky-400', glowClass: 'shadow-[0_0_16px_rgba(56,189,248,0.55)]',
+};
+
+/** ธีมกรอบที่ใช้กับ code เครื่องประดับ (null = ยังไม่ใส่กรอบ) */
+export function avatarFrameTheme(code: string | null | undefined): AvatarFrameTheme | null {
+  const clean = (code ?? '').trim().toUpperCase();
+  if (!clean) return null;
+  return AVATAR_FRAME_THEMES.find((theme) => clean.startsWith(theme.key)) ?? AVATAR_FRAME_FALLBACK;
+}

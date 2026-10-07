@@ -12,6 +12,7 @@ interface EventSummary {
   status: string;
   msLeft: number;
   boss: { percent: number; nameTh: string } | null;
+  joined: boolean;
 }
 
 const STATUS_LABEL: Record<string, string> = {
@@ -30,7 +31,9 @@ export default function EventsPage() {
       try {
         const res = await apiFetch('/api/events');
         const data = await res.json();
-        if (data.success) setEvent(data.data);
+        if (data.success && data.data) {
+          setEvent({ ...data.data, joined: Boolean(data.data.me?.joined) });
+        }
       } catch (e) {
         console.error(e);
       } finally {
@@ -61,6 +64,11 @@ export default function EventsPage() {
           >
             <p className="text-xs text-purple-300 mb-1">
               SEASONAL EVENT · {STATUS_LABEL[event.status] ?? event.status}
+              {event.joined && (
+                <span data-event-joined-card className="ml-2 rounded-full bg-emerald-500/20 px-2 py-0.5 font-bold text-emerald-300">
+                  ✅ เข้าร่วมแล้ว
+                </span>
+              )}
             </p>
             <h2 className="text-xl font-bold text-white mb-1">{event.nameTh}</h2>
             <p className="text-sm text-purple-200 mb-3">{event.descriptionTh}</p>

@@ -9,6 +9,7 @@ import { subscribeAvatarChanged } from '@/lib/avatar-events';
 import { subscribeVeilShardsChanged } from '@/lib/veil-shard-events';
 import { useI18n } from '@/components/providers/LocaleProvider';
 import { formatNumber } from '@/lib/i18n';
+import { avatarFrameTheme } from '@/lib/avatar';
 
 interface SessionUser {
   id: string;
@@ -18,6 +19,9 @@ interface SessionUser {
   /** Phase 26: อวตาร (อิโมจิ หรือภาพวาด 6×6) */
   avatarEmoji?: string | null;
   avatarGrid?: string | null;
+  /** Phase 43: เครื่องประดับ (กรอบอวตาร) + ฉายา */
+  avatarFrameCode?: string | null;
+  titleTh?: string | null;
 }
 
 export default function TopHeader() {
@@ -29,6 +33,7 @@ export default function TopHeader() {
   /** Phase 38: เลเวลผู้เล่น (ผู้ใช้สั่ง: "เพิ่มแสดง Level ด้านบนแถวแจ้งเตือน หรือ User ด้วย") */
   const [level, setLevel] = useState<{ level: number; dropBonusPercent: number } | null>(null);
   const [user, setUser] = useState<SessionUser | null>(null);
+  const headerFrame = avatarFrameTheme(user?.avatarFrameCode);
 
   // เมนูบนจอใหญ่ — ป้ายเปลี่ยนตามภาษาที่เลือก
   const desktopNav: { href: string; key: string; className?: string }[] = [
@@ -201,11 +206,22 @@ export default function TopHeader() {
                 title={user.displayName || user.username}
               >
                 {/* Phase 26: อวตาร (อิโมจิ/ภาพวาด 6×6) แทนไอคอน 👤 เมื่อผู้เล่นตั้งไว้ */}
-                <span data-avatar-header={user.avatarEmoji ?? user.avatarGrid ?? ''} className="shrink-0">
+                <span
+                  data-avatar-header={user.avatarEmoji ?? user.avatarGrid ?? ''}
+                  className={`shrink-0 rounded-full ${headerFrame ? `${headerFrame.ringClass} ${headerFrame.glowClass}` : ''}`}
+                >
                   <AvatarView emoji={user.avatarEmoji} grid={user.avatarGrid} size={20} className="rounded" />
                 </span>
-                <span className="ml-1 hidden max-w-[7rem] truncate sm:inline">
-                  {user.displayName || user.username}
+                <span className="ml-1 flex min-w-0 items-center gap-1">
+                  <span className="truncate">{user.displayName || user.username}</span>
+                  {user.titleTh && (
+                    <span
+                      data-header-title
+                      className="shrink-0 rounded bg-purple-500/20 px-1 py-px text-[10px] font-bold text-purple-200"
+                    >
+                      {user.titleTh}
+                    </span>
+                  )}
                 </span>
               </Link>
               <button

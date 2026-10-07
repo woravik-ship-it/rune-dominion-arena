@@ -20,6 +20,8 @@ export async function GET(request: NextRequest) {
         avatarUrl: true, role: true, discoveryEnergy: true, isActive: true, createdAt: true,
         // Phase 26: อวตารในเกม (อิโมจิ หรือภาพวาด 6×6)
         avatarEmoji: true, avatarGrid: true, exp: true,
+        // Phase 43: เครื่องประดับ + ฉายา (หัวเว็บแสดงกรอบ/ฉายา)
+        avatarFrameCode: true, titleCode: true, titleTh: true,
       },
     });
     if (!user || !user.isActive) {

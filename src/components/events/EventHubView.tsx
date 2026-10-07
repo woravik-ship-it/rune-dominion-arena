@@ -16,7 +16,7 @@ export interface EventHubData {
   community: { totalDamage: number; participantCount: number };
   quests: Array<{ id: string; nameTh: string; descriptionTh: string | null; targetValue: number; currencyReward: number; rewardAmount: number }>;
   shopItems: Array<{ id: string; nameTh: string; descriptionTh: string | null; price: number }>;
-  me: { veilShards: number; eventPoints: number; damageDealt: number; raidsToday: number; raidDailyCap: number } | null;
+  me: { veilShards: number; joined: boolean; eventPoints: number; damageDealt: number; raidsToday: number; raidDailyCap: number } | null;
 }
 
 // ความคืบหน้า Event Quest จริง (Phase 11.2)
@@ -95,9 +95,19 @@ export default function EventHubView({
           </p>
           <h1 className="text-2xl font-bold text-white mb-1">{hub.nameTh}</h1>
           <p className="text-sm text-purple-200 mb-3">{hub.descriptionTh}</p>
-          <div className="flex justify-between text-sm">
+          <div className="flex flex-wrap items-center justify-between gap-2 text-sm">
             <span className="text-purple-300">⏳ เหลือ {formatDuration(hub.msLeft)}</span>
-            <span className="text-purple-300">💠 {shards} {hub.currencyName}</span>
+            <span className="flex items-center gap-2">
+              {hub.me?.joined && (
+                <span
+                  data-event-joined
+                  className="rounded-full bg-emerald-500/20 px-2 py-0.5 text-xs font-bold text-emerald-300"
+                >
+                  ✅ เข้าร่วมแล้ว
+                </span>
+              )}
+              <span className="text-purple-300">💠 {shards} {hub.currencyName}</span>
+            </span>
           </div>
         </div>
 
@@ -135,7 +145,7 @@ export default function EventHubView({
               disabled={busy || !deckId || hub.boss.isDefeated}
               className="btn-primary w-full disabled:opacity-50"
             >
-              {busy ? 'กำลังประมวลผล...' : '⚔️ เข้า Boss Raid (10 Veil Shards)'}
+              {busy ? 'กำลังประมวลผล...' : hub.me?.joined ? '⚔️ เข้า Boss Raid อีกครั้ง (10 Veil Shards)' : '⚔️ เข้าร่วมกิจกรรม + เริ่ม Raid (10 Veil Shards)'}
             </button>
             {!deckId && (
               <p className="text-xs text-amber-400 mt-2 text-center">

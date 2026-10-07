@@ -13,6 +13,8 @@ import { useI18n } from '@/components/providers/LocaleProvider';
 import { formatNumber } from '@/lib/i18n';
 import AvatarEditor from '@/components/profile/AvatarEditor';
 import AvatarView from '@/components/profile/AvatarView';
+import { avatarFrameTheme } from '@/lib/avatar';
+import { specialArtUrl } from '@/lib/special-art';
 
 interface ProfileData {
   /** Phase 33: เลเวล/EXP (คำนวณจาก exp ฝั่งเซิร์ฟเวอร์) */
@@ -36,6 +38,9 @@ interface ProfileData {
     joinedAt: string;
     avatarEmoji: string | null;
     avatarGrid: string | null;
+    avatarFrameCode: string | null;
+    titleCode: string | null;
+    titleTh: string | null;
     avatarKind: 'emoji' | 'grid' | 'default';
     paintedCells: number;
   };
@@ -70,28 +75,69 @@ const ROLE_LABEL: Record<string, string> = {
   MODERATOR: 'ผู้ดูแล',
 };
 
+/** ของสะสมจาก Event ที่ใช้กับหน้าโปรไฟล์ (เครื่องประดับ/ฉายา/การ์ดวิเศษ) */
+interface CollectibleItem {
+  id: string;
+  itemType: string;
+  code: string;
+  nameTh: string;
+  quantity: number;
+  source: string | null;
+}
+
 export default function ProfilePage() {
   const { t, locale } = useI18n();
   const [data, setData] = useState<ProfileData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [collectibles, setCollectibles] = useState<CollectibleItem[]>([]);
+  const [equipping, setEquipping] = useState(false);
+  const [equipMsg, setEquipMsg] = useState('');
 
   const load = useCallback(async () => {
     try {
-      const res = await apiFetch('/api/profile');
-      const json = await res.json().catch(() => null);
-      if (!res.ok || !json?.success) {
+      const [profileRes, invRes] = await Promise.all([
+        apiFetch('/api/profile'),
+        apiFetch('/api/inventory'),
+      ]);
+      const json = await profileRes.json().catch(() => null);
+      const inv = await invRes.json().catch(() => null);
+      if (!profileRes.ok || !json?.success) {
         setError(json?.error ?? t('common.error'));
         return;
       }
       setError('');
       setData(json.data as ProfileData);
+      if (inv?.success) setCollectibles((inv.data ?? []) as CollectibleItem[]);
     } catch {
       setError(t('common.error'));
     } finally {
       setLoading(false);
     }
   }, [t]);
+
+  /** ใส่/ถอดเครื่องประดับ (COSMETIC) หรือฉายา (TITLE) — code = '' = ถอด */
+  const equip = async (kind: 'COSMETIC' | 'TITLE', code: string) => {
+    setEquipping(true);
+    setEquipMsg('');
+    setError('');
+    try {
+      const res = await apiFetch('/api/profile/equip', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ kind, code }),
+      });
+      const json = await res.json().catch(() => null);
+      if (!res.ok || !json?.success) {
+        setError(json?.error ?? 'ใส่เครื่องประดับไม่สำเร็จ');
+        return;
+      }
+      setEquipMsg(!code ? 'ถอดแล้ว ✅' : kind === 'TITLE' ? 'ตั้งฉายาแล้ว ✅' : 'ใส่เครื่องประดับแล้ว ✅');
+      await load();
+    } finally {
+      setEquipping(false);
+    }
+  };
 
   useEffect(() => {
     void load();
@@ -119,6 +165,7 @@ export default function ProfilePage() {
 
   const { user, balances, stats, event } = data;
   const joined = new Date(user.joinedAt).toLocaleDateString(locale === 'th' ? 'th-TH' : 'en-US');
+  const frameTheme = avatarFrameTheme(user.avatarFrameCode);
 
   const statRows: Array<{ label: string; value: string }> = [
     { label: t('profile.battles'), value: formatNumber(locale, stats.battles) },
@@ -140,16 +187,30 @@ export default function ProfilePage() {
         {/* ตัวตน + อวตาร */}
         <section data-profile-header className="mb-4 rounded-xl border border-white/10 bg-gradient-to-br from-indigo-900/60 via-purple-900/40 to-slate-900 p-4">
           <div className="flex items-center gap-3">
-            <AvatarView
-              emoji={user.avatarEmoji}
-              grid={user.avatarGrid}
-              size={72}
-              className="rounded-xl bg-black/30 p-1"
-              title={user.displayName || user.username}
-            />
+            <div
+              data-avatar-frame={user.avatarFrameCode ?? ''}
+              className={`shrink-0 rounded-2xl ${frameTheme ? `${frameTheme.ringClass} ${frameTheme.glowClass}` : ''}`}
+            >
+              <AvatarView
+                emoji={user.avatarEmoji}
+                grid={user.avatarGrid}
+                size={72}
+                className="rounded-xl bg-black/30 p-1"
+                title={user.displayName || user.username}
+              />
+            </div>
             <div className="min-w-0">
-              <h1 data-profile-name className="truncate text-xl font-bold text-white">
-                {user.displayName || user.username}
+              <h1 data-profile-name className="text-xl font-bold text-white">
+                <span className="truncate">{user.displayName || user.username}</span>
+                {user.titleTh && (
+                  <span
+                    data-profile-title
+                    className="ml-2 inline-block max-w-[12rem] truncate rounded bg-purple-500/20 px-2 py-0.5 align-middle text-xs font-bold text-purple-200"
+                    title={user.titleTh}
+                  >
+                    🏅 {user.titleTh}
+                  </span>
+                )}
               </h1>
               <p className="text-sm text-gray-300">@{user.username}</p>
               <p className="text-xs text-gray-400">
@@ -260,6 +321,137 @@ export default function ProfilePage() {
           ) : (
             <p className="text-xs text-gray-500">{t('profile.noEvent')}</p>
           )}
+        </section>
+
+        {/* เครื่องประดับ (กรอบอวตาร) / ฉายา / การ์ดวิเศษ — Phase 43 */}
+
+        {equipMsg && (
+          <p data-equip-msg className="mb-3 text-center text-xs text-emerald-400">{equipMsg}</p>
+        )}
+
+        <section data-profile-cosmetics className="mb-4 rounded-xl border border-white/10 bg-gray-800/60 p-4">
+          <h2 className="mb-2 text-sm font-bold text-gray-200">🎀 เครื่องประดับ (กรอบอวตาร)</h2>
+          {(() => {
+            const cosmetics = collectibles.filter((i) => i.itemType === 'COSMETIC');
+            if (cosmetics.length === 0) {
+              return (
+                <p className="text-xs text-gray-500">
+                  ยังไม่มีเครื่องประดับ — ได้จาก Event (Milestone / Raid สูง / ร้านค้ากิจกรรม)
+                </p>
+              );
+            }
+            return (
+              <div className="space-y-2">
+                {cosmetics.map((item) => {
+                  const equipped = user.avatarFrameCode === item.code;
+                  const theme = avatarFrameTheme(item.code);
+                  return (
+                    <div key={item.id} className="flex items-center justify-between gap-2">
+                      <div className="flex min-w-0 items-center gap-2">
+                        <span
+                          className={`block h-7 w-7 shrink-0 rounded-full bg-gray-900 text-center text-sm leading-7 ${
+                            equipped ? `${theme?.ringClass ?? 'ring-2 ring-emerald-400'}` : ''
+                          }`}
+                        >
+                          🎀
+                        </span>
+                        <div className="min-w-0">
+                          <p className="truncate text-sm text-white">{item.nameTh}</p>
+                          <p className="text-[10px] text-gray-500">
+                            {equipped ? 'กำลังใส่' : 'กดใส่เพื่อแสดงกรอบที่อวตาร'}
+                          </p>
+                        </div>
+                      </div>
+                      <button
+                        type="button"
+                        data-cosmetic-equip={item.code}
+                        disabled={equipping}
+                        onClick={() => void equip('COSMETIC', equipped ? '' : item.code)}
+                        className={`rounded px-3 py-1 text-xs disabled:opacity-50 ${
+                          equipped
+                            ? 'bg-white/10 text-gray-300 hover:bg-white/20'
+                            : 'bg-indigo-600 text-white hover:bg-indigo-500'
+                        }`}
+                      >
+                        {equipped ? 'ถอด' : 'ใส่'}
+                      </button>
+                    </div>
+                  );
+                })}
+              </div>
+            );
+          })()}
+        </section>
+
+        <section data-profile-titles className="mb-4 rounded-xl border border-white/10 bg-gray-800/60 p-4">
+          <h2 className="mb-2 text-sm font-bold text-gray-200">🏅 ฉายา (แสดงข้างชื่อ)</h2>
+          {(() => {
+            const titles = collectibles.filter((i) => i.itemType === 'TITLE');
+            if (titles.length === 0) {
+              return (
+                <p className="text-xs text-gray-500">
+                  ยังไม่มีฉายา — ได้จาก Milestone/Raid ระดับสูงหรือร้านค้ากิจกรรม
+                </p>
+              );
+            }
+            return (
+              <div className="space-y-2">
+                {titles.map((item) => {
+                  const equipped = user.titleCode === item.code;
+                  return (
+                    <div key={item.id} className="flex items-center justify-between gap-2">
+                      <p className={`truncate text-sm ${equipped ? 'text-white' : 'text-gray-300'}`}>
+                        🏅 {item.nameTh}
+                      </p>
+                      <button
+                        type="button"
+                        data-title-equip={item.code}
+                        disabled={equipping}
+                        onClick={() => void equip('TITLE', equipped ? '' : item.code)}
+                        className={`rounded px-3 py-1 text-xs disabled:opacity-50 ${
+                          equipped
+                            ? 'bg-white/10 text-gray-300 hover:bg-white/20'
+                            : 'bg-amber-600 text-white hover:bg-amber-500'
+                        }`}
+                      >
+                        {equipped ? 'ถอด' : 'ตั้ง'}
+                      </button>
+                    </div>
+                  );
+                })}
+              </div>
+            );
+          })()}
+        </section>
+
+        <section data-profile-special-cards className="mb-4 rounded-xl border border-white/10 bg-gray-800/60 p-4">
+          <h2 className="mb-2 text-sm font-bold text-gray-200">🎴 การ์ดวิเศษจาก Event</h2>
+          {(() => {
+            const cards = collectibles.filter((i) => i.itemType === 'CARD');
+            if (cards.length === 0) {
+              return (
+                <p className="text-xs text-gray-500">
+                  ยังไม่มีการ์ดวิเศษ — เก็บจาก Milestone กิจกรรม
+                </p>
+              );
+            }
+            return (
+              <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+                {cards.map((item) => (
+                  <div key={item.id} className="rounded-lg bg-gray-900/80 p-2 text-center">
+                    <img
+                      src={specialArtUrl(item.code)}
+                      alt=""
+                      loading="lazy"
+                      className="mx-auto block h-16 w-16 rounded-lg border border-gray-700 object-cover"
+                      onError={(e) => { e.currentTarget.style.display = 'none'; }}
+                    />
+                    <p className="mt-1 truncate text-[11px] text-white">{item.nameTh}</p>
+                  </div>
+                ))}
+              </div>
+            );
+          })()}
         </section>
 
         {/* อวตาร */}

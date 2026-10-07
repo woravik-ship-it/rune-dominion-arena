@@ -37,6 +37,8 @@ export async function GET(request: NextRequest) {
         select: {
           id: true, username: true, displayName: true, role: true, createdAt: true,
           locale: true, avatarEmoji: true, avatarGrid: true, exp: true,
+          // Phase 43: เครื่องประดับ + ฉายา
+          avatarFrameCode: true, titleCode: true, titleTh: true,
         },
       }),
       WalletService.getWallet(userId),
@@ -79,6 +81,10 @@ export async function GET(request: NextRequest) {
           joinedAt: user.createdAt.toISOString(),
           avatarEmoji: user.avatarEmoji,
           avatarGrid: user.avatarGrid,
+          // Phase 43: เครื่องประดับ + ฉายา
+          avatarFrameCode: user.avatarFrameCode,
+          titleCode: user.titleCode,
+          titleTh: user.titleTh,
           /** ชนิดอวตารที่จะแสดงจริง (emoji / grid / default) */
           avatarKind: avatarKind({ emoji: user.avatarEmoji, grid: user.avatarGrid }),
           /** แถวของภาพวาด 6×6 (สำหรับเรนเดอร์) */

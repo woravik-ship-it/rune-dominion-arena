@@ -466,3 +466,259 @@ export async function generateCardImageBytes(
   throw lastError instanceof Error ? lastError : new Error('สร้างภาพไม่สำเร็จ');
 }
 
+// ===== ภาพ Item (ระบบช่าง/ตีบวก — 2026-10-03) =====
+// ภาพถูกต้อง "ของชิ้นเดียวกลางจอ" ไม่ใช่ฉากการ์ด — อิงชื่อไทย/คำอธิบาย/ช่อง/หายาก
+
+export interface AiImageItemInput {
+  name: string;
+  nameTh?: string | null;
+  slot: string;
+  rarity: string;
+  descriptionTh?: string | null;
+  /** seed สำหรับ deterministic (เช่น item code) */
+  seedHash: string;
+}
+
+const ITEM_SLOT_VISUAL: Record<string, string> = {
+  ATTACK: 'a legendary weapon',
+  DEFENSE: 'a mythic shield or piece of armor',
+  SUPPORT: 'a magical amulet or glowing charm',
+};
+
+const ITEM_IMAGE_SIZE = 512;
+
+/** สร้าง prompt ภาพ Item — object เดียวกลางจอ ตรงชื่อ/คำอธิบาย (กำหนดผลได้จาก seedHash) */
+export function buildItemImagePrompt(item: AiImageItemInput): string {
+  const slotVisual = ITEM_SLOT_VISUAL[item.slot] ?? 'a fantasy artifact';
+  const rarity = RARITY_VISUAL[item.rarity] ?? 'rich detail';
+  const name = (item.nameTh ?? item.name).replace(/["<>]/g, '').trim();
+  const desc = (item.descriptionTh ?? '').replace(/\s+/g, ' ').trim().slice(0, 90);
+  const prompt = [
+    `High-fantasy game item icon artwork centered on a single object: "${name}" — ${slotVisual}.`,
+    `Style: ${rarity}, vivid colors, clear silhouette, soft magical glow backdrop, gentle floating sparkles.`,
+    desc ? `Features: ${desc}.` : '',
+    'No text, no letters, no frame, no border, no UI, no characters, no hands, family-friendly game icon, straight front view, centered composition.',
+  ].filter(Boolean).join(' ');
+  return prompt.replace(/\s+/g, ' ').trim();
+}
+
+/** สร้างภาพ Item ผ่าน AI — รองรับ retry/429 เหมือนภาพการ์ด */
+export async function generateItemImageBytes(
+  item: AiImageItemInput,
+  options: AiImageOptions = {}
+): Promise<GeneratedImage> {
+  preferIpv4();
+  const prompt = buildItemImagePrompt(item);
+  if (!isPromptSafe(prompt)) throw new Error('prompt ไม่ผ่านการตรวจเนื้อหา');
+
+  const provider = resolveProvider(options);
+  const timeoutMs = options.timeoutMs ?? Number(process.env.AI_IMAGE_TIMEOUT_MS ?? 45_000);
+  const width = options.width ?? ITEM_IMAGE_SIZE;
+  const height = options.height ?? ITEM_IMAGE_SIZE;
+  const isRateLimit = (error: unknown): boolean =>
+    /429|too many requests|queue full/i.test(error instanceof Error ? error.message : String(error));
+
+  const maxAttempts = 6;
+  let lastError: unknown = null;
+  for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
+    try {
+      if (provider === 'pollinations') {
+        const base = (process.env.AI_IMAGE_API_URL ?? '').includes('pollinations')
+          ? process.env.AI_IMAGE_API_URL!
+          : 'https://image.pollinations.ai/prompt';
+        const params = new URLSearchParams({
+          width: String(width),
+          height: String(height),
+          seed: String(seedFromHash(item.seedHash)),
+          nologo: 'true',
+          model: process.env.AI_IMAGE_MODEL || 'sana',
+        });
+        const url = `${base.replace(/\/$/, '')}/${encodeURIComponent(prompt)}?${params.toString()}`;
+        const { bytes, contentType } = await downloadImage(url, timeoutMs);
+        return { bytes, contentType, provider, prompt };
+      }
+
+      const apiUrl = process.env.AI_IMAGE_API_URL;
+      const apiKey = process.env.AI_IMAGE_API_KEY;
+      if (!apiUrl || !apiKey) throw new Error('ไม่ได้ตั้งค่า AI provider (AI_IMAGE_API_URL / AI_IMAGE_API_KEY)');
+
+      const isOpenAi = /openai\.com/.test(apiUrl);
+      const preset = resolveImagePreset(item.rarity);
+      const model = preset.model || (isOpenAi ? 'gpt-image-1' : undefined);
+      const size = preset.size || `${width}x${height}`;
+      const requestBody: Record<string, unknown> = { prompt, n: 1, size };
+      if (model) requestBody.model = model;
+      if (preset.quality) requestBody.quality = preset.quality;
+      if (preset.outputFormat) requestBody.output_format = preset.outputFormat;
+
+      const res = await fetch(apiUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${apiKey}` },
+        body: JSON.stringify(requestBody),
+        signal: AbortSignal.timeout(timeoutMs),
+      });
+      if (!res.ok) {
+        throw new Error(`AI provider ผิดพลาด (HTTP ${res.status}): ${(await res.text()).slice(0, 200)}`);
+      }
+      const json = await res.json().catch(() => ({}));
+      const direct = json.url ?? json.data?.[0]?.url;
+      if (direct) {
+        const { bytes, contentType } = await downloadImage(direct, timeoutMs);
+        return { bytes, contentType, provider, prompt, preset };
+      }
+      const b64 = json.data?.[0]?.b64_json;
+      if (b64) {
+        const bytes = Buffer.from(b64, 'base64');
+        const detected = detectImageType(bytes);
+        if (!detected) throw new Error('AI provider ส่ง base64 ที่ไม่ใช่ภาพ');
+        return { bytes, contentType: detected, provider, prompt, preset };
+      }
+      throw new Error('AI provider ไม่ส่ง URL/base64 ภาพกลับมา');
+    } catch (error) {
+      lastError = error;
+      if (attempt < maxAttempts - 1) {
+        const base = Number(process.env.AI_IMAGE_RETRY_BASE_MS ?? 3000);
+        const waitMs = isRateLimit(error) ? base * 5 * (attempt + 1) : base * (attempt + 1);
+        await new Promise((resolve) => setTimeout(resolve, waitMs));
+      }
+    }
+  }
+
+  throw lastError instanceof Error ? lastError : new Error('สร้างภาพ Item ไม่สำเร็จ');
+}
+
+// ===== ภาพพื้นหลังแผนที่ (Map — 2026-10-03) =====
+// ผู้ใช้สั่ง: "Gen Background ของ Map ด้วย" — ภาพกว้าง (landscape) เป็นฉากหลังของแต่ละโซนบนแผนที่
+
+export interface AiImageMapInput {
+  /** id ของโซน (ใช้เป็น seed ให้ภาพเดิมเมื่อ gen ซ้ำ — deterministic) */
+  id: string;
+  nameTh: string;
+  name: string;
+  descriptionTh: string;
+  tier: number;
+  palette: string;
+  mood: string;
+}
+
+/** ขนาดภาพพื้นหลังแผนที่ (กว้างกว่าแนวตั้ง — ฉากวงกว้าง) */
+export const MAP_IMAGE_WIDTH = 1024;
+export const MAP_IMAGE_HEIGHT = 576;
+
+/** สร้าง prompt ภาพพื้นหลังแผนที่ — ฉากกว้าง ไม่มีตัวละคร/UI/ตัวหนังสือ (กำหนดผลได้จาก zone id) */
+export function buildMapBackgroundPrompt(map: AiImageMapInput): string {
+  const name = (map.nameTh || map.name).replace(/["<>]/g, '').trim();
+  const desc = (map.descriptionTh ?? '').replace(/\s+/g, ' ').trim().slice(0, 120);
+  const prompt = [
+    `Wide fantasy game map background, landscape orientation, high-angle vista of "${name}" zone.`,
+    desc ? `Scene: ${desc}.` : '',
+    map.palette ? `Colour palette: ${map.palette}.` : '',
+    map.mood ? `Mood: ${map.mood}.` : '',
+    'Painterly digital game environment concept art, rich detail, immersive depth, ' +
+      'no text, no letters, no labels, no UI, no game markers, no characters, no hands, family-friendly.',
+  ].filter(Boolean).join(' ');
+  return prompt.replace(/\s+/g, ' ').trim();
+}
+
+/** สร้างภาพพื้นหลังแผนที่ผ่าน AI — รองรับ retry/429 เหมือนภาพ Item */
+export async function generateMapBackgroundBytes(
+  map: AiImageMapInput,
+  options: AiImageOptions = {}
+): Promise<GeneratedImage> {
+  preferIpv4();
+  const prompt = buildMapBackgroundPrompt(map);
+  if (!isPromptSafe(prompt)) throw new Error('prompt ไม่ผ่านการตรวจเนื้อหา');
+
+  const provider = resolveProvider(options);
+  const timeoutMs = options.timeoutMs ?? Number(process.env.AI_IMAGE_TIMEOUT_MS ?? 45_000);
+  const width = options.width ?? MAP_IMAGE_WIDTH;
+  const height = options.height ?? MAP_IMAGE_HEIGHT;
+  const isRateLimit = (error: unknown): boolean =>
+    /429|too many requests|queue full/i.test(error instanceof Error ? error.message : String(error));
+
+  const maxAttempts = 6;
+  let lastError: unknown = null;
+  for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
+    try {
+      if (provider === 'pollinations') {
+        const base = (process.env.AI_IMAGE_API_URL ?? '').includes('pollinations')
+          ? process.env.AI_IMAGE_API_URL!
+          : 'https://image.pollinations.ai/prompt';
+        const params = new URLSearchParams({
+          width: String(width),
+          height: String(height),
+          seed: String(seedFromHash(map.id)),
+          nologo: 'true',
+          model: process.env.AI_IMAGE_MODEL || 'sana',
+        });
+        const url = `${base.replace(/\/$/, '')}/${encodeURIComponent(prompt)}?${params.toString()}`;
+        const { bytes, contentType } = await downloadImage(url, timeoutMs);
+        return { bytes, contentType, provider, prompt };
+      }
+
+      const apiUrl = process.env.AI_IMAGE_API_URL;
+      const apiKey = process.env.AI_IMAGE_API_KEY;
+      if (!apiUrl || !apiKey) throw new Error('ไม่ได้ตั้งค่า AI provider (AI_IMAGE_API_URL / AI_IMAGE_API_KEY)');
+
+      const isOpenAi = /openai\.com/.test(apiUrl);
+      const model = isOpenAi ? 'gpt-image-1' : undefined;
+      // ขนาด landscape ที่ OpenAI-family รองรับ (1536x1024) — 1024x576 โดนปฏิเสธ (ภาพพื้นหลังแผนที่)
+      const size = '1536x1024';
+      const requestBody: Record<string, unknown> = { prompt, n: 1, size };
+      if (model) requestBody.model = model;
+
+      const res = await fetch(apiUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${apiKey}` },
+        body: JSON.stringify(requestBody),
+        signal: AbortSignal.timeout(timeoutMs),
+      });
+      if (!res.ok) {
+        throw new Error(`AI provider ผิดพลาด (HTTP ${res.status}): ${(await res.text()).slice(0, 200)}`);
+      }
+      const json = await res.json().catch(() => ({}));
+      const direct = json.url ?? json.data?.[0]?.url;
+      if (direct) {
+        const { bytes, contentType } = await downloadImage(direct, timeoutMs);
+        return { bytes, contentType, provider, prompt };
+      }
+      const b64 = json.data?.[0]?.b64_json;
+      if (b64) {
+        const bytes = Buffer.from(b64, 'base64');
+        const detected = detectImageType(bytes);
+        if (!detected) throw new Error('AI provider ส่ง base64 ที่ไม่ใช่ภาพ');
+        return { bytes, contentType: detected, provider, prompt };
+      }
+      throw new Error('AI provider ไม่ส่ง URL/base64 ภาพกลับมา');
+    } catch (error) {
+      lastError = error;
+      if (attempt < maxAttempts - 1) {
+        const base = Number(process.env.AI_IMAGE_RETRY_BASE_MS ?? 3000);
+        const waitMs = isRateLimit(error) ? base * 5 * (attempt + 1) : base * (attempt + 1);
+        await new Promise((resolve) => setTimeout(resolve, waitMs));
+      }
+    }
+  }
+
+  throw lastError instanceof Error ? lastError : new Error('สร้างภาพพื้นหลังแผนที่ไม่สำเร็จ');
+}
+
+// ===== ภาพ "การ์ดวิเศษ/ของหายากจาก Event" (Phase 43 — 2026-10-03) =====
+// ใช้ pipeline ภาพการ์ดเดิม (deterministic ผ่าน code ของของชิ้นนั้น) → ได้ภาพการ์ดสวย ๆ ใช้กับกระเป๋า/โปรไฟล์
+
+/** สร้างภาพการ์ดวิเศษจากชื่อ + code (seed = code → ของเดิมได้ภาพเดิม) */
+export async function generateSpecialCardImageBytes(
+  labelTh: string,
+  code: string
+): Promise<GeneratedImage> {
+  return generateCardImageBytes({
+    name: labelTh,
+    nameTh: labelTh,
+    element: 'VEILMARKED',
+    rarity: 'LEGENDARY',
+    role: 'HERO',
+    loreTh: 'ของหายากจากการ์ดวิเศษกิจกรรม',
+    canonicalSeedHash: `special:${code}`,
+  });
+}
+

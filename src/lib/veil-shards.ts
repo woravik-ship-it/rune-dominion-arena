@@ -45,6 +45,8 @@ export const VEIL_SHARD_SOURCES = {
   ITEM_CRAFT: 'ITEM_CRAFT',
   /** ขาย Item คืนร้าน → คืน Veil Shards 50% ของสูตรคราฟต์ (Phase 32) */
   ITEM_SELL: 'ITEM_SELL',
+  /** ได้จากการฟาร์มแผนที่ (Map 2026-10-03) — อัญมณีตีบวกหาได้ที่แผนที่เท่านั้น (เลิกขายแล้ว) */
+  MAP_FARM: 'MAP_FARM',
 } as const;
 
 export type VeilShardSource = keyof typeof VEIL_SHARD_SOURCES;

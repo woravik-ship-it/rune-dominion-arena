@@ -24,6 +24,7 @@ export async function GET(request: NextRequest) {
 
     let me: {
       veilShards: number;
+      joined: boolean;
       eventPoints: number;
       damageDealt: number;
       raidsToday: number;
@@ -39,6 +40,8 @@ export async function GET(request: NextRequest) {
       const veilShards = await VeilShardService.balance(userId);
       me = {
         veilShards,
+        // เข้าร่วมกิจกรรมแล้วหรือยัง (มี EventParticipation — เกิดตอนกดเข้าร่วม/Raid ครั้งแรก)
+        joined: participation != null,
         eventPoints: participation?.eventPoints ?? 0,
         damageDealt: participation?.damageDealt ?? 0,
         raidsToday,
