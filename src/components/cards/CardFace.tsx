@@ -20,6 +20,12 @@ interface CardFaceProps {
    * ส่งค่าอื่นได้เมื่อต้องการทดลองดีไซน์อื่น (ดู /aura-preview)
    */
   auraVariant?: AuraVariant;
+  /**
+   * ปิดชั้นแสง/เลื่อมทั้งหมด (foil + aura canvas) — ใช้ในหน้าคอลเลคชั่นสำหรับการ์ดที่ "ยังไม่ค้นพบ"
+   * ซึ่งมีฉากทึบ 🔒 ทับอยู่ ⇒ วาดไปก็มองไม่เห็น แต่กินงานวาดต่อเฟรม
+   * (2026-10-07 ผู้ใช้แจ้ง "หน้าคอลเลกชั่นค่อนข้างกระตุก" — วัดได้ 24 การ์ด = 24 canvas)
+   */
+  staticAura?: boolean;
   alt: string;
 }
 
@@ -45,6 +51,7 @@ export default function CardFace({
   imageStatus,
   rarity,
   auraVariant,
+  staticAura,
   alt,
 }: CardFaceProps) {
 
@@ -102,7 +109,7 @@ export default function CardFace({
     <>
       {artSrc ? (
         // ภาพ AI ในช่องภาพ (ตำแหน่งตรงกับช่องภาพในการ์ด 420×600)
-        <img src={artSrc} alt="" aria-hidden className="absolute object-cover" style={artWindow} />
+        <img src={artSrc} alt="" aria-hidden loading="lazy" decoding="async" className="absolute object-cover" style={artWindow} />
       ) : imageStatus === 'READY' ? (
         // สถานะบอกว่าภาพพร้อม แต่โหลดไม่ได้ (ไฟล์หาย/URL ผิด) → บอกสั้น ๆ ไม่หมุนค้าง
         <div
@@ -136,6 +143,8 @@ export default function CardFace({
       <img
         src={cardFrameUrl(cardId)}
         alt={alt}
+        loading="lazy"
+        decoding="async"
         className="absolute inset-0 w-full h-full object-contain"
       />
 
@@ -151,12 +160,13 @@ export default function CardFace({
       <CardFoil rarity={rarity} seed={cardId} disablePrism={isCanvasVariant(chosenVariant)} />
 
       {/* ชั้นแสงเรืองแบบไอเทมตีบวก (aura) — SVG glow · ระดับต่ำ (COMMON/UNCOMMON) ไม่ render อะไรเลย
-          ดีไซน์ `neon` วาดด้วย Canvas 2D (คนละคอมโพเนนต์) — เลือกตาม isCanvasVariant */}
-      {isCanvasVariant(chosenVariant) ? (
+          ดีไซน์ `neon` วาดด้วย Canvas 2D (คนละคอมโพเนนต์) — เลือกตาม isCanvasVariant
+          ⚠️ staticAura=true (การ์ดที่ถูกฉากทึบ 🔒 ทับ) → ข้ามทั้งสองชั้น ประหยัด canvas + งานวาดต่อเฟรม */}
+      {!staticAura && (isCanvasVariant(chosenVariant) ? (
         <CardAuraCanvas rarity={rarity} seed={cardId} />
       ) : (
         <CardAura rarity={rarity} seed={cardId} variant={chosenVariant} />
-      )}
+      ))}
     </>
   );
 }

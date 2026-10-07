@@ -155,8 +155,8 @@ export default function CardDetailPage() {
       <main className="min-h-screen p-4 flex items-center justify-center">
         <div className="text-center">
           <p className="text-gray-400">ไม่พบการ์ด</p>
-          <Link href="/decks" className="btn-primary mt-4 inline-block">
-            กลับไปคอลเลกชัน
+          <Link href="/cards" className="btn-primary mt-4 inline-block">
+            กลับไปคอลเลคชั่น
           </Link>
         </div>
       </main>
@@ -169,8 +169,8 @@ export default function CardDetailPage() {
   return (
     <main className="min-h-screen p-4">
       <div className="max-w-2xl mx-auto">
-        <Link href="/decks" className="text-gray-400 hover:text-white mb-4 inline-block">
-          ← กลับไปคอลเลกชัน
+        <Link href="/cards" className="text-gray-400 hover:text-white mb-4 inline-block">
+          ← กลับไปคอลเลคชั่น
         </Link>
 
         {/* Card Header */}

@@ -107,6 +107,9 @@ export default function CollectionPage() {
   const [rarity, setRarity] = useState('ALL');
   const [role, setRole] = useState('ALL');
   const [search, setSearch] = useState('');
+  /** ช่องค้นหาแบบ debounce — พิมพ์เร็ว ๆ ต้องไม่ยิง API ทุกตัวอักษร
+   *  (2026-10-07 ผู้ใช้แจ้ง "หน้าคอลเลกชั่นค่อนข้างกระตุก" · วัดได้ 8 ตัวอักษร = 8 คำขอ) */
+  const [searchInput, setSearchInput] = useState('');
   const [sort, setSort] = useState<CollectionSort>('power');
   const [page, setPage] = useState(1);
 
@@ -140,6 +143,15 @@ export default function CollectionPage() {
   useEffect(() => {
     load();
   }, [load]);
+
+  /** หน่วง 300 ms ก่อนยิงค้นหา (พิมพ์ติดกัน = ยิงครั้งเดียว) แล้วกลับไปหน้าแรก */
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setSearch(searchInput.trim());
+      setPage(1);
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [searchInput]);
 
   /** เปลี่ยนตัวกรองใด ๆ = กลับไปหน้าแรก (กันค้างอยู่หน้าที่ไม่มีผลลัพธ์) */
   const resetTo = (fn: () => void) => {
@@ -267,8 +279,8 @@ export default function CollectionPage() {
 
         <div className="mb-2 grid gap-2 sm:grid-cols-[1fr_auto]">
           <input
-            value={search}
-            onChange={(e) => resetTo(() => setSearch(e.target.value))}
+            value={searchInput}
+            onChange={(e) => setSearchInput(e.target.value)}
             placeholder={t('collection.searchPlaceholder')}
             data-collection-search
             className="w-full rounded-lg border border-gray-700 bg-gray-800 px-3 py-2 text-sm"
@@ -372,6 +384,8 @@ export default function CollectionPage() {
                     imageStatus={card.imageStatus}
                     rarity={card.rarity}
                     alt={card.nameTh ?? card.name}
+                    // การ์ดที่ยังไม่ค้นพบถูกฉากทึบ 🔒 ทับ ⇒ ไม่ต้องวาดชั้นแสง/เลื่อม (ผู้ใช้แจ้งหน้านี้กระตุก)
+                    staticAura={!card.owned}
                   />
                   {!card.owned && (
                     <span
