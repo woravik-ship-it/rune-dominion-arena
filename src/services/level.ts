@@ -71,9 +71,12 @@ export class LevelService {
     for (const code of summary.items) {
       const item = await prisma.itemDefinition.findUnique({ where: { code } });
       if (!item) continue;
-      const owned = await prisma.userItem.findUnique({ where: { userId_itemId: { userId, itemId: item.id } } });
-      if (owned) await prisma.userItem.update({ where: { id: owned.id }, data: { quantity: { increment: 1 } } });
-      else await prisma.userItem.create({ data: { userId, itemId: item.id, quantity: 1 } });
+      // Phase 43: ของใหม่ลง "กอง +0" (กองแยกตามระดับตีบวก)
+      await prisma.userItem.upsert({
+        where: { userId_itemId_enhanceLevel: { userId, itemId: item.id, enhanceLevel: 0 } },
+        create: { userId, itemId: item.id, quantity: 1, enhanceLevel: 0 },
+        update: { quantity: { increment: 1 } },
+      });
     }
 
     if (summary.gainedLevels > 0) {

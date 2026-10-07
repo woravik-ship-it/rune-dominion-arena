@@ -1,18 +1,29 @@
 'use client';
 
-// /items — ร้านช่าง (Phase 25)
+// /items — ร้านช่าง (Phase 25 → Phase 43: แยกเมนู "คราฟต์" กับ "ตีบวก")
 //
 // ผู้ใช้สั่ง 2026-09-27: "ทำในส่วนของช่างใส่ Item ... สำหรับใส่ Item ที่ได้รับ หรือ Craft มาได้"
-//  - แสดง Item ทั้ง 3 ช่อง (โจมตี/ป้องกัน/สนับสนุน) พร้อม Status ที่เพิ่มให้การ์ด
-//  - ซื้อด้วย Veil Shards (ของพื้นฐาน) หรือคราฟต์ด้วย Veil Shards + ฝุ่นเวท (ของแรงกว่า)
-//  - ของที่ได้แล้วไป "ใส่" ที่หน้าการ์ด (ลิงก์ไป /cards)
+// ผู้ใช้สั่ง 2026-10-04: "Workshop แยกเมนู Craft กับ Upgrade · ในกระเป๋าก็แยก Item ·
+//   การตีบวก คือเอาของที่มี 1 ชิ้น ไปตีบวก ของชิ้นนั้นได้บวก ไม่ใช่ทั้งกอง"
+//  - แท็บ 🧪 คราฟต์ = ซื้อ/คราฟต์ Item เท่านั้น (ของใหม่ลงกอง +0) + บอกว่ามีอยู่กี่ชิ้น
+//    ผู้ใช้สั่ง 2026-10-05: "หน้า Craft ไม่ต้องมี +1 · ปุ่ม upgrade ไม่ต้องมีในหน้านี้"
+//    ⇒ การ์ดในแท็บคราฟต์โชว์ค่าพื้นฐานของ Item (ไม่ใช่ค่ากองที่ตีบวกแล้ว) ไม่มีป้าย +N/ชิปกอง/ปุ่มตีบวก
+//  - แท็บ 🛠 ตีบวก = ของแต่ละ "กอง/ชิ้น" แยกแถว (+0 ×3 · +2 ×1) → ตีบวกทีละชิ้น หรือขายคืนเป็นกอง
 import Link from 'next/link';
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { apiFetch } from '@/lib/api-client';
 import { useI18n } from '@/components/providers/LocaleProvider';
 import { useAudio } from '@/components/providers/AudioProvider';
 import { emitVeilShardsChanged } from '@/lib/veil-shard-events';
 import { sellQuote } from '@/lib/item-definitions';
+import Modal from '@/components/ui/Modal';
+import { itemArtUrl } from '@/lib/item-art';
+import {
+  ENHANCE_JEWEL_NAME_TH,
+  ENHANCE_MAX_LEVEL,
+  ENHANCE_SAFE_MAX,
+  enhanceQuote,
+} from '@/lib/item-enhance';
 
 type SlotKey = 'ATTACK' | 'DEFENSE' | 'SUPPORT';
 
@@ -21,6 +32,25 @@ interface StatsView {
   def: number;
   hp: number;
   spd: number;
+}
+
+/** ของ 1 กอง = ชนิดเดียวกัน + ระดับบวกเดียวกัน (ผู้ใช้สั่ง: แยก Item) */
+interface StackView {
+  id: string;
+  itemCode: string;
+  nameTh: string;
+  slot: SlotKey;
+  rarity: string;
+  icon: string;
+  /** ระดับตีบวกของกองนี้ */
+  enhanceLevel: number;
+  /** จำนวนชิ้นในกอง */
+  quantity: number;
+  equippedCount: number;
+  /** ชิ้นที่ยังว่างให้ตีบวก/ขาย */
+  free: number;
+  /** สถานะจริงของกองนี้ (คูณโบนัสตีบวกแล้ว) */
+  stats: StatsView;
 }
 
 interface CatalogRowView {
@@ -47,6 +77,10 @@ interface CatalogRowView {
   canCraft: boolean;
   missingShards: number;
   missingDust: number;
+  /** ระดับบวกสูงสุดที่มี (ใช้โชว์) */
+  enhanceLevel: number;
+  /** ของที่มี แยกเป็นกองตามระดับบวก */
+  stacks: StackView[];
 }
 
 const SLOTS: SlotKey[] = ['ATTACK', 'DEFENSE', 'SUPPORT'];
@@ -85,6 +119,17 @@ export default function ItemsPage() {
   const [veilShards, setVeilShards] = useState(0);
   const [dust, setDust] = useState(0);
   const [coins, setCoins] = useState(0);
+  const [jewels, setJewels] = useState(0);
+  /** แท็บของร้านช่าง (ผู้ใช้สั่ง 2026-10-04: แยก Craft กับ Upgrade) */
+  const [tab, setTab] = useState<'craft' | 'upgrade'>('craft');
+  /** กำลังตีบวกของกองระดับไหน — โมดัลยืนยัน (Phase 43: ระบุระดับบวกของกองด้วย) */
+  const [enhanceTarget, setEnhanceTarget] = useState<{
+    code: string;
+    nameTh: string;
+    enhanceLevel: number;
+  } | null>(null);
+  /** ข้อความผลลัพธ์ตีบวก (โชว์ในโมดัล) */
+  const [enhanceResult, setEnhanceResult] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState('');
   const [message, setMessage] = useState('');
@@ -103,6 +148,7 @@ export default function ItemsPage() {
       setVeilShards(Number(json.data?.veilShards ?? 0));
       setDust(Number(json.data?.dust ?? 0));
       setCoins(Number(json.data?.coins ?? 0));
+      setJewels(Number(json.data?.jewels ?? 0));
     } catch {
       setError(t('common.error'));
     } finally {
@@ -142,18 +188,18 @@ export default function ItemsPage() {
   };
 
   /**
-   * ขาย Item คืนร้าน (Phase 32) — ได้วัตถุดิบกลับมา 50% (Veil Shards + ฝุ่นเวท)
-   * ขายได้เฉพาะ "ชิ้นที่ยังไม่ใส่อยู่บนการ์ด" (owned − equippedCount)
+   * ขาย Item คืนร้าน (Phase 32 → Phase 43: ขายเป็น "กองตามระดับบวก")
+   * ได้วัตถุดิบกลับมา 50% (Veil Shards + ฝุ่นเวท + Coin) · ขายได้เฉพาะ "ชิ้นที่ยังไม่ใส่อยู่บนการ์ด"
    */
-  const sell = async (code: string, nameTh: string) => {
-    setBusy(`sell:${code}`);
+  const sell = async (code: string, nameTh: string, enhanceLevel: number) => {
+    setBusy(`sell:${code}:${enhanceLevel}`);
     setMessage('');
     setError('');
     try {
       const res = await apiFetch('/api/items/sell', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ code, quantity: 1 }),
+        body: JSON.stringify({ code, quantity: 1, enhanceLevel }),
       });
       const json = await res.json().catch(() => null);
       if (!res.ok || !json?.success) {
@@ -164,7 +210,7 @@ export default function ItemsPage() {
       play('coin');
       setMessage(
         t('item.sellItemDone', {
-          name: nameTh,
+          name: enhanceLevel > 0 ? `${nameTh} +${enhanceLevel}` : nameTh,
           n: Number(data.sold ?? 1),
           shards: Number(data.refundShards ?? 0),
           dust: Number(data.refundDust ?? 0),
@@ -174,6 +220,54 @@ export default function ItemsPage() {
       await load();
     } catch {
       setError(t('common.error'));
+    } finally {
+      setBusy('');
+    }
+  };
+
+  /** ของที่มีทั้งหมด แยกเป็นกองตามระดับบวก (ใช้ในแท็บ "ตีบวก") */
+  const stacks = useMemo(
+    () =>
+      rows
+        .flatMap((row) => row.stacks ?? [])
+        .sort(
+          (a, b) =>
+            SLOTS.indexOf(a.slot) - SLOTS.indexOf(b.slot) ||
+            a.nameTh.localeCompare(b.nameTh) ||
+            b.enhanceLevel - a.enhanceLevel
+        ),
+    [rows]
+  );
+
+  /** ตีบวก 1 ชิ้นจากกองที่เลือก (ม้วนผลที่เซิร์ฟเวอร์) */
+  const enhance = async (code: string, enhanceLevel: number) => {
+    setBusy(`enhance:${code}:${enhanceLevel}`);
+    setMessage('');
+    setError('');
+    setEnhanceResult(null);
+    try {
+      const res = await apiFetch('/api/items/enhance', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ itemCode: code, enhanceLevel }),
+      });
+      const json = await res.json().catch(() => null);
+      if (!res.ok || !json?.success) {
+        setError(json?.error ?? 'ตีบวกไม่สำเร็จ');
+        setEnhanceResult(json?.error ?? 'ตีบวกไม่สำเร็จ');
+        play('ui_error');
+        return;
+      }
+      const data = json.data ?? {};
+      const msg = String(data.message ?? 'ตีบวกแล้ว');
+      setEnhanceResult(msg);
+      setMessage(msg);
+      play(data.success ? 'reward_claim' : 'ui_error');
+      await load();
+    } catch {
+      setError('ตีบวกไม่สำเร็จ');
+      setEnhanceResult('ตีบวกไม่สำเร็จ');
+      play('ui_error');
     } finally {
       setBusy('');
     }
@@ -196,6 +290,9 @@ export default function ItemsPage() {
             <span className="rounded-full bg-yellow-500/10 px-3 py-1 text-yellow-200" data-item-coins={coins}>
               🪙 {coins}
             </span>
+            <span className="rounded-full bg-purple-500/10 px-3 py-1 text-purple-300" data-item-jewels={jewels}>
+              💎 {jewels} {ENHANCE_JEWEL_NAME_TH}
+            </span>
             <Link href="/decks" className="text-xs text-gray-300 underline hover:text-white">
               {t('nav.cards')} →
             </Link>
@@ -206,16 +303,45 @@ export default function ItemsPage() {
         {!loading && error && <p className="py-2 text-sm text-red-400">{error}</p>}
         {message && <p className="py-2 text-sm text-emerald-400">{message}</p>}
 
-        {SLOTS.map((slot) => (
+        {/* แท็บร้านช่าง (ผู้ใช้สั่ง 2026-10-04: "Workshop แยกเมนู Craft กับ Upgrade") */}
+        <div className="mb-4 flex gap-2" role="tablist" aria-label={t('item.title')}>
+          <button
+            type="button"
+            role="tab"
+            data-item-tab="craft"
+            aria-selected={tab === 'craft'}
+            onClick={() => setTab('craft')}
+            className={`flex-1 rounded-xl px-4 py-2 text-sm font-bold ${
+              tab === 'craft' ? 'bg-amber-500/90 text-black' : 'bg-white/5 text-gray-200 hover:bg-white/10'
+            }`}
+          >
+            🧪 {t('item.tabCraft')}
+          </button>
+          <button
+            type="button"
+            role="tab"
+            data-item-tab="upgrade"
+            aria-selected={tab === 'upgrade'}
+            onClick={() => setTab('upgrade')}
+            className={`flex-1 rounded-xl px-4 py-2 text-sm font-bold ${
+              tab === 'upgrade' ? 'bg-purple-600/90 text-white' : 'bg-white/5 text-gray-200 hover:bg-white/10'
+            }`}
+          >
+            🛠 {t('item.tabUpgrade')}
+            {stacks.length > 0 && (
+              <span className="ml-1 rounded bg-black/30 px-1.5 py-0.5 text-[10px]">{stacks.length}</span>
+            )}
+          </button>
+        </div>
+
+        {tab === 'craft' && SLOTS.map((slot) => (
           <section key={slot} className="mb-6" data-item-shop-slot={slot}>
             <h2 className="mb-2 text-sm font-bold text-amber-300">{t(`item.slot.${slot}`)}</h2>
             <div className="grid gap-2 sm:grid-cols-2">
               {rows
                 .filter((row) => row.slot === slot)
                 .map((row) => {
-                  // ขายได้เฉพาะชิ้นที่ยังไม่ใส่อยู่บนการ์ด (ผู้ใช้สั่ง: ขายคืนวัตถุดิบ 50%)
-                  const sellable = Math.max(0, row.owned - row.equippedCount);
-                  const refund = sellQuote(row, 1);
+                  // แท็บคราฟต์โชว์ "ของใหม่ที่ได้" ⇒ ใช้ค่าพื้นฐานของ Item เสมอ (ไม่ใช้ค่ากองที่ตีบวกแล้ว)
                   return (
                   <div
                     key={row.code}
@@ -225,7 +351,14 @@ export default function ItemsPage() {
                     <div className="flex items-start justify-between gap-2">
                       <div className="min-w-0">
                         <p className="truncate text-sm font-bold text-white">
-                          {row.icon} {row.nameTh}
+                          <img
+                            src={itemArtUrl(row.code)}
+                            alt=""
+                            loading="lazy"
+                            className="mr-1.5 inline-block h-8 w-8 rounded-md border border-gray-700 object-cover align-[-2px]"
+                            onError={(e) => { e.currentTarget.style.display = 'none'; }}
+                          />
+                          {row.nameTh}
                         </p>
                         <p className="text-[11px] text-gray-500">
                           {row.name} · {RARITY_LABEL[row.rarity] ?? row.rarity}
@@ -239,7 +372,10 @@ export default function ItemsPage() {
                       </div>
                     </div>
 
-                    <p className="mt-1 text-xs text-emerald-300">{statLabel(row)}</p>
+                    <p className="mt-1 text-xs text-emerald-300" data-item-base-stats={row.code}>
+                      {statLabel({ atk: row.atk, def: row.def, hp: row.hp, spd: row.spd })}
+                    </p>
+                    {/* ระดับบวก/ชิปกอง/ตีบวก/ขาย = แท็บ 🛠 ตีบวก เท่านั้น (แท็บนี้โชว์แค่ของใหม่) */}
                     {row.descriptionTh && (
                       <p className="mt-1 text-[11px] leading-snug text-gray-500">{row.descriptionTh}</p>
                     )}
@@ -285,23 +421,6 @@ export default function ItemsPage() {
                           {t('item.buy')}
                         </button>
                       )}
-                      {sellable > 0 && (
-                        <button
-                          type="button"
-                          data-item-sell={row.code}
-                          onClick={() => sell(row.code, row.nameTh)}
-                          disabled={busy === `sell:${row.code}`}
-                          className="rounded-lg bg-emerald-600/80 px-3 py-1.5 text-xs font-bold text-white hover:bg-emerald-500 disabled:opacity-40"
-                          title={t('item.sellItemHint', { shards: refund.shards, dust: refund.dust })}
-                        >
-                          {t('item.sellItemButton')} (💠{refund.shards} + ✨{refund.dust}{refund.coins > 0 ? ` + 🪙${refund.coins}` : ''})
-                        </button>
-                      )}
-                      {row.owned > 0 && sellable === 0 && (
-                        <span className="rounded bg-white/5 px-2 py-1 text-[11px] text-gray-400">
-                          {t('item.sellItemBlocked')}
-                        </span>
-                      )}
                     </div>
                   </div>
                   );
@@ -309,6 +428,208 @@ export default function ItemsPage() {
             </div>
           </section>
         ))}
+
+        {/* แท็บ 🛠 ตีบวก — ของแยกเป็นกองตามระดับ (ผู้ใช้สั่ง: ของ 1 ชิ้นได้บวก ไม่ใช่ทั้งกอง) */}
+        {tab === 'upgrade' && (
+          <section data-item-upgrade-panel>
+            <p className="mb-2 text-xs text-gray-400">{t('item.upgradeHint')}</p>
+            {stacks.length === 0 ? (
+              <div className="rounded-xl bg-gray-800 p-6 text-center text-xs text-gray-500">
+                {t('item.upgradeEmpty')}
+              </div>
+            ) : (
+              <div className="grid gap-2 sm:grid-cols-2">
+                {stacks.map((stack) => {
+                  const quote = enhanceQuote(stack.enhanceLevel);
+                  const def = rows.find((r) => r.code === stack.itemCode) ?? null;
+                  const refund = def ? sellQuote(def, 1) : { shards: 0, dust: 0, coins: 0, total: 0 };
+                  const maxed = stack.enhanceLevel >= ENHANCE_MAX_LEVEL;
+                  const canEnhance = !maxed && stack.free >= 1 && busy === '';
+                  return (
+                    <div
+                      key={stack.id}
+                      data-item-stack={stack.id}
+                      data-item-stack-level={stack.enhanceLevel}
+                      className={`rounded-xl border bg-gray-900/70 p-3 ${RARITY_STYLE[stack.rarity] ?? 'border-gray-700'}`}
+                    >
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="min-w-0">
+                          <p className="truncate text-sm font-bold text-white">
+                            <img
+                              src={itemArtUrl(stack.itemCode)}
+                              alt=""
+                              loading="lazy"
+                              className="mr-1.5 inline-block h-8 w-8 rounded-md border border-gray-700 object-cover align-[-2px]"
+                              onError={(e) => { e.currentTarget.style.display = 'none'; }}
+                            />
+                            {stack.nameTh}
+                            <span
+                              data-item-level={stack.enhanceLevel}
+                              className={`ml-1 align-middle rounded px-1.5 py-0.5 text-[10px] font-bold ${
+                                stack.enhanceLevel > 0
+                                  ? 'bg-purple-500/20 text-purple-200'
+                                  : 'bg-white/10 text-gray-300'
+                              }`}
+                            >
+                              +{stack.enhanceLevel}
+                            </span>
+                          </p>
+                          <p className="text-[11px] text-gray-500">
+                            {t(`item.slot.${stack.slot}`)} · ×{stack.quantity}
+                            {stack.equippedCount > 0 && (
+                              <span className="ml-1 text-emerald-300">
+                                ({t('item.equippedCount', { n: stack.equippedCount })})
+                              </span>
+                            )}
+                          </p>
+                        </div>
+                        <span className="shrink-0 rounded bg-white/5 px-2 py-0.5 text-[11px] text-gray-300">
+                          {t('item.stackLabel', { level: stack.enhanceLevel, n: stack.quantity })}
+                        </span>
+                      </div>
+
+                      <p className="mt-1 text-xs text-emerald-300">{statLabel(stack.stats)}</p>
+
+                      <div className="mt-2 flex flex-wrap gap-2">
+                        <button
+                          type="button"
+                          data-item-enhance={stack.itemCode}
+                          data-item-enhance-level={stack.enhanceLevel}
+                          onClick={() => {
+                            setEnhanceTarget({
+                              code: stack.itemCode,
+                              nameTh: stack.nameTh,
+                              enhanceLevel: stack.enhanceLevel,
+                            });
+                            setEnhanceResult(null);
+                          }}
+                          disabled={!canEnhance}
+                          className="rounded-lg bg-purple-600/80 px-3 py-1.5 text-xs font-bold text-white hover:bg-purple-500 disabled:opacity-40"
+                          title={
+                            maxed
+                              ? t('item.enhanceMaxed')
+                              : stack.free < 1
+                                ? t('item.enhanceNoFree')
+                                : ''
+                          }
+                        >
+                          {maxed
+                            ? `+${ENHANCE_MAX_LEVEL} · ${t('item.enhanceMaxShown')}`
+                            : `🛠 ${t('item.enhance')} (+${stack.enhanceLevel}→+${quote.target})`}
+                        </button>
+                        {stack.free > 0 && (
+                          <button
+                            type="button"
+                            data-item-sell={stack.itemCode}
+                            data-item-sell-level={stack.enhanceLevel}
+                            onClick={() => sell(stack.itemCode, stack.nameTh, stack.enhanceLevel)}
+                            disabled={busy === `sell:${stack.itemCode}:${stack.enhanceLevel}`}
+                            className="rounded-lg bg-emerald-600/80 px-3 py-1.5 text-xs font-bold text-white hover:bg-emerald-500 disabled:opacity-40"
+                            title={t('item.sellItemHint', { shards: refund.shards, dust: refund.dust })}
+                          >
+                            {t('item.sellItemButton')} (💠{refund.shards} + ✨{refund.dust}
+                            {refund.coins > 0 ? ` + 🪙${refund.coins}` : ''})
+                          </button>
+                        )}
+                        {stack.free === 0 && (
+                          <span className="rounded bg-white/5 px-2 py-1 text-[11px] text-gray-400">
+                            {t('item.sellItemBlocked')}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </section>
+        )}
+
+        {/* โมดัลตีบวก Item (ผู้ใช้สั่ง 2026-10-03) */}
+        <Modal
+          open={enhanceTarget !== null}
+          onClose={() => {
+            setEnhanceTarget(null);
+            setEnhanceResult(null);
+          }}
+          title={enhanceTarget ? `🛠️ ${enhanceTarget.nameTh} — ตีบวก` : ''}
+          subtitle="ระดับ +0..+15 · พลาดระดับหล่นตามกติกา"
+          size="sm"
+        >
+          {enhanceTarget &&
+            (() => {
+              const level = enhanceTarget.enhanceLevel;
+              const targetRow = rows.find((r) => r.code === enhanceTarget.code) ?? null;
+              const targetStack = targetRow?.stacks.find((s) => s.enhanceLevel === level) ?? null;
+              if (!targetRow) return null;
+              const quote = enhanceQuote(level);
+              const free = targetStack?.free ?? 0;
+              const canEnhance =
+                busy === '' &&
+                jewels >= quote.jewels &&
+                coins >= quote.coin &&
+                dust >= quote.dust &&
+                free >= 1;
+              return (
+                <div className="space-y-2 text-sm" data-enhance-panel={enhanceTarget.code}>
+                  <p className="text-gray-200">
+                    ระดับ <b className="text-purple-300">+{level}</b> →{' '}
+                    <b className="text-amber-300">+{quote.target}</b>
+                    {quote.target >= ENHANCE_SAFE_MAX + 1 && (
+                      <span className="ml-2 text-[11px] text-orange-300">⚠️ {t('item.enhanceDropWarn')}</span>
+                    )}
+                  </p>
+                  <p>{t('item.enhanceChance', { n: quote.chancePercent })}</p>
+
+                  <ul className="space-y-1 border-t border-white/10 pt-2 text-xs text-gray-300">
+                    {/* ผู้ใช้สั่ง 2026-10-04: ตีบวกทีละชิ้น — ใช้ "ชิ้นที่เลือก" 1 ชิ้น ไม่ใช่ทั้งกอง */}
+                    <li>🔁 {t('item.enhancePiece', { n: quote.pieces })}</li>
+                    <li>
+                      🪙 Coin ×{quote.coin} <span className="text-gray-500">(มี {coins})</span>
+                    </li>
+                    <li>
+                      ✨ {t('item.dust')} ×{quote.dust} <span className="text-gray-500">(มี {dust})</span>
+                    </li>
+                    {quote.jewels > 0 && (
+                      <li className="text-purple-300">
+                        💎 {ENHANCE_JEWEL_NAME_TH} ×{quote.jewels} <span className="text-gray-500">(มี {jewels})</span>
+                        {jewels < quote.jewels && (
+                          <span className="ml-2 text-[11px] text-orange-300" data-jewel-find-only>
+                            ⚠️ {t('item.jewelFindOnly')}
+                          </span>
+                        )}
+                      </li>
+                    )}
+                  </ul>
+
+                  {free < 1 && <p className="text-xs text-red-400">{t('item.enhanceNoFree')}</p>}
+
+                  {enhanceResult && (
+                    <p
+                      data-enhance-result
+                      className={`rounded-lg px-3 py-2 text-sm ${
+                        enhanceResult.includes('สำเร็จ') ? 'bg-emerald-500/10 text-emerald-300' : 'bg-red-500/10 text-red-300'
+                      }`}
+                    >
+                      {enhanceResult}
+                    </p>
+                  )}
+
+                  <button
+                    type="button"
+                    data-enhance-go
+                    onClick={() => void enhance(targetRow.code, level)}
+                    disabled={!canEnhance || busy === `enhance:${targetRow.code}:${level}`}
+                    className="btn-primary w-full disabled:opacity-50"
+                  >
+                    {busy === `enhance:${targetRow.code}:${level}`
+                      ? 'กำลังตีบวก...'
+                      : `🛠 ${t('item.enhance')} (+${level}→+${quote.target})`}
+                  </button>
+                </div>
+              );
+            })()}
+        </Modal>
       </div>
     </main>
   );

@@ -13,6 +13,7 @@ import { apiFetch } from '@/lib/api-client';
 import { useI18n } from '@/components/providers/LocaleProvider';
 import { useAudio } from '@/components/providers/AudioProvider';
 import { emitVeilShardsChanged } from '@/lib/veil-shard-events';
+import { itemArtUrl } from '@/lib/item-art';
 import ConfirmDialog from '@/components/ui/ConfirmDialog';
 
 interface ItemStatsView {
@@ -30,6 +31,8 @@ interface EquippedView {
   nameTh: string;
   icon: string;
   rarity: string;
+  /** ระดับตีบวกของชิ้นที่ใส่ (Phase 43) */
+  enhanceLevel: number;
   stats: ItemStatsView;
 }
 
@@ -40,6 +43,8 @@ interface AvailableView {
   rarity: string;
   stats: ItemStatsView;
   free: number;
+  /** ระดับตีบวกของกองนี้ — เลือกใส่ได้ว่าชิ้นระดับไหน (Phase 43) */
+  enhanceLevel: number;
 }
 
 interface WorkshopData {
@@ -106,15 +111,16 @@ export default function CardItemWorkshop({
     void load();
   }, [load]);
 
-  const equip = async (slot: SlotKey, itemCode: string) => {
-    setBusy(`${slot}:${itemCode}`);
+  const equip = async (slot: SlotKey, itemCode: string, enhanceLevel: number) => {
+    setBusy(`${slot}:${itemCode}:${enhanceLevel}`);
     setMessage('');
     setError('');
     try {
       const res = await apiFetch(`/api/cards/${cardId}/equipment`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ slot, itemCode }),
+        // Phase 43: ระบุระดับบวกของกองที่จะดึงชิ้นมาใส่ (+0 = ของธรรมดา)
+        body: JSON.stringify({ slot, itemCode, enhanceLevel }),
       });
       const json = await res.json().catch(() => null);
       if (!res.ok || !json?.success) {
@@ -217,8 +223,22 @@ export default function CardItemWorkshop({
               <span className="text-xs font-bold text-amber-300">{t(`item.slot.${slot}`)}</span>
               {equipped ? (
                 <div className="flex items-center gap-2">
-                  <span className="text-xs text-gray-200">
-                    {equipped.icon} {equipped.nameTh}
+                  <span className="flex items-center gap-1.5 text-xs text-gray-200">
+                    <img
+                      src={itemArtUrl(equipped.itemCode)}
+                      alt=""
+                      className="h-6 w-6 shrink-0 rounded-md border border-gray-700 object-cover"
+                      onError={(e) => { e.currentTarget.style.display = 'none'; }}
+                    />
+                    {equipped.nameTh}
+                    {(equipped.enhanceLevel ?? 0) > 0 && (
+                      <span
+                        data-equipped-item-level={equipped.enhanceLevel}
+                        className="rounded bg-purple-500/25 px-1 py-0.5 text-[10px] font-bold text-purple-200"
+                      >
+                        +{equipped.enhanceLevel}
+                      </span>
+                    )}
                     <span className="ml-1 text-emerald-300">{statLabel(equipped.stats)}</span>
                   </span>
                   <button
@@ -241,23 +261,31 @@ export default function CardItemWorkshop({
             ) : (
               <div className="flex flex-wrap gap-1.5">
                 {options.map((option) => {
-                  const isEquipped = equipped?.itemCode === option.itemCode;
+                  const isEquipped =
+                    equipped?.itemCode === option.itemCode &&
+                    (equipped.enhanceLevel ?? 0) === option.enhanceLevel;
                   const usable = option.free > 0 || isEquipped;
+                  const optionKey = `${option.itemCode}:${option.enhanceLevel}`;
                   return (
                     <button
-                      key={option.itemCode}
+                      key={optionKey}
                       type="button"
                       data-item-option={option.itemCode}
+                      data-item-option-level={option.enhanceLevel}
                       data-item-slot-option={slot}
                       onClick={() => {
                         // มีของในช่องแล้ว = เป็นการ "เปลี่ยน" → ยืนยันก่อน (ผู้ใช้สั่ง)
-                        if (equipped && equipped.itemCode !== option.itemCode) {
+                        if (
+                          equipped &&
+                          (equipped.itemCode !== option.itemCode ||
+                            (equipped.enhanceLevel ?? 0) !== option.enhanceLevel)
+                        ) {
                           setConfirmSwap({ slot, from: equipped, to: option });
                           return;
                         }
-                        void equip(slot, option.itemCode);
+                        void equip(slot, option.itemCode, option.enhanceLevel);
                       }}
-                      disabled={!usable || busy === `${slot}:${option.itemCode}` || isEquipped}
+                      disabled={!usable || busy === `${slot}:${option.itemCode}:${option.enhanceLevel}` || isEquipped}
                       className={`rounded-lg border px-2 py-1 text-[11px] transition-colors ${
                         isEquipped
                           ? 'border-emerald-400/60 bg-emerald-500/10 text-emerald-200'
@@ -266,7 +294,20 @@ export default function CardItemWorkshop({
                             : 'border-gray-700 bg-gray-800 text-gray-500'
                       }`}
                     >
-                      {option.icon} {option.nameTh}
+                      <span className="inline-flex items-center gap-1.5">
+                      <img
+                        src={itemArtUrl(option.itemCode)}
+                        alt=""
+                        className="h-6 w-6 shrink-0 rounded-md border border-gray-700 object-cover"
+                        onError={(e) => { e.currentTarget.style.display = 'none'; }}
+                      />
+                      {option.nameTh}
+                      {option.enhanceLevel > 0 && (
+                        <span className="rounded bg-purple-500/25 px-1 py-0.5 text-[10px] font-bold text-purple-200">
+                          +{option.enhanceLevel}
+                        </span>
+                      )}
+                    </span>
                       <span className="ml-1 text-gray-400">{statLabel(option.stats)}</span>
                       <span className="ml-1 text-gray-500">({t('item.owned', { n: option.free })})</span>
                     </button>
@@ -340,7 +381,7 @@ export default function CardItemWorkshop({
         onConfirm={() => {
           const pending = confirmSwap;
           setConfirmSwap(null);
-          if (pending) void equip(pending.slot, pending.to.itemCode);
+          if (pending) void equip(pending.slot, pending.to.itemCode, pending.to.enhanceLevel);
         }}
         onCancel={() => setConfirmSwap(null)}
       >
@@ -349,12 +390,12 @@ export default function CardItemWorkshop({
             <p className="text-gray-300">{t(`item.slot.${confirmSwap.slot}`)}</p>
             {confirmSwap.from && (
               <p className="text-gray-400">
-                เดิม: {confirmSwap.from.icon} {confirmSwap.from.nameTh}
+                เดิม: {confirmSwap.from.nameTh}
                 <span className="text-gray-500"> ({statLabel(confirmSwap.from.stats) || 'ไม่มีสถานะ'})</span>
               </p>
             )}
             <p className="text-gray-200">
-              ใหม่: {confirmSwap.to.icon} {confirmSwap.to.nameTh}
+              ใหม่: {confirmSwap.to.nameTh}
               <span className="text-gray-500"> ({statLabel(confirmSwap.to.stats) || 'ไม่มีสถานะ'})</span>
             </p>
           </div>

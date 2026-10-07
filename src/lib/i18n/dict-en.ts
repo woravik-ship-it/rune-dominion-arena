@@ -174,6 +174,7 @@ export const EN: Record<string, string> = {
   // Workshop + item slots (Phase 25)
   'nav.items': 'Workshop',
   'nav.dungeons': 'Dungeons',
+  'nav.map': 'Map',
   'header.veilShards': 'Veil Shards',
   'item.title': 'Workshop',
   'item.subtitle': 'Buy or craft items and equip them into 3 card slots',
@@ -213,6 +214,22 @@ export const EN: Record<string, string> = {
   'item.sellItemBlocked': 'Cannot sell — these copies are equipped on cards (remove first)',
   'item.sellItemDone': 'Sold {name} ×{n} — got 💠 {shards} + ✨ {dust} back',
   'item.loginRequired': 'Sign in to use the workshop',
+
+  // Item enhancement (user request 2026-10-03) — +0..+15 · fail drops to +6 · +10+ needs "enhance jewel"
+  // User request 2026-10-04: split the workshop into Craft / Upgrade + enhance one piece (not the whole stack)
+  'item.tabCraft': 'Craft',
+  'item.tabUpgrade': 'Upgrade',
+  'item.enhance': 'Enhance',
+  'item.enhanceChance': 'Success chance {n}%',
+  'item.enhanceDropWarn': 'On failure it drops to +6',
+  'item.enhancePiece': 'Uses 1 piece from this stack (that piece gains the level — the rest of the stack stays)',
+  'item.enhanceNoFree': 'No free piece in this stack — the remaining ones are equipped on cards (unequip first)',
+  'item.enhanceMaxed': 'Already at the maximum level',
+  'item.enhanceMaxShown': 'max',
+  'item.stackLabel': '+{level} ×{n}',
+  'item.upgradeHint': 'Every piece keeps its own level — pick the stack to enhance (the plus stays on that piece, not the whole stack)',
+  'item.upgradeEmpty': 'No items to enhance yet — buy or craft in the 🧪 Craft tab first',
+  'item.jewelFindOnly': 'Found only via map farming (no longer sold)',
 
   // Profile + avatar + bag (Phase 26)
   'profile.title': 'Profile',

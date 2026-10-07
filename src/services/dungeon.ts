@@ -297,9 +297,14 @@ async function finishRun(args: {
     itemNameTh = def?.nameTh ?? itemDropped;
     const itemRow = await prisma.itemDefinition.findUnique({ where: { code: itemDropped } });
     if (itemRow) {
-      const owned = await prisma.userItem.findUnique({ where: { userId_itemId: { userId: params.userId, itemId: itemRow.id } } });
-      if (owned) await prisma.userItem.update({ where: { id: owned.id }, data: { quantity: { increment: 1 } } });
-      else await prisma.userItem.create({ data: { userId: params.userId, itemId: itemRow.id, quantity: 1 } });
+      // Phase 43: ของที่ดรอป = ของใหม่ → เข้ากอง +0
+      await prisma.userItem.upsert({
+        where: {
+          userId_itemId_enhanceLevel: { userId: params.userId, itemId: itemRow.id, enhanceLevel: 0 },
+        },
+        create: { userId: params.userId, itemId: itemRow.id, quantity: 1, enhanceLevel: 0 },
+        update: { quantity: { increment: 1 } },
+      });
     }
   }
   if (won) {

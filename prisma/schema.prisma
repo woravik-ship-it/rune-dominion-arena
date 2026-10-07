@@ -62,6 +62,12 @@ model User {
   discoveryEnergy   Int       @default(5) @map("discovery_energy")
   lastEnergyResetAt DateTime? @map("last_energy_reset_at")
 
+  // แผนที่ฟาร์ม (2026-10-03): Stamina หลอด 100 · เติมด้วยพลังค้นหา 1 จุด → +20 · รีเซ็ตทุกวัน
+  mapStamina        Int       @default(100) @map("map_stamina")
+  mapStaminaResetAt DateTime? @map("map_stamina_reset_at")
+  /// ตำแหน่งเส้นทางที่ผ่านแล้ว (จุดก่อนหน้าเคลียร์แล้ว สู้ซ้ำไม่ได้)
+  mapPosition       Int       @default(0) @map("map_position")
+
   // Phase 25: Veil Shards = สกุลเงินกลางของ "ร้านช่าง/กิจกรรม" (ได้จากการขายการ์ดคืนร้าน + กิจกรรม)
   veilShards Int @default(0) @map("veil_shards")
 
@@ -74,6 +80,10 @@ model User {
   // avatarGrid = รหัส 36 ตัวอักษร (6 แถว × 6 ช่อง) · '.' = โปร่งใส · ตัวอักษรอื่น = สีในพาเลตต์ (ดู src/lib/avatar.ts)
   avatarEmoji String? @map("avatar_emoji")
   avatarGrid  String? @map("avatar_grid")
+  // เครื่องประดับ/ฉายาที่สวมไว้ (Phase 43 — ของแต่งตัวจาก Event) · หน้าตาล้วน ไม่มีผลต่อสู้
+  avatarFrameCode String? @map("avatar_frame_code")
+  titleCode       String? @map("title_code")
+  titleTh         String? @map("title_th")
 
   // Phase 20: ภาษาในเกม (th/en) + ค่าที่ผู้เล่นเลือกสำหรับการแจ้งเตือน
   // notifyPrefs = { image: boolean, battle: boolean, arena: boolean, event: boolean, announcement: boolean }
@@ -868,7 +878,26 @@ enum InventoryItemType {
   COSMETIC
   TITLE
   CRAFTING_DUST
+  ENHANCE_JEWEL
   STORY_CHAPTER
+}
+
+// ประวัติการฟาร์มแผนที่ (2026-10-03) — กันรีดซ้ำด้วย runId + เก็บการต่อสู้เพื่อดู replay
+model MapFarmLog {
+  id          String  @id @default(cuid())
+  userId      String  @map("user_id")
+  runId       String  @unique @map("run_id")
+  nodeId      String  @map("node_id")
+  deckId      String? @map("deck_id")
+  won         Boolean
+  staminaCost Int     @map("stamina_cost")
+  rewards     Json?
+  /// log + teams ของการต่อสู้ (ดู replay ที่ /battle/map-run:<runId> — 2026-10-03)
+  battleData  Json?   @map("battle_data")
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  @@index([userId])
+  @@map("map_farm_logs")
 }
 
 // ===== NOTIFICATIONS (Phase 20) =====
@@ -976,36 +1005,52 @@ model ItemDefinition {
 }
 
 /// Item ที่ผู้เล่นถืออยู่ (1 แถว = 1 ชนิด · quantity = จำนวนชิ้น)
+/// ของในคลังร้านช่าง — 1 แถว = "กองของที่ระดับบวกเดียวกัน" (Phase 43)
+///
+/// ผู้ใช้สั่ง 2026-10-04: "การตีบวก คือเอาของที่มี 1 ชิ้น ไปตีบวก ของชิ้นนั้นได้บวก ไม่ใช่ทั้งกอง"
+/// ⇒ ของแต่ละชิ้นมีระดับบวกของตัวเอง จึงเก็บเป็นกองแยกระดับ:
+///   ช่องโจมตี +0 ×3 = แถวหนึ่ง · +2 ×1 = อีกแถวหนึ่ง (unique: userId + itemId + enhanceLevel)
+/// การตีบวก = ดึง 1 ชิ้นออกจากกองระดับเดิม แล้วย้ายไปกองระดับใหม่ (จำนวนรวมไม่เพิ่ม/ไม่หาย)
 model UserItem {
   id              String   @id @default(cuid())
   userId          String   @map("user_id")
   itemId          String   @map("item_id")
   quantity        Int      @default(1)
+  /// ระดับตีบวก +0..+15 ของ "กองนี้" — สถานะถูกคูณ (1 + 8%×level) ตอนใส่/ต่อสู้
+  enhanceLevel    Int      @default(0) @map("enhance_level")
   firstAcquiredAt DateTime @default(now()) @map("first_acquired_at")
   updatedAt       DateTime @updatedAt
 
-  user User           @relation(fields: [userId], references: [id], onDelete: Cascade)
-  item ItemDefinition @relation(fields: [itemId], references: [id], onDelete: Cascade)
+  user       User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  item       ItemDefinition @relation(fields: [itemId], references: [id], onDelete: Cascade)
+  equippedBy CardItemSlot[]
 
-  @@unique([userId, itemId])
+  @@unique([userId, itemId, enhanceLevel])
   @@index([userId])
   @@map("user_items")
 }
 
 /// ช่องใส่ Item ของการ์ด (สูงสุด 1 ชิ้นต่อช่องต่อการ์ด)
+///
+/// Phase 43: ผูกกับ "ชิ้น" จริง (`user_item_id`) ไม่ใช่แค่ชนิดของ Item
+/// ⇒ ใส่ +0 หรือ +9 ก็ได้คนละช่อง และสถานะที่บวกใช้ระดับของชิ้นนั้น
 model CardItemSlot {
   id         String   @id @default(cuid())
   userCardId String   @map("user_card_id")
   slot       ItemSlot
   itemId     String   @map("item_id")
+  /// กองของที่ชิ้นนี้มาจาก (ระดับบวกอยู่ในแถวนั้น) — null เฉพาะข้อมูลเก่าก่อน Phase 43
+  userItemId String?  @map("user_item_id")
   equippedAt DateTime @default(now()) @map("equipped_at")
   updatedAt  DateTime @updatedAt
 
   userCard UserCard       @relation(fields: [userCardId], references: [id], onDelete: Cascade)
   item     ItemDefinition @relation(fields: [itemId], references: [id], onDelete: Cascade)
+  userItem UserItem?      @relation(fields: [userItemId], references: [id], onDelete: SetNull)
 
   @@unique([userCardId, slot])
   @@index([itemId])
+  @@index([userItemId])
   @@map("card_item_slots")
 }
 

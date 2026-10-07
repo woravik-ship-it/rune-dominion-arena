@@ -5,6 +5,7 @@ import { prisma } from '@/lib/prisma';
 import type { VeilShardDb } from '@/services/veil-shard';
 import { InventoryItemType, EventRewardType } from '@prisma/client';
 import { createHash } from 'node:crypto';
+import { ENHANCE_JEWEL_NAME_TH as ENHANCE_JEWEL_NAME_TH_SRC } from '@/lib/item-enhance';
 
 export interface InventoryView {
   id: string;
@@ -55,6 +56,10 @@ export function inventoryCode(code: string): string {
  */
 export const CRAFTING_DUST_NAME_TH = 'ฝุ่นเวท';
 export const CRAFTING_DUST_CODE = inventoryCode(CRAFTING_DUST_NAME_TH);
+
+/** Jewelry — วัสดุเฉพาะตีบวกไป +10..+15 (ชื่อจาก item-enhance — แหล่งเดียวกับกติกา) */
+export const ENHANCE_JEWEL_NAME_TH = ENHANCE_JEWEL_NAME_TH_SRC;
+export const ENHANCE_JEWEL_CODE = inventoryCode(ENHANCE_JEWEL_NAME_TH);
 
 export class InventoryService {
   /** เพิ่มของเข้าคลัง (idempotent — มีอยู่แล้วบวกจำนวน) */

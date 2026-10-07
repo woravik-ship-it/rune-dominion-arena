@@ -174,6 +174,7 @@ export const TH: Record<string, string> = {
   // ร้านช่าง + ช่องใส่ Item (Phase 25)
   'nav.items': 'ร้านช่าง',
   'nav.dungeons': 'ดันเจี้ยน',
+  'nav.map': 'แผนที่',
   'header.veilShards': 'Veil Shards',
   'item.title': 'ร้านช่าง',
   'item.subtitle': 'ซื้อหรือคราฟต์ Item แล้วใส่ให้การ์ดได้ 3 ช่อง',
@@ -213,6 +214,22 @@ export const TH: Record<string, string> = {
   'item.sellItemBlocked': 'ขายไม่ได้ — ชิ้นนี้ใส่อยู่บนการ์ด (ถอดออกก่อน)',
   'item.sellItemDone': 'ขาย {name} ×{n} แล้ว — ได้ 💠 {shards} + ✨ {dust} กลับมา',
   'item.loginRequired': 'เข้าสู่ระบบก่อนจึงใช้ร้านช่างได้',
+
+  // ระบบตีบวก Item (ผู้ใช้สั่ง 2026-10-03) — +0..+15 · พลาดหล่น +6 · +10 ขึ้นไปต้องใช้ "อัญมณีตีบวก"
+  // ผู้ใช้สั่ง 2026-10-04: แยกร้านช่างเป็น 2 เมนู (คราฟต์/ตีบวก) + ตีบวกทีละชิ้น (ไม่ใช่ทั้งกอง)
+  'item.tabCraft': 'คราฟต์',
+  'item.tabUpgrade': 'ตีบวก',
+  'item.enhance': 'ตีบวก',
+  'item.enhanceChance': 'โอกาสสำเร็จ {n}%',
+  'item.enhanceDropWarn': 'พลาดจะหล่นเป็น +6',
+  'item.enhancePiece': 'ใช้ของ 1 ชิ้นจากกองนี้ตีบวก (ชิ้นนั้นได้บวก · ชิ้นอื่นในกองไม่เปลี่ยน)',
+  'item.enhanceNoFree': 'กองนี้ไม่มีชิ้นว่าง — ชิ้นที่เหลือถูกใส่การ์ดอยู่ (ถอดออกก่อน)',
+  'item.enhanceMaxed': 'ตีบวกถึงระดับสูงสุดแล้ว',
+  'item.enhanceMaxShown': 'สูงสุด',
+  'item.stackLabel': '+{level} ×{n}',
+  'item.upgradeHint': 'ของแต่ละชิ้นมีระดับของตัวเอง — เลือกกองที่จะตีบวกได้ (บวกติดกับชิ้นนั้น ไม่ใช่ทั้งกอง)',
+  'item.upgradeEmpty': 'ยังไม่มี Item ให้ตีบวก — ไปซื้อ/คราฟต์ที่แท็บ 🧪 คราฟต์ ก่อน',
+  'item.jewelFindOnly': 'หาได้จากฟาร์มแผนที่เท่านั้น (เลิกขายแล้ว)',
 
   // โปรไฟล์ + อวตาร + กระเป๋า (Phase 26)
   'profile.title': 'โปรไฟล์',

@@ -8,17 +8,20 @@ import { ITEM_SLOTS, applyItemStats, sumItemStats, type ItemStats } from '@/lib/
 import { cardSellValue } from '@/lib/veil-shards';
 import { ItemSlot } from '@prisma/client';
 
-// /api/cards/[id]/equipment — "ช่างใส่ Item" ของการ์ดใบหนึ่ง (Phase 25)
+// /api/cards/[id]/equipment — "ช่างใส่ Item" ของการ์ดใบหนึ่ง (Phase 25 → Phase 43: ต่อชิ้น)
 //
 // ผู้ใช้สั่ง 2026-09-27: "ทำในส่วนของช่างใส่ Item เพิ่ม Status ให้ 3 ช่อง Item โจมตี, ป้องกัน, สนับสนุน"
-//  - GET    → 3 ช่อง + Status พื้นฐาน/จาก Item/รวม + ของในคลังที่ใส่ช่องนั้นได้ + มูลค่าขายการ์ด
-//  - POST   → ใส่ Item (body: { slot, itemCode })
+// ผู้ใช้สั่ง 2026-10-04: "การตีบวก คือเอาของที่มี 1 ชิ้น ไปตีบวก ของชิ้นนั้นได้บวก ไม่ใช่ทั้งกอง"
+//  - GET    → 3 ช่อง + Status พื้นฐาน/จาก Item/รวม + กองของที่ใส่ช่องนั้นได้ (แยกตามระดับบวก) + มูลค่าขายการ์ด
+//  - POST   → ใส่ Item (body: { slot, itemCode, enhanceLevel? }) — เลือกได้ว่าจะเอาชิ้นระดับไหน
 //  - DELETE → ถอด Item (query: ?slot=ATTACK)
 // [id] = CardDefinition id (ผู้เล่นต้องมีการ์ดใบนี้ในคลัง)
 
 const equipSchema = z.object({
   slot: z.enum(['ATTACK', 'DEFENSE', 'SUPPORT']),
   itemCode: z.string().min(1).max(60),
+  /** ระดับบวกของกองที่จะดึงชิ้นมาใส่ (ไม่ส่ง = +0) */
+  enhanceLevel: z.number().int().min(0).max(15).optional(),
 });
 
 export async function GET(request: NextRequest, { params }: { params: { id: string } }) {
@@ -35,18 +38,12 @@ export async function GET(request: NextRequest, { params }: { params: { id: stri
     }
 
     await ItemService.ensureCatalog();
-    const [equipped, ownedRows, equippedGroups, user] = await Promise.all([
+    const [equipped, stacks, user] = await Promise.all([
       ItemService.equipmentForCard(userId, params.id),
-      prisma.userItem.findMany({ where: { userId }, include: { item: true } }),
-      prisma.cardItemSlot.groupBy({
-        by: ['itemId'],
-        where: { userCard: { userId } },
-        _count: { _all: true },
-      }),
+      // ของในคลังแยกเป็น "กองตามระดับบวก" — ใส่ได้ทั้งชิ้น +0 และ +9 (สถานะต่างกันตามระดับของชิ้น)
+      ItemService.stacks(userId),
       prisma.user.findUnique({ where: { id: userId }, select: { veilShards: true } }),
     ]);
-
-    const equippedCountByItem = new Map(equippedGroups.map((row) => [row.itemId, row._count._all]));
 
     const baseStats: ItemStats = {
       atk: userCard.card.atk,
@@ -56,22 +53,26 @@ export async function GET(request: NextRequest, { params }: { params: { id: stri
     };
     const bonusStats = sumItemStats(equipped.map((row) => row.stats));
 
-    // ของในคลังที่ใส่ได้ในแต่ละช่อง (พร้อมจำนวนที่ยังว่างให้ใส่)
+    // ของในคลังที่ใส่ได้ในแต่ละช่อง (แยกกอง + จำนวนที่ยังว่างให้ใส่)
     const available: Record<
       ItemSlot,
-      Array<{ itemCode: string; nameTh: string; icon: string; rarity: string; stats: ItemStats; free: number }>
+      Array<{ itemCode: string; nameTh: string; icon: string; rarity: string; stats: ItemStats; free: number; enhanceLevel: number }>
     > = { ATTACK: [], DEFENSE: [], SUPPORT: [] };
-    for (const row of ownedRows) {
-      if (row.quantity <= 0) continue;
-      const used = equippedCountByItem.get(row.itemId) ?? 0;
-      available[row.item.slot].push({
-        itemCode: row.item.code,
-        nameTh: row.item.nameTh,
-        icon: row.item.icon,
-        rarity: row.item.rarity,
-        stats: { atk: row.item.atk, def: row.item.def, hp: row.item.hp, spd: row.item.spd },
-        free: Math.max(0, row.quantity - used),
+    for (const stack of stacks) {
+      if (stack.free <= 0) continue;
+      available[stack.slot].push({
+        itemCode: stack.itemCode,
+        nameTh: stack.nameTh,
+        icon: stack.icon,
+        rarity: stack.rarity,
+        stats: stack.stats,
+        free: stack.free,
+        enhanceLevel: stack.enhanceLevel,
       });
+    }
+    // ของระดับสูงก่อน (แรงสุดอยู่บนสุด) แล้วจึงของที่เหลือเยอะ
+    for (const slot of ITEM_SLOTS) {
+      available[slot].sort((a, b) => b.enhanceLevel - a.enhanceLevel || b.free - a.free);
     }
 
     return NextResponse.json({
@@ -119,12 +120,13 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
       cardId: params.id,
       slot: parsed.data.slot,
       itemCode: parsed.data.itemCode,
+      enhanceLevel: parsed.data.enhanceLevel ?? 0,
     });
     const stats = await ItemService.statsForCard(userId, params.id);
     return NextResponse.json({ success: true, data: { ...result, bonusStats: stats } });
   } catch (error) {
     const message = error instanceof Error ? error.message : 'ใส่ Item ไม่สำเร็จ';
-    const status = /ไม่มีการ์ด|ไม่พบ Item|ใส่ช่องนี้ไม่ได้|ยังไม่มี Item|ถูกใส่บนการ์ดอื่น/.test(message) ? 400 : 500;
+    const status = /ไม่มีการ์ด|ไม่พบ Item|ใส่ช่องนี้ไม่ได้|ยังไม่มี Item|ไม่มีของ|ถูกใส่บนการ์ดอื่น/.test(message) ? 400 : 500;
     if (status === 500) console.error('Equip item error:', error);
     return NextResponse.json({ error: message }, { status });
   }

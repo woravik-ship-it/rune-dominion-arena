@@ -12,12 +12,14 @@ import { apiFetch } from '@/lib/api-client';
 import { useI18n } from '@/components/providers/LocaleProvider';
 import { formatNumber } from '@/lib/i18n';
 import { sourceLabelTh } from '@/lib/inventory-display';
+import { itemArtUrl } from '@/lib/item-art';
+import { specialArtUrl } from '@/lib/special-art';
 import { CardMiniPreview } from '@/components/cards/CardMiniPreview';
 import { emitVeilShardsChanged } from '@/lib/veil-shard-events';
 
 interface InventoryItem {
   id: string;
-  itemType: 'CARD' | 'COSMETIC' | 'TITLE' | 'CRAFTING_DUST' | 'STORY_CHAPTER';
+  itemType: 'CARD' | 'COSMETIC' | 'TITLE' | 'CRAFTING_DUST' | 'ENHANCE_JEWEL' | 'STORY_CHAPTER';
   code: string;
   nameTh: string;
   quantity: number;
@@ -33,6 +35,8 @@ interface WorkshopItem {
   rarity: string;
   icon: string;
   stats: { atk: number; def: number; hp: number; spd: number };
+  /** ระดับตีบวก +0..+15 (0 = Item ธรรมดา) */
+  enhanceLevel: number;
   owned: number;
   equippedCount: number;
   craftCost: number;
@@ -54,6 +58,8 @@ const TYPE_LABEL: Record<InventoryItem['itemType'], { label: string; icon: strin
   // ฝุ่นเวทต้องใช้สัญลักษณ์/ชื่อเดียวกับยอดเงินในกระเป๋า (✨ ฝุ่นเวท)
   // — เดิมใช้ 🌫️ 'วัตถุดิบ' ทำให้ผู้เล่นคิดว่าเป็นคนละไอเทม (ผู้ใช้แจ้ง 2026-09-27)
   CRAFTING_DUST: { label: 'ฝุ่นเวท', icon: '✨' },
+  // Jewelry — ไอคอนฐานเพชร + ชื่อสั้น ๆ (ผู้ใช้สั่ง 2026-10-03: ตั้งชื่อแค่ jewelry)
+  ENHANCE_JEWEL: { label: 'Jewelry', icon: '💎' },
   STORY_CHAPTER: { label: 'บทเนื้อเรื่อง', icon: '📖' },
 };
 
@@ -106,17 +112,17 @@ export default function InventoryPage() {
 
   /**
    * ขายไอเทมช่างคืนร้านจากหน้ากระเป๋า (Phase 34) — คืนวัตถุดิบ 50% เหมือนหน้าร้านช่าง
-   * ขายได้เฉพาะชิ้นที่ยังไม่ใส่อยู่บนการ์ด (owned − equippedCount)
+   * Phase 43: ขายเป็น "กองตามระดับบวก" ⇒ ต้องส่งระดับของกองนั้นไปด้วย (ผู้ใช้สั่ง: แยก Item)
    */
-  const sellItem = async (code: string, nameTh: string) => {
-    setBusy(code);
+  const sellItem = async (code: string, nameTh: string, enhanceLevel: number) => {
+    setBusy(`${code}:${enhanceLevel}`);
     setNotice('');
     setSellError('');
     try {
       const res = await apiFetch('/api/items/sell', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ code, quantity: 1 }),
+        body: JSON.stringify({ code, quantity: 1, enhanceLevel }),
       });
       const json = await res.json().catch(() => null);
       if (!res.ok || !json?.success) {
@@ -124,7 +130,14 @@ export default function InventoryPage() {
         return;
       }
       const data = json.data ?? {};
-      setNotice(t('bag.sellDone', { name: nameTh, n: Number(data.sold ?? 1), shards: Number(data.refundShards ?? 0), dust: Number(data.refundDust ?? 0) }));
+      setNotice(
+        t('bag.sellDone', {
+          name: enhanceLevel > 0 ? `${nameTh} +${enhanceLevel}` : nameTh,
+          n: Number(data.sold ?? 1),
+          shards: Number(data.refundShards ?? 0),
+          dust: Number(data.refundDust ?? 0),
+        })
+      );
       emitVeilShardsChanged(Number(data.balance));
       await load();
     } catch {
@@ -192,36 +205,74 @@ export default function InventoryPage() {
                   const list = workshopItems.filter((row) => row.slot === slot);
                   if (list.length === 0) return null;
                   return (
-                    <div key={slot} className="mb-3 last:mb-0">
-                      <p className="mb-1 text-[11px] font-bold text-amber-300">{t(`item.slot.${slot}`)}</p>
-                      <div className="space-y-2">
-                        {list.map((row) => {
+                    <div key={slot} data-bag-slot={slot} className="mb-3 overflow-hidden rounded-xl border border-gray-800 last:mb-0">
+                      <div className="flex items-center justify-between border-b border-gray-800 bg-gray-900 px-2 py-1.5">
+                        <p className="text-[11px] font-bold text-amber-300">{t(`item.slot.${slot}`)}</p>
+                        <span className="text-[10px] text-gray-500">{list.length} รายการ</span>
+                      </div>
+                      {/* หัวตาราง — ซ่อนบนมือถือ (ตัวจริงโชว์ที่ sm ขึ้นไป) */}
+                      <div className="hidden grid-cols-[minmax(0,1fr)_56px_134px_auto] items-center gap-2 border-b border-gray-800 bg-gray-900/60 px-2 py-1 text-[10px] text-gray-500 sm:grid">
+                        <span>Item · สถานะ</span>
+                        <span className="text-center">จำนวน</span>
+                        <span className="text-center">การ์ดที่ใช้ Item อยู่</span>
+                        <span className="pr-1 text-right">ขาย</span>
+                      </div>
+                      <div className="divide-y divide-gray-800/60">
+                        {[...list]
+                          .sort((a, b) => (b.enhanceLevel ?? 0) - (a.enhanceLevel ?? 0))
+                          .map((row) => {
                           // Phase 34: ขายคืนวัตถุดิบ 50% + ลิงก์ไปการ์ดที่ใส่อยู่ (มีหลายใบ = มีตัวเลือก)
                           const equippedCards = row.equippedCards ?? [];
                           const sellable = Math.max(0, row.owned - row.equippedCount);
                           const refund = row.sellRefund ?? { shards: 0, dust: 0, total: 0 };
                           return (
-                          <div
-                            key={row.code}
-                            data-bag-item={row.code}
-                            className="flex flex-wrap items-start justify-between gap-2 border-b border-gray-700 pb-2 text-sm"
-                          >
-                            <div className="min-w-0 flex-1">
-                              <p className="truncate text-white">
-                                {row.icon} {row.nameTh}
-                              </p>
-                              <p className="text-[11px] text-emerald-300">{statLabel(row.stats)}</p>
-                              {equippedCards.length > 0 && (
-                                <div className="mt-1 flex flex-wrap items-center gap-2 text-[11px] text-gray-400">
-                                  <span>
-                                    {equippedCards.length > 1
-                                      ? t('bag.equippedOnCount', { n: equippedCards.length })
-                                      : t('bag.equippedOn')}
-                                  </span>
-                                  {/* Phase 41: แสดง "การ์ดย่อ" กดขยายเป็นฟองดูการ์ด/ถอด Item ได้เลย */}
-                                  <span className="flex flex-wrap items-start gap-1.5">
+                            <div
+                              key={row.code}
+                              data-bag-item={row.code}
+                              data-bag-item-level={row.enhanceLevel ?? 0}
+                              className={`grid grid-cols-1 items-center gap-2 px-2 py-2 sm:grid-cols-[minmax(0,1fr)_56px_134px_auto] ${
+                                (row.enhanceLevel ?? 0) > 0 ? 'border-l-2 border-l-purple-500 bg-purple-500/5' : ''
+                              }`}
+                            >
+                              <div className="flex min-w-0 items-center gap-2">
+                                <img
+                                  src={itemArtUrl(row.code)}
+                                  alt=""
+                                  loading="lazy"
+                                  className="h-10 w-10 shrink-0 rounded-lg border border-gray-700 object-cover"
+                                  onError={(e) => { e.currentTarget.style.display = 'none'; }}
+                                />
+                                <div className="min-w-0">
+                                  <p className="flex items-center gap-1 text-sm text-white">
+                                    <span className="truncate">{row.nameTh}</span>
+                                    {(row.enhanceLevel ?? 0) > 0 && (
+                                      <span className="shrink-0 rounded bg-purple-500/25 px-1.5 py-0.5 text-[10px] font-bold text-purple-200">
+                                        +{row.enhanceLevel}
+                                      </span>
+                                    )}
+                                  </p>
+                                  <p className="text-[11px] text-emerald-300">
+                                    {statLabel(row.stats)}
+                                    {(row.enhanceLevel ?? 0) > 0 && (
+                                      <span className="ml-1 text-purple-300">(ตีบวก)</span>
+                                    )}
+                                  </p>
+                                </div>
+                              </div>
+                              <div className="text-xs">
+                                <p className="font-bold text-amber-400">×{row.owned}</p>
+                                {row.equippedCount > 0 && (
+                                  <p className="text-emerald-300">{t('bag.equippedCount', { n: row.equippedCount })}</p>
+                                )}
+                              </div>
+                              <div className="min-w-0 text-[11px] text-gray-400">
+                                {equippedCards.length > 0 ? (
+                                  <div className="flex flex-wrap items-start gap-1.5">
+                                    <span className="hidden w-full text-gray-500 sm:block">
+                                      {equippedCards.length > 1 ? t('bag.equippedOnCount', { n: equippedCards.length }) : t('bag.equippedOn')}
+                                    </span>
                                     {equippedCards.map((equipped) => (
-                                      <span key={`${equipped.cardId}-${equipped.slot}`} data-bag-equipped-card={equipped.cardId}>
+                                      <span key={`${equipped.cardId}-${equipped.slot}`} data-bag-equipped-card={equipped.cardId} className="inline-flex flex-col items-center">
                                         <CardMiniPreview
                                           card={{
                                             cardId: equipped.cardId,
@@ -230,51 +281,45 @@ export default function InventoryPage() {
                                             imageUrl: equipped.imageUrl ?? null,
                                             imageStatus: equipped.imageStatus ?? null,
                                           }}
-                                          width={48}
+                                          width={44}
                                           badge="🎴"
                                           onChanged={() => { void load(); }}
                                         />
-                                        <span className="mt-0.5 block max-w-[74px] truncate text-[9px] text-emerald-200">
+                                        <span className="mt-0.5 block max-w-[70px] truncate text-[9px] text-emerald-200">
                                           {t(`item.slot.${equipped.slot}`)}
                                         </span>
                                       </span>
                                     ))}
-                                  </span>
-                                </div>
-                              )}
+                                  </div>
+                                ) : (
+                                  <span className="text-gray-600">—</span>
+                                )}
+                              </div>
+                              <div className="text-right">
+                                {sellable > 0 ? (
+                                  <button
+                                    type="button"
+                                    data-bag-sell={row.code}
+                                    data-bag-sell-level={row.enhanceLevel ?? 0}
+                                    onClick={() => sellItem(row.code, row.nameTh, row.enhanceLevel ?? 0)}
+                                    disabled={busy === `${row.code}:${row.enhanceLevel ?? 0}`}
+                                    className="rounded-lg bg-emerald-600/80 px-2 py-1 text-[11px] font-bold text-white hover:bg-emerald-500 disabled:opacity-40"
+                                  >
+                                    {t('bag.sell')} (💠{refund.shards} + ✨{refund.dust})
+                                  </button>
+                                ) : (
+                                  <p className="text-[10px] text-gray-500" data-bag-sell-blocked>
+                                    {t('bag.sellBlocked')}
+                                  </p>
+                                )}
+                              </div>
                             </div>
-                            <div className="shrink-0 text-right text-xs">
-                              <p className="font-bold text-amber-400">×{row.owned}</p>
-                              {row.equippedCount > 0 && (
-                                <p className="text-emerald-300">
-                                  {t('bag.equippedCount', { n: row.equippedCount })}
-                                </p>
-                              )}
-                              {sellable > 0 ? (
-                                <button
-                                  type="button"
-                                  data-bag-sell={row.code}
-                                  onClick={() => sellItem(row.code, row.nameTh)}
-                                  disabled={busy === row.code}
-                                  className="mt-1 rounded-lg bg-emerald-600/80 px-2 py-1 text-[11px] font-bold text-white hover:bg-emerald-500 disabled:opacity-40"
-                                >
-                                  {t('bag.sell')} (💠{refund.shards} + ✨{refund.dust})
-                                </button>
-                              ) : (
-                                <p className="mt-1 text-[10px] text-gray-500" data-bag-sell-blocked>
-                                  {t('bag.sellBlocked')}
-                                </p>
-                              )}
-                            </div>
-                          </div>
                           );
                         })}
                       </div>
                     </div>
                   );
-                })
-              )}
-
+                }))}
               {workshopItems.length > 0 && (
                 <Link href="/decks" className="mt-2 inline-block text-xs text-gray-300 underline">
                   {t('bag.toCards')} →
@@ -318,12 +363,24 @@ export default function InventoryPage() {
                               key={item.id}
                               className="flex justify-between border-b border-gray-700 pb-2 text-sm"
                             >
-                              <div>
-                                <p className="text-white">{item.nameTh}</p>
-                                {/* ที่มา: แปลงรหัสหลังบ้านเป็นข้อความผู้เล่น · ไม่รู้จัก = ไม่แสดง (ผู้ใช้สั่ง) */}
-                                {sourceLabelTh(item.source) && (
-                                  <p className="text-xs text-gray-500">{sourceLabelTh(item.source)}</p>
+                              <div className="flex min-w-0 items-center gap-2">
+                                {/* การ์ดวิเศษจาก Event — แสดงรูปที่ gen ไว้ (ยังไม่มี = ไอคอนกลุ่มแทน) */}
+                                {item.itemType === 'CARD' && (
+                                  <img
+                                    src={specialArtUrl(item.code)}
+                                    alt=""
+                                    loading="lazy"
+                                    className="h-9 w-9 shrink-0 rounded-md border border-gray-700 object-cover"
+                                    onError={(e) => { e.currentTarget.style.display = 'none'; }}
+                                  />
                                 )}
+                                <div className="min-w-0">
+                                  <p className="truncate text-white">{item.nameTh}</p>
+                                  {/* ที่มา: แปลงรหัสหลังบ้านเป็นข้อความผู้เล่น · ไม่รู้จัก = ไม่แสดง (ผู้ใช้สั่ง) */}
+                                  {sourceLabelTh(item.source) && (
+                                    <p className="text-xs text-gray-500">{sourceLabelTh(item.source)}</p>
+                                  )}
+                                </div>
                               </div>
                               <span className="font-bold text-amber-400">×{item.quantity}</span>
                             </div>
