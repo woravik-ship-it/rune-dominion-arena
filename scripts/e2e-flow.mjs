@@ -15,7 +15,8 @@
  *
  * หมายเหตุ: ขั้น "settle อารีน่า" ต้อง fast-forward เวลาหมดอายุของห้อง
  * จึงใช้ Prisma แตะ DB ตรง (ข้ามอัตโนมัติถ้าต่อ DB ไม่ได้ / ใส่ --no-settle)
- * ผู้ใช้ที่สร้างจะใช้ชื่อ e2e_<เวลา> และถูกเก็บไว้ใน DB (ไม่ลบ เพื่อให้ตรวจย้อนหลังได้)
+ * ผู้ใช้ที่สร้างจะใช้ชื่อ e2e_<label>_<เวลา> และ **ถูกลบเมื่อจบรอบ** (2026-10-08: เดิมค้างใน DB
+ * ⇒ ไปโผล่ในตารางจัดอันดับผู้เล่นจริง — ใส่ --keep ถ้าต้องการเก็บไว้ตรวจย้อนหลัง)
  */
 import { randomUUID } from 'node:crypto';
 import { createRequire } from 'node:module';
@@ -39,8 +40,12 @@ const argv = process.argv.slice(2);
 const argValue = (flag) => (argv.includes(flag) ? argv[argv.indexOf(flag) + 1] : undefined);
 const BASE = (argValue('--base') ?? process.env.BASE_URL ?? 'http://localhost:3000').replace(/\/$/, '');
 const NO_SETTLE = argv.includes('--no-settle');
+/** --keep = เก็บบัญชีทดสอบไว้ใน DB (ค่าเริ่มต้นคือลบทิ้งเมื่อจบรอบ — 2026-10-08) */
+const KEEP_USERS = argv.includes('--keep');
 const STAMP = Date.now().toString(36);
 const PASSWORD = 'E2ePassw0rd!';
+/** บัญชีทดสอบที่รอบนี้สร้าง — ใช้ลบตอนจบ (ห้ามค้างใน DB จริง) */
+const createdUsers = [];
 
 let pass = 0;
 let fail = 0;
@@ -101,12 +106,55 @@ async function registerPlayer(label) {
   if (res.status !== 201) throw new Error(`สมัคร ${username} ไม่ผ่าน (HTTP ${res.status}) ${JSON.stringify(res.json)}`);
   const cookie = cookieFrom(res.setCookies);
   if (!cookie) throw new Error(`สมัคร ${username} สำเร็จแต่ไม่ได้รับ session cookie`);
+  const userId = res.json?.data?.user?.id ?? null;
+  // เก็บไว้ลบตอนจบรอบ (2026-10-08) — บัญชีทดสอบต้องไม่ค้างใน DB จริง
+  createdUsers.push({ id: userId, username });
   return {
     cookie,
-    userId: res.json?.data?.user?.id ?? null,
+    userId,
     username,
     starterCards: res.json?.data?.starterCards ?? [],
   };
+}
+
+/**
+ * ลบผู้ใช้ทดสอบที่รอบนี้สร้าง (+ แถวที่ FK เป็น RESTRICT: ประวัติต่อสู้/ห้องอารีน่า)
+ * เรียกก่อนจบสคริปต์เสมอ ยกเว้นสั่ง --keep · ถ้าต่อ DB ไม่ได้ให้พิมพ์ชื่อไว้ให้เก็บกวาดเอง
+ */
+async function cleanupTestUsers() {
+  if (KEEP_USERS || createdUsers.length === 0) return;
+  let prisma = null;
+  try {
+    // ไฟล์นี้เป็น ESM ⇒ ต้องสร้าง require เอง (เหมือนขั้น settle)
+    const require = createRequire(import.meta.url);
+    const { PrismaClient } = require('@prisma/client');
+    prisma = new PrismaClient();
+    const ids = createdUsers.map((u) => u.id).filter(Boolean);
+    const usernames = createdUsers.map((u) => u.username);
+    // ใช้ username เป็นเงื่อนไขสำรองด้วย (กรณี response ไม่มี id)
+    const where = { OR: [{ id: { in: ids } }, { username: { in: usernames } }] };
+    const found = await prisma.user.findMany({ where, select: { id: true } });
+    const targetIds = found.map((u) => u.id);
+    if (targetIds.length === 0) {
+      console.log('\n🧹 ไม่พบบัญชีทดสอบของรอบนี้ให้ลบ');
+      return;
+    }
+    const battles = await prisma.battleLog.deleteMany({
+      where: { OR: [{ attackerId: { in: targetIds } }, { defenderId: { in: targetIds } }] },
+    });
+    const rooms = await prisma.arenaRoom.deleteMany({ where: { hostId: { in: targetIds } } });
+    const { count } = await prisma.user.deleteMany({ where: { id: { in: targetIds } } });
+    const left = await prisma.user.count();
+    console.log(
+      `\n🧹 ลบบัญชีทดสอบของรอบนี้ ${count} บัญชี (ประวัติต่อสู้ ${battles.count} แถว · ห้องอารีน่า ${rooms.count} ห้อง) — เหลือผู้ใช้จริง ${left} คน`
+    );
+  } catch (error) {
+    console.log(
+      `\n⚠️ ลบบัญชีทดสอบไม่สำเร็จ (${error instanceof Error ? error.message : String(error)}) — ลบเองด้วย: npm run clean:test-users -- --yes`
+    );
+  } finally {
+    if (prisma) await prisma.$disconnect();
+  }
 }
 
 /** ดึงการ์ดในคลังทั้งหมด (พร้อมธาตุและจำนวนใบ) */
@@ -453,6 +501,9 @@ try {
 } catch (error) {
   skip('กิจกรรมตามฤดูกาล', error instanceof Error ? error.message : String(error));
 }
+
+// ---- เก็บกวาดบัญชีทดสอบของรอบนี้ก่อนจบ (2026-10-08) ----
+await cleanupTestUsers();
 
 console.log('='.repeat(60));
 console.log(`ผลรวม: ✅ ${pass} ผ่าน · ❌ ${fail} ไม่ผ่าน`);

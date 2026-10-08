@@ -242,8 +242,11 @@ const BUILD_DUNGEONS: DungeonDef[] = [
       { floor: 4, nameTh: 'ก้นเหวทองคำ', minions: 4, scale: 1.16, reward: { dust: 110, shards: 24, itemDropCode: 'ATK_RIFTRENDER', itemDropChance: 12 } },
     ],
     // เพิ่มอีก 26 ชั้น → รวม 30 ชั้น
+    // Phase 45.5 (2026-10-08): difficultyCap 1.15 → 1.0 — วัดใหม่หลังแก้ "น้ำหนักจำนวนบอส" (1.7 → 1.25)
+    // ชั้นบอส 3 ตัวได้ scale สูงขึ้น ~36% ⇒ ที่ cap 1.15 เด็ค mythic (คลังจริง 240 ใบ) ชนะ 0% ที่ชั้น 30
+    // (วัดด้วย --scan GILDED_ABYSS:30 --deck mythic: 100% ที่ scale ≤0.63 · 0% ที่ 0.70 = จุดตัด ~0.95×ของเดิม)
     deepFloors: {
-      extra: 30, blockStep: 1.04, difficultyCap: 1.15, blockRewardStep: 1.35, blockShardStep: 1.25, dustRatio: 0.2,
+      extra: 30, blockStep: 1.04, difficultyCap: 1.0, blockRewardStep: 1.35, blockShardStep: 1.25, dustRatio: 0.2,
       doubleBossBlock: 4, tripleBossBlock: 6,
       deepNames: ['บันไดทอง', 'คลังลึกลับ', 'เหวฉายทอง', 'โลงทองคำ', 'ก้นเหวสมบัติ', 'ก้นเหวมรณะ'],
       dropLadder: [
@@ -312,11 +315,16 @@ export const DUNGEON_ENTRY_LABEL: Record<DungeonEntryKind, string> = {
  *   บอส 1 ตัว = งบมาตรฐาน · บอส 2 ตัว = +12% · บอส 3 ตัว = +25%
  */
 export function bossWeight(bosses = 1): number {
-  // วัดจริง (calibrate-dungeons): ทีม "บอส 2 + ลูกน้อง 3" ยากกว่างบ status ที่เท่ากันราว ×1.4
-  // และ "บอส 3 + ลูกน้อง 2" ราว ×1.7 (บอสยิงแรงรวมศูนย์ ⇒ ผู้เล่นเสียการ์ดเป็นใบ ๆ เร็วกว่า)
-  // ⇒ ตอนแปลง "ความยากเป้าหมาย" เป็นสเกลของชั้น ต้องหารด้วยค่านี้
-  if (bosses >= 3) return 1.7;
-  if (bosses === 2) return 1.4;
+  // Phase 45.5 (2026-10-08): **วัดใหม่แล้ว** — ค่าเดิม 1.4/1.7 หักชดเชยเกินจริงมาก
+  //   วิธีวัด (scripts/calibrate-dungeons.mts --boss-weights · 120 ศึก/จุด):
+  //     หา scale ที่ทีม "บอส 1 + ลูกน้อง 4" ให้เด็คเป้าหมายชนะ 50% แล้วเทียบว่าทีม "บอส 2/3 ตัว"
+  //     ที่ scale เดียวกันเทียบเท่าบอส 1 ตัวที่คูณกี่เท่า
+  //   ผลวัด (EMBER_CRYPT · GILDED_ABYSS × เด็ค มือใหม่/กลาง/ท็อปดิบ): บอส 2 ตัว ×1.1 ×1.1 ×1.1 ×1.1 ×1.0 ×1.25
+  //     และบอส 3 ตัว ×1.1 ×1.1 ×1.1 ×1.1 ×1.0 ×1.25 ⇒ ค่ากลาง = 1.1 (ช่วงที่วัดได้ 1.0-1.25)
+  //   ค่าเดิม 1.7 ทำให้ชั้นบอส 3 ตัวได้ scale ต่ำกว่าที่ควร ~35% ⇒ ชั้นลึกของดันที่ควรหินกลับง่ายกว่า
+  //   (อาการที่ผู้ใช้เห็น: ชั้นบอส 2-3 ตัวง่ายกว่าชั้นบอส 1 ตัวที่งบเท่ากัน)
+  if (bosses >= 3) return 1.25;
+  if (bosses === 2) return 1.12;
   return 1;
 }
 
