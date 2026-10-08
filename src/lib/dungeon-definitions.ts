@@ -79,7 +79,13 @@ export interface DungeonDef {
   entry: DungeonEntryKind; coinCost: number; freeHours: number[];
   minionBase: { atk: number; def: number; hp: number; spd: number };
   bossBase: { atk: number; def: number; hp: number; spd: number };
+  /** รายการธาตุของศัตรูในดันนี้ (วนตามลำดับ) */
   elements: string[];
+  /**
+   * Phase 45.6: เปิด "บอสคู่พยุงกัน" (บอส ×1.25 เมื่อชั้นนั้นมีบอส 2 ตัว)
+   * เปิดเฉพาะดันที่วัดแล้วว่ายังมี "ที่ว่างให้ยากขึ้น" (ดูคอมเมนต์ bossSynergy)
+   */
+  pairedBossBoost?: boolean;
   /**
    * สัดส่วนฝุ่นเวทที่ได้เมื่อ "แพ้" (0 = ไม่ได้อะไรเลย)
    * ผู้ใช้สั่ง 2026-09-27: "ดันเจี้ยนฟรี แจก item เฉพาะชนะเท่านั้น"
@@ -142,6 +148,10 @@ const BUILD_DUNGEONS: DungeonDef[] = [
     minionBase: { atk: 32, def: 18, hp: 119, spd: 14 },
     bossBase: { atk: 65, def: 38, hp: 300, spd: 19 },
     elements: ['EMBERBOUND', 'ROOTFORGED'],
+    // Phase 45.6 (ผู้ใช้สั่ง "ทำกลไก บอส 2 ตัว"): ดันฝึกหัดเป็นดันเดียวที่ "วัดแล้วมีที่ว่าง"
+    // (ชั้นบอสคู่มือใหม่ชนะ 100% เทียบชั้นบอสเดี่ยว 92%) ⇒ เปิดกลไกบอสคู่พยุงกัน (บอส ×1.25)
+    // ดันอื่นไม่เปิด เพราะชั้นบอสคู่ของดันนั้นเด็คเป้าหมายชนะ 82-100% = ชนกำแพงอยู่แล้ว
+    pairedBossBoost: true,
     floors: [
       { floor: 1, nameTh: 'ปากทางเถ้าถ่าน', minions: 4, scale: 1.0, reward: { dust: 10, shards: 2, itemDropCode: null, itemDropChance: 0 } },
       { floor: 2, nameTh: 'โถงถ่านคุ', minions: 4, scale: 1.1, reward: { dust: 14, shards: 3, itemDropCode: 'ATK_WHETSTONE', itemDropChance: 15 } },
@@ -314,6 +324,23 @@ export const DUNGEON_ENTRY_LABEL: Record<DungeonEntryKind, string> = {
  * วิธีที่ถูกคือ: สเกลไล่ช้า ๆ (+4-6% ต่อบล็อก) แล้วให้ **ขนาดทีมศัตรู** เป็นขั้นความยากที่เห็นชัด
  *   บอส 1 ตัว = งบมาตรฐาน · บอส 2 ตัว = +12% · บอส 3 ตัว = +25%
  */
+/**
+ * "บอสคู่พยุงกัน" — Phase 45.6 (2026-10-08): ผู้ใช้สั่ง "ทำกลไก บอส 2 ตัว"
+ *
+ * ที่มา (วัดจริง 60 ศึก/ช่อง · คลังการ์ดจริง): ชั้นบอส 2 ตัวของ **ดันฝึกหัด** ง่ายกว่าชั้นบอส 1 ตัว
+ * ก่อนหน้า (มือใหม่ชนะ 100% ที่ชั้น 15/20 เทียบ 92% ที่ชั้น 10) เพราะ scale ของชั้นถูกหารด้วย
+ * น้ำหนักจำนวนบอส ⇒ ลูกน้องที่เหลืออ่อนลงมาก
+ * ⇒ ชั้นบอสคู่ของดันที่ผู้เล่นยังมี "ที่ว่างให้ยากขึ้น" จะเพิ่มพลังบอสทุกตัว ×1.25 (บอสคู่พยุงกัน)
+ *
+ * ⚠️ เปิดใช้เฉพาะดันที่ "วัดแล้วมีที่ว่าง" (`pairedBossBoost: true`) เท่านั้น:
+ *   ดันระดับสูงมีชั้นบอสคู่ที่เด็คเป้าหมายชนะอยู่ 82-100% = ชนกำแพงอยู่แล้ว (วัดได้: TIDAL ชั้น 15
+ *   ท็อป+ของ 100% → 0% เมื่อเพิ่ม ×1.25) ⇒ ใส่กลไกนี้ไปจะกลายเป็นกำแพงที่ผ่านไม่ได้ ไม่ใช่ความยากที่พอดี
+ */
+export function bossSynergy(dungeon: DungeonDef, bosses = 1): number {
+  if (!dungeon.pairedBossBoost) return 1;
+  return bosses === 2 ? 1.25 : 1;
+}
+
 export function bossWeight(bosses = 1): number {
   // Phase 45.5 (2026-10-08): **วัดใหม่แล้ว** — ค่าเดิม 1.4/1.7 หักชดเชยเกินจริงมาก
   //   วิธีวัด (scripts/calibrate-dungeons.mts --boss-weights · 120 ศึก/จุด):

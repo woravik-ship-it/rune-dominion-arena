@@ -23,6 +23,8 @@ interface FloorView {
   block?: number; blockFloor?: number;
   /** Phase 45.4: ความยากไล่ทุกชั้น — ดาว 1-10 (เทียบช่วงของดันนี้) · HP ศัตรูที่เพิ่มขึ้น · พลังรวมทีมศัตรู */
   difficulty?: number; difficultyStars?: number; hpBonus?: number; enemyPower?: number;
+  /** Phase 45.6: ชั้นบอส 2 ตัวขึ้นไป — บอสมีสกิลพยุงทีม (ฟื้นฟู/โล่) */
+  bossSkillTh?: string | null;
   dust: number; lossDust: number; shards: number;
   itemNameTh: string | null; itemDropChance: number;
   minions: number; bosses: number; enemyNameTh: string;
@@ -102,7 +104,13 @@ export default function DungeonsPage() {
           initializedRef.current = true;
           const initial = pickDungeonByProgress(list);
           setSelected(initial.code);
-          setFloor(pendingFloor(initial));
+          // Phase 45.6: เปิดลิงก์ตรงมาที่ชั้นได้ เช่น /dungeons?floor=15 (ใช้ทำภาพคู่มือ/แชร์ลิงก์)
+          // อ่านจาก window.location เอง (ไม่ใช้ useSearchParams ⇒ ไม่ต้องมี Suspense boundary ตอน build)
+          // และใช้เฉพาะเมื่อชั้นนั้น "ปลดล็อกแล้ว" เท่านั้น ⇒ ลิงก์เก่า/ชั้นที่ยังล็อกไม่ทำให้หน้าพัง
+          const wanted = Number(new URLSearchParams(window.location.search).get('floor'));
+          const unlocked = Number.isFinite(wanted) && wanted >= 1 && wanted <= initial.floors
+            && (wanted === 1 || initial.bestFloor >= wanted - 1);
+          setFloor(unlocked ? wanted : pendingFloor(initial));
         }
       } else {
         setError(dJson?.error ?? 'โหลดดันเจี้ยนไม่สำเร็จ');
@@ -316,6 +324,11 @@ export default function DungeonsPage() {
                   {selectedFloor.hpBonus && selectedFloor.hpBonus > 1 && (
                     <span className="ml-2 text-emerald-300" data-dungeon-floor-hp-bonus={selectedFloor.hpBonus}>
                       · HP ศัตรู +{Math.round((selectedFloor.hpBonus - 1) * 100)}%
+                    </span>
+                  )}
+                  {selectedFloor.bossSkillTh && (
+                    <span className="ml-2 text-sky-300" data-dungeon-floor-boss-skill>
+                      · {selectedFloor.bossSkillTh}
                     </span>
                   )}
                 </span>

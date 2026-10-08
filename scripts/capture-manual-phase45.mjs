@@ -43,7 +43,9 @@ const JOBS = [
   { name: 'fig-inventory', path: '/inventory', ...PHONE, wait: 3600 },
   { name: 'fig-map', path: '/map', ...PHONE, wait: 5200 },
   { name: 'fig-map-wide', path: '/map', ...WIDE, wait: 5200 },
-  { name: 'fig-dungeons', path: '/dungeons', ...PHONE, wait: 4200 },
+  // fig-dungeons: เปิดตรงมาที่ชั้น 15 ของดันฝึกหัดเพื่อโชว์กล่อง "ระดับความยาก/พลังคุกคาม/HP ศัตรู"
+  // (Phase 45.6 — ถ้าบัญชีที่ใช้ถ่ายยังไม่ปลดล็อกชั้น 15 หน้าเกมจะถอยไปชั้นที่ค้างไว้ให้เอง)
+  { name: 'fig-dungeons', path: '/dungeons?floor=15', ...PHONE, wait: 4200 },
   { name: 'fig-profile', path: '/profile', ...PHONE, wait: 3800 },
   { name: 'fig-ranking', path: '/ranking', ...PHONE, wait: 3800 },
   { name: 'fig-ranking-wide', path: '/ranking', ...WIDE, wait: 3800 },

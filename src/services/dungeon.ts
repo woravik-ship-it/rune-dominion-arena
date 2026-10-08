@@ -21,7 +21,7 @@ import { QuestService } from '@/services/quest';
 import { findItemDef } from '@/lib/item-definitions';
 import {
   DUNGEONS, findDungeon, findFloor, floorDustReward, formatFreeWindowsTh, freeEntryStatusTh,
-  floorBossCount, floorDifficulty, floorHpBonus, isFreeWindowOpen, isFloorCleared, isRewardFloor, isWinOnlyReward,
+  floorBossCount, floorDifficulty, floorHpBonus, bossSynergy, isFreeWindowOpen, isFloorCleared, isRewardFloor, isWinOnlyReward,
   type DungeonDef,
 } from '@/lib/dungeon-definitions';
 import { dungeonEnemyInfo, dungeonEnemySlots, floorEnemyPower } from '@/lib/dungeon-art';
@@ -134,6 +134,11 @@ export async function listDungeons(userId: string, now = new Date()): Promise<Du
           bosses: floorBossCount(f),
           minions: f.minions,
           enemyNameTh: `บอส ${floorBossCount(f)} · ลูกน้อง ${f.minions}`,
+          /** Phase 45.6: ชั้นบอส 2 ตัวขึ้นไป — บอสทุกตัวได้โบนัส "พยุงกัน" (โชว์ให้ผู้เล่นรู้ว่าชั้นนี้บอสเก่งขึ้น) */
+          bossSkillTh:
+            floorBossCount(f) >= 2
+              ? `บอสพยุงกัน — บอสทุกตัวพลัง +${Math.round((bossSynergy(d, floorBossCount(f)) - 1) * 100)}%`
+              : null,
           scale: f.scale,
           hpBonus: floorHpBonus(f),
           /** ความยากจริง (scale × จำนวนบอส × HP) — ตัวเลขเดียวที่เทียบข้ามชั้นได้ */

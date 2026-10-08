@@ -12,7 +12,7 @@
 //  - ภาพ: ยืมภาพ AI ของการ์ดจริงในแคตตาล็อก (reuse ไม่ Gen ใหม่) โดยเลือกแบบ deterministic
 //    → ไฟล์นี้กำหนด "คีย์เลือกภาพ" ส่วนการเลือกใบจริงเป็นหน้าที่ของ services/dungeon-art.ts
 import {
-  findFloor, floorBossCount, floorHpBonus, bossWeight, scaleStats, enemyTeamSize,
+  findFloor, floorBossCount, floorHpBonus, bossSynergy, bossWeight, scaleStats, enemyTeamSize,
   type DungeonDef, type DungeonFloorDef,
 } from '@/lib/dungeon-definitions';
 
@@ -118,9 +118,11 @@ export function dungeonEnemyInfo(dungeon: DungeonDef, ref: DungeonCardRef): Dung
   const isBoss = ref.kind === 'boss';
   const elements = dungeon.elements.length > 0 ? dungeon.elements : ['VEILMARKED'];
   const base = isBoss ? dungeon.bossBase : dungeon.minionBase;
-  // ชั้นที่มีบอสหลายตัว: บอสถูกลด status ลงเพื่อคงงบทีม (ดู bossScale ในนิยามชั้น)
+  // ชั้นที่มีบอสหลายตัว: บอสถูกลด status ลงเพื่อคงงบทีม (bossScale) แต่ได้ "โบนัสพยุงกัน" คืน
+  // (Phase 45.6: บอส 2 ตัว ×1.25 · 3 ตัว ×1.45 ⇒ ชั้นบอสคู่/สามหินกว่าชั้นบอสเดี่ยวจริง)
   const bossScale = isBoss ? Math.min(1, Math.max(0.2, floor.bossScale ?? 1)) : 1;
-  const stats = scaleStats(scaleStats4(base, bossScale), floor.scale);
+  const synergy = isBoss ? bossSynergy(dungeon, floorBossCount(floor)) : 1;
+  const stats = scaleStats(scaleStats4(base, bossScale * synergy), floor.scale);
   // Phase 45.4: HP ไล่ขึ้นทุกชั้น (hpBonus) ⇒ ต่อสู้นานขึ้น = ยากขึ้นอย่าง "พอดี"
   // (ไม่ดัน ATK เกินเพดานที่วัดได้ ซึ่งจะทำให้แพ้ทันทีแทนที่จะรู้สึกว่ายากขึ้น)
   const hpBonus = floorHpBonus(floor);
