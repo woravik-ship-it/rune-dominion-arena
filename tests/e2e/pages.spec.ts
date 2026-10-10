@@ -70,6 +70,17 @@ const PAGES: Array<{ path: string; label: string; check: (page: import('@playwri
       await expect(page.locator('[data-collection-card]').first()).toBeVisible();
     },
   },
+  {
+    // Phase 45.7 (2026-10-08): คู่มือผู้เล่นใหม่ (ผู้ใช้สั่งให้กดดูได้จากเมนูในหน้าแรก)
+    path: '/guide',
+    label: 'คู่มือผู้เล่นใหม่',
+    check: async (page) => {
+      await expect(page.locator('[data-guide-header]')).toBeVisible();
+      await expect(page.locator('[data-guide-section]')).toHaveCount(10);
+      await expect(page.locator('[data-guide-plan-item]')).toHaveCount(7);
+      await expect(page.locator('[data-guide-full-link]')).toBeVisible();
+    },
+  },
 ];
 
 test.describe('หน้าเกม — เปิดได้ไม่ error', () => {

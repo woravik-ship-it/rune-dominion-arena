@@ -26,6 +26,9 @@ const navItems: NavItem[] = [
   { href: '/decks', key: 'nav.decks', icon: '📋' },
   { href: '/arena', key: 'nav.arena', icon: '⚔️' },
   { href: '/battle', key: 'nav.battle', icon: '🎯' },
+  // Phase 45.7 (ผู้ใช้สั่ง 2026-10-08): "ทำ Game guide สำหรับผู้เล่นใหม่ เอาไว้กดดูได้จากเมนูในหน้าแรก"
+  // ⇒ วางไว้บน ๆ ของเมนู "เพิ่มเติม" เพื่อให้ผู้เล่นใหม่หาเจอง่าย
+  { href: '/guide', key: 'nav.guide', icon: '📖' },
   { href: '/items', key: 'nav.items', icon: '🛠️' },
   { href: '/dungeons', key: 'nav.dungeons', icon: '🏰' },
   { href: '/map', key: 'nav.map', icon: '🗺️' },

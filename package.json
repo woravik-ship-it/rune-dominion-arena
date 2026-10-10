@@ -50,6 +50,7 @@
     "verify:phase43": "node scripts/verify-phase43.mjs",
     "verify:admin-events": "node scripts/verify-admin-events.mjs",
     "verify:collection": "node scripts/verify-collection.mjs",
+    "verify:guide": "node scripts/verify-guide.mjs",
     "verify:map-zone": "node scripts/verify-map-current-zone.mjs",
     "verify:dungeon-curve": "node scripts/verify-dungeon-curve.mjs",
     "clean:test-users": "node scripts/clean-test-users.mjs",
