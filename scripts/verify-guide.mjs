@@ -87,10 +87,31 @@ try {
   const title = await page.locator('[data-guide-header]').innerText();
   check('หัวเรื่องเป็นข้อความไทยจริง (ไม่ใช่คีย์ดิบ)', title.includes('คู่มือผู้เล่นใหม่') && !title.includes('guide.'), title.split('\n')[0]);
 
-  // 4) ลิงก์คู่มือฉบับเต็ม + เปิด FAQ ได้
+  // 4) ลิงก์คู่มือฉบับเต็ม — ต้องเป็น "ในเกม" ไม่ใช่ GitHub (ผู้ใช้แจ้ง: ลิงก์เดิมเปิดแล้วเห็นเป็นโค้ด)
   const fullLink = page.locator('[data-guide-full-link]');
   const fullHref = await fullLink.getAttribute('href');
-  check('ลิงก์คู่มือฉบับเต็มเป็น https', (fullHref ?? '').startsWith('https://'));
+  check('ลิงก์คู่มือชี้ในเกม (/manual) ไม่ใช่ GitHub', fullHref === '/manual', String(fullHref));
+  const pdfHref = await page.locator('[data-guide-pdf-link]').getAttribute('href');
+  check('มีลิงก์ PDF เล่มเต็มในเกม', pdfHref === '/manual/RuneDominion-Manual-TH.pdf', String(pdfHref));
+
+  // 4b) ตัวคู่มือเสิร์ฟจริงจากในเกม: HTML เรนเดอร์ได้ + รูปโหลดได้ + PDF เปิดได้
+  const manual = await fetch(`${BASE}/manual`);
+  const manualType = manual.headers.get('content-type') ?? '';
+  const manualHtml = await manual.text();
+  check('/manual ตอบ 200 + เป็น HTML', manual.status === 200 && manualType.includes('text/html'), `HTTP ${manual.status} · ${manualType}`);
+  check('/manual เรนเดอร์คู่มือจริง (มี <style> และชื่อเกม)', manualHtml.includes('<style') && manualHtml.includes('Rune Dominion'), `${manualHtml.length} ตัวอักษร`);
+  check('/manual ไม่ใช่หน้าโค้ดของ GitHub', !manualHtml.includes('raw.githubusercontent') && !manualHtml.includes('github.com/woravik-ship-it'));
+  const firstImage = (manualHtml.match(/images\/[A-Za-z0-9._-]+\.png/) ?? [''])[0];
+  if (firstImage) {
+    const img = await fetch(`${BASE}/manual/${firstImage}`);
+    check('รูปในคู่มือโหลดได้', img.status === 200 && (img.headers.get('content-type') ?? '').includes('image'), `${firstImage} → HTTP ${img.status}`);
+  } else {
+    check('รูปในคู่มือโหลดได้', false, 'ไม่พบลิงก์รูปใน HTML');
+  }
+  const pdf = await fetch(`${BASE}/manual/RuneDominion-Manual-TH.pdf`, { method: 'HEAD' });
+  check('PDF เล่มเต็มเสิร์ฟได้', pdf.status === 200 && (pdf.headers.get('content-type') ?? '').includes('pdf'), `HTTP ${pdf.status} · ${pdf.headers.get('content-type')}`);
+  const escape = await fetch(`${BASE}/manual/../package.json`);
+  check('กันการเข้าถึงไฟล์นอกโฟลเดอร์คู่มือ', escape.status === 404 || escape.status === 400, `HTTP ${escape.status}`);
   await page.locator('[data-guide-faq="0"] button').click();
   await page.waitForTimeout(400);
   const faqOpen = await page.locator('[data-guide-faq="0"] p').count();

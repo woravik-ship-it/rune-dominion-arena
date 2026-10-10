@@ -16,6 +16,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { useI18n } from '@/components/providers/LocaleProvider';
 import {
   GUIDE_FAQ,
+  GUIDE_FULL_MANUAL_PDF_URL,
   GUIDE_FULL_MANUAL_URL,
   GUIDE_PLAN,
   GUIDE_SECTIONS,
@@ -216,6 +217,7 @@ export default function GuidePage() {
           <h2 className="text-lg font-bold text-gray-100">📚 {t('guide.fullTitle')}</h2>
           <p className="mt-2 text-sm leading-relaxed text-gray-300">{t('guide.fullDesc')}</p>
           <div className="mt-4 flex flex-wrap gap-2">
+            {/* ผู้ใช้แจ้ง 2026-10-08: ลิงก์เดิมไป GitHub แล้วเห็นเป็นโค้ด ⇒ เปลี่ยนมาเสิร์ฟจากในเกม (/manual) */}
             <a
               href={GUIDE_FULL_MANUAL_URL}
               target="_blank"
@@ -224,6 +226,15 @@ export default function GuidePage() {
               className="rounded-lg border border-amber-400/40 bg-amber-500/15 px-3 py-1.5 text-xs font-bold text-amber-200 hover:bg-amber-500/25"
             >
               {t('guide.fullLink')} ↗
+            </a>
+            <a
+              href={GUIDE_FULL_MANUAL_PDF_URL}
+              target="_blank"
+              rel="noreferrer"
+              data-guide-pdf-link
+              className="rounded-lg border border-white/15 bg-white/5 px-3 py-1.5 text-xs font-bold text-gray-200 hover:bg-white/10"
+            >
+              {t('guide.fullPdf')} ↗
             </a>
             <Link
               href="/"

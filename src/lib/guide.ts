@@ -34,9 +34,17 @@ export interface GuidePlanStep {
   href: string;
 }
 
-/** คู่มือฉบับเต็ม (ไฟล์ HTML 117 หน้าในซับโมดูลนี้) — เปิดอ่านเป็นเว็บ/สั่งพิมพ์เป็น PDF ได้ */
-export const GUIDE_FULL_MANUAL_URL =
-  'https://github.com/woravik-ship-it/rune-dominion-arena/blob/master/docs/manual/index.html';
+/**
+ * คู่มือฉบับเต็ม — เสิร์ฟจากในเกมที่ `/manual` (Phase 45.7.1)
+ *
+ * ผู้ใช้แจ้ง 2026-10-08: *"ทำไมคู่มือฉบับเต็ม ผมเปิดแล้วขึ้นเป็น Code ที่หน้า GitHub"*
+ * ⇒ เดิมชี้ไป GitHub (โชว์เป็นโค้ด ไม่เรนเดอร์ HTML) เปลี่ยนมาเสิร์ฟไฟล์จริงจาก `docs/manual`
+ *   ผ่าน route `/manual` (ดู `src/app/manual/[[...path]]/route.ts`) = โดเมนเดียวกับเกม เปิดอ่านได้เลย
+ */
+export const GUIDE_FULL_MANUAL_URL = '/manual';
+
+/** ไฟล์ PDF เล่มเต็ม (มีในโปรเจกต์) — เปิด/ดาวน์โหลดจากในเกมได้เช่นกัน */
+export const GUIDE_FULL_MANUAL_PDF_URL = '/manual/RuneDominion-Manual-TH.pdf';
 
 export const GUIDE_SECTIONS: GuideSection[] = [
   {
@@ -118,7 +126,7 @@ export const GUIDE_FAQ: GuideFaq[] = [
 
 /** คีย์ทั้งหมดที่หน้านี้ใช้ (ให้เทสต์ไล่ตรวจว่ามีในพจนานุกรมทั้ง 2 ภาษา) */
 export function guideI18nKeys(): string[] {
-  const keys = ['guide.title', 'guide.subtitle', 'guide.toc', 'guide.planTitle', 'guide.planHint', 'guide.faqTitle', 'guide.fullTitle', 'guide.fullDesc', 'guide.fullLink', 'guide.backHome', 'guide.tipTitle', 'guide.tipBody'];
+  const keys = ['guide.title', 'guide.subtitle', 'guide.toc', 'guide.planTitle', 'guide.planHint', 'guide.faqTitle', 'guide.fullTitle', 'guide.fullDesc', 'guide.fullLink', 'guide.fullPdf', 'guide.backHome', 'guide.tipTitle', 'guide.tipBody'];
   for (const section of GUIDE_SECTIONS) {
     keys.push(section.titleKey, ...section.bullets, ...(section.links ?? []).map((l) => l.labelKey));
   }

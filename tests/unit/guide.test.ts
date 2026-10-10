@@ -8,6 +8,7 @@ import { TH } from '@/lib/i18n/dict-th';
 import { EN } from '@/lib/i18n/dict-en';
 import {
   GUIDE_FAQ,
+  GUIDE_FULL_MANUAL_PDF_URL,
   GUIDE_FULL_MANUAL_URL,
   GUIDE_PLAN,
   GUIDE_SECTIONS,
@@ -63,10 +64,12 @@ describe('คู่มือผู้เล่นใหม่ (guide)', () => {
     }
   });
 
-  it('เมนู "คู่มือผู้เล่นใหม่" มีคีย์ชื่อเมนูทั้ง 2 ภาษา และลิงก์คู่มือฉบับเต็มเป็น https', () => {
+  it('เมนู "คู่มือผู้เล่นใหม่" มีคีย์ชื่อเมนูทั้ง 2 ภาษา และลิงก์คู่มือชี้ในเกม (ไม่ใช่ GitHub)', () => {
     expect(TH['nav.guide' as keyof typeof TH]).toBeTruthy();
     expect(EN['nav.guide' as keyof typeof EN]).toBeTruthy();
-    expect(GUIDE_FULL_MANUAL_URL.startsWith('https://')).toBe(true);
-    expect(GUIDE_FULL_MANUAL_URL).toContain('docs/manual/index.html');
+    // Phase 45.7.1 (ผู้ใช้แจ้ง): ลิงก์เดิมไป GitHub แล้วเห็นเป็นโค้ด ไม่ใช่คู่มือที่อ่านได้
+    expect(GUIDE_FULL_MANUAL_URL).toBe('/manual');
+    expect(GUIDE_FULL_MANUAL_URL.startsWith('http')).toBe(false);
+    expect(GUIDE_FULL_MANUAL_PDF_URL).toBe('/manual/RuneDominion-Manual-TH.pdf');
   });
 });
