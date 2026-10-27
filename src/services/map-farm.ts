@@ -94,29 +94,77 @@ function weightedPick(
   return entries[entries.length - 1]?.code ?? null;
 }
 
-/** ทีมศัตรูสุ่ม 1-5 ใบจากคลังการ์ดทั้งหมด */
+/**
+ * Phase 45.8 (2026-10-27): สุ่ม "ดัชนี" แบบไม่ซ้ำจากคลังทั้งก้อน — Partial Fisher–Yates แบบ sparse
+ * (เก็บเฉพาะค่าที่สลับไว้ใน Map ⇒ หน่วยความจำ O(count) ไม่ต้องคัดลอกทั้งคลัง)
+ *
+ * ทำไมแยกเป็นฟังก์ชันบริสุทธิ์: เทสต์การกระจาย/ความครอบคลุมได้โดยไม่ต้องมี DB
+ * rnd(n) ต้องคืนจำนวนเต็มในช่วง [0, n) — ในงานจริงส่ง node:crypto randomInt เข้ามา
+ */
+export function pickDistinctIndices(
+  poolSize: number,
+  count: number,
+  rnd: (n: number) => number
+): number[] {
+  if (!Number.isSafeInteger(poolSize) || poolSize < 0 || !Number.isSafeInteger(count)) {
+    throw new RangeError('poolSize/count must be safe integers; poolSize >= 0');
+  }
+  if (poolSize === 0 || count <= 0) return [];
+  const size = Math.min(count, poolSize);
+  const swapped = new Map<number, number>();
+  const result: number[] = [];
+  for (let i = 0; i < size; i++) {
+    const remaining = poolSize - i;
+    const offset = rnd(remaining);
+    if (!Number.isSafeInteger(offset) || offset < 0 || offset >= remaining) {
+      throw new RangeError('rnd(n) must return integer in [0, n)');
+    }
+    const picked = swapped.get(offset) ?? offset;
+    const last = remaining - 1;
+    swapped.set(offset, swapped.get(last) ?? last);
+    result.push(picked);
+  }
+  return result;
+}
+
+/**
+ * Phase 45.8 (2026-10-27): ทีมศัตรู 1–5 ใบ — สุ่มจาก **ทุกใบในคลัง**
+ *
+ * บั๊กเดิม (พบจากรีวิวโค้ดที่ผู้ใช้สั่งให้ ChatGPT ตรวจ 2026-10-27 · ตรวจซ้ำกับโค้ดจริงแล้ว):
+ *  - `take: 200` + `orderBy createdAt asc` ⇒ การ์ดที่ผู้เล่นค้นพบใหม่ (ลำดับเกิน 200) ไม่มีทางออกเป็นศัตรูเลย
+ *  - `slice(start, start + count)` ⇒ ทีมเป็นใบที่อยู่ติดกันตามลำดับสร้าง ไม่ใช่การสุ่มจริง
+ * ⇒ อ่าน id ทุกใบ (เรียง createdAt asc คงที่เพื่อให้ดัชนีนิ่ง) → สุ่มดัชนีไม่ซ้ำ → ดึงเฉพาะใบที่ได้
+ *   แล้ว **เรียงผลตามลำดับที่สุ่มได้** เพราะ buildBattleSeed ใช้ลำดับการ์ดเป็นส่วนหนึ่งของ seed
+ */
 async function buildRandomEnemyTeam(count: number): Promise<CombatCard[] | null> {
+  if (count <= 0) return null;
   const pool = await prisma.cardDefinition.findMany({
+    select: { id: true },
+    orderBy: { createdAt: 'asc' },
+  });
+  if (pool.length === 0) return null;
+
+  const indices = pickDistinctIndices(pool.length, count, (n) => randomInt(n));
+  const pickedIds = indices.map((i) => pool[i].id);
+  const cards = await prisma.cardDefinition.findMany({
+    where: { id: { in: pickedIds } },
     select: {
       id: true, name: true, nameTh: true, element: true,
       atk: true, def: true, hp: true, spd: true,
     },
-    take: 200,
-    orderBy: { createdAt: 'asc' },
   });
-  if (pool.length < 1) return null;
-  const start = randomInt(Math.max(1, pool.length - count + 1));
-  const picked = pool.slice(start, start + Math.min(count, pool.length));
-  return picked.map((c) => ({
-    cardId: c.id,
-    name: c.name,
-    nameTh: c.nameTh,
-    element: c.element,
-    atk: c.atk,
-    def: c.def,
-    hp: c.hp,
-    spd: c.spd,
-  }));
+  const byId = new Map(cards.map((card) => [card.id, card]));
+  // ใบที่ถูกลบระหว่างสองคำขอ → ข้ามใบนั้น (ไม่สร้างข้อมูลปลอม)
+  const team: CombatCard[] = [];
+  for (const id of pickedIds) {
+    const c = byId.get(id);
+    if (!c) continue;
+    team.push({
+      cardId: c.id, name: c.name, nameTh: c.nameTh, element: c.element,
+      atk: c.atk, def: c.def, hp: c.hp, spd: c.spd,
+    });
+  }
+  return team.length > 0 ? team : null;
 }
 
 export interface MapRewards {

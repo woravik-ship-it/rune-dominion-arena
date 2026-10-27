@@ -52,6 +52,7 @@
     "verify:collection": "node scripts/verify-collection.mjs",
     "verify:guide": "node scripts/verify-guide.mjs",
     "verify:map-zone": "node scripts/verify-map-current-zone.mjs",
+    "verify:map-enemy-pool": "tsx scripts/verify-map-enemy-pool.mts",
     "verify:dungeon-curve": "node scripts/verify-dungeon-curve.mjs",
     "clean:test-users": "node scripts/clean-test-users.mjs",
     "shoot:aura": "node scripts/shoot-aura-preview.mjs",
